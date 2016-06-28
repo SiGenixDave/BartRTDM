@@ -20,7 +20,7 @@
 TYPE_RTDM_STREAM_IF mStreamInfo;
 RtdmXmlStr RtdmXmlData;
 RTDMStream_str RTDMStreamData;
-RTDM_Struct RTDM_Sample_Array[1];
+RTDM_Struct m_RTDMSampleArray[1];
 STRM_Header_Struct STRM_Header_Array[1];
 RTDM_Header_Struct RTDM_Header_Array[1];
 

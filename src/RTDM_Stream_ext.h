@@ -24,7 +24,6 @@
 /* Add sample_size, samples checksum, and number of samples to size */
 #define SAMPLE_SIZE_ADJUSTMENT				8
 
-#define MAX_PCU_SIGNALS						24
 /****************************************************************************************/
 
 /* Data Log file which contains streams */

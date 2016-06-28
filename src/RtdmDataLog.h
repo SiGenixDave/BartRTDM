@@ -8,6 +8,6 @@
 #ifndef RTDMDATALOG_H_
 #define RTDMDATALOG_H_
 
-void Write_RTDM(void);
+void Write_RTDM (void);
 
 #endif /* RTDMDATALOG_H_ */

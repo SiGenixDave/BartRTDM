@@ -95,9 +95,9 @@
 #include "MyTypes.h"
 #endif
 
+#include "RTDM_Stream_ext.h"
 #include "RtdmXml.h"
 #include "RtdmStream.h"
-#include "RTDM_Stream_ext.h"
 
 /* RTDM */
 static void Populate_RTDM_Header(RtdmXmlStr *rtdmXmlData);
@@ -124,7 +124,6 @@ extern STRM_Header_Struct STRM_Header_Array[];
 extern UINT32 RTDM_Stream_Counter;
 extern RTDM_Header_Struct RTDM_Header_Array[];
 extern RTDMStream_str RTDMStreamData;
-extern RtdmXmlStr RtdmXmlData;
 
 
 void Write_RTDM(RtdmXmlStr *rtdmXmlData)

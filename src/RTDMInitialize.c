@@ -18,11 +18,11 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "RTDM_Stream_ext.h"
 #include "RtdmXml.h"
 #include "RtdmStream.h"
-#include "RTDM_Stream_ext.h"
 
-extern RTDM_Struct RTDM_Sample_Array[];
+extern RTDM_Struct m_RTDMSampleArray[];
 
 static UINT16 ReadXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
 
@@ -38,8 +38,7 @@ void RTDMInitialize(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 	// Read XML file
 	ReadXML(interface, rtdmXmlData);
 
-	/* Set buffer arrays to zero - has nothing to do with the network so do now */
-	memset(&RTDM_Sample_Array[0], 0, sizeof(RTDM_Struct));
+	InitRtdmSampleArray();
 
 }
 
