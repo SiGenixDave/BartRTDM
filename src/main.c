@@ -18,7 +18,7 @@
 #include "RTDM_Stream_ext.h"
 
 TYPE_RTDM_STREAM_IF mStreamInfo;
-RtdmXmlStr RtdmXmlData;
+extern RtdmXmlStr RtdmXmlData;
 RTDMStream_str RTDMStreamData;
 RTDM_Struct m_RTDMSampleArray[1];
 STRM_Header_Struct STRM_Header_Array[1];

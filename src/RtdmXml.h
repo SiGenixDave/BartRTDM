@@ -63,6 +63,6 @@ typedef struct
  *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-int ReadXmlFile (RtdmXmlStr *rtdmXmlData);
+int ReadXmlFile (void);
 
 #endif /* RTDMXML_H_ */

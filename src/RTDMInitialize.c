@@ -44,14 +44,13 @@ void RTDMInitialize(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 static UINT16 ReadXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
-	static BOOL xmlRead = FALSE;
 	UINT16 result;
 	UINT32 current_time_Sec;
 	UINT32 current_time_nano;
 	UINT16 errorCode = NO_ERROR;
 
 	// Read the XML file
-	errorCode = ReadXmlFile(rtdmXmlData);
+	errorCode = ReadXmlFile();
 
 	if (errorCode != NO_ERROR)
 	{

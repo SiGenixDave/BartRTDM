@@ -95,6 +95,8 @@
 #include "MyTypes.h"
 #endif
 
+#include <string.h>
+
 #include "RTDM_Stream_ext.h"
 #include "RtdmXml.h"
 #include "RtdmStream.h"
