@@ -27,18 +27,12 @@ static UINT16 ReadXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
 void RTDMInitialize(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
 
-	//TODO
-	// Check for existence of file marker file
-	// If it doesn't exist, create it
-	// If it does exist, verify contents
-	// Set file marker pointer to correct file
-
 	// Read XML file
 	ReadXML(interface, rtdmXmlData);
 
 	InitializeRtdmStream(rtdmXmlData);
 
-
+	InitializeDataLog(interface, rtdmXmlData);
 
 }
 

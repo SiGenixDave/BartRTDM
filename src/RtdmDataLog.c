@@ -96,15 +96,150 @@
 #endif
 
 #include <string.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "RTDM_Stream_ext.h"
 #include "RtdmXml.h"
 #include "RtdmStream.h"
 
+//#define ONE_HOUR        (60 * 60)
+#define ONE_HOUR        (10)
+#define LOG_RATE_MSECS  (50)
+
 /* RTDM */
 static void Populate_RTDM_Header (RtdmXmlStr *rtdmXmlData);
+static void OpenDanTracker (void);
 
 extern STRM_Header_Struct STRM_Header;
+
+static RTDM_Struct *m_RTDMDataLogPtr;
+static UINT32 m_RTDMDataLogIndex;
+static UINT16 m_DanFileIndex;
+
+/* The contents of this file is a filename. The filename indicates the last data log file
+ * that was written.
+ */
+static char *m_FileTracker = "DanFileTracker.txt";
+
+/* Each file contains an hours worth of data */
+static char *m_DanFilePtr[] =
+{
+    "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan",
+    "9.dan", "10.dan", "11.dan", "12.dan", "13.dan", "14.dan", "15.dan",
+    "16.dan", "17.dan", "18.dan", "19.dan", "20.dan", "21.dan", "22.dan",
+    "23.dan", "24.dan", };
+
+void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+{
+    UINT32 requiredMemorySize = 0;
+
+    /* allocate enough memory to hold 1 hours worth of data
+     * sizeof(RtdmXmlStr) * 1000 msecs / 50 msec sample rate * 60 seconds * 60 minutes */
+    requiredMemorySize =
+                    sizeof(RtdmXmlStr) * (1000 / LOG_RATE_MSECS) * ONE_HOUR;
+
+    m_RTDMDataLogPtr = (RTDM_Struct *) calloc (requiredMemorySize,
+                    sizeof(UINT8));
+
+    if (m_RTDMDataLogPtr == NULL)
+    {
+        // TODO flag error
+    }
+
+    m_RTDMDataLogIndex = 0;
+
+    OpenDanTracker ();
+
+}
+
+void ProcessDataLog (TYPE_RTDM_STREAM_IF *interface, RTDM_Struct *newSignalData,
+                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
+{
+    FILE *p_file = NULL;
+
+    const UINT32 MaxSamples = (1000 / LOG_RATE_MSECS) * ONE_HOUR;
+
+    memcpy (&m_RTDMDataLogPtr[m_RTDMDataLogIndex], newSignalData,
+                    sizeof(RTDM_Struct));
+
+    m_RTDMDataLogIndex++;
+
+    if (m_RTDMDataLogIndex >= MaxSamples)
+    {
+        if (os_io_fopen (m_DanFilePtr[m_DanFileIndex], "wb+", &p_file) != ERROR)
+        {
+            fseek (p_file, 0L, SEEK_SET);
+            fwrite(m_RTDMDataLogPtr, 1, sizeof(RTDM_Struct) * MaxSamples, p_file);
+            os_io_fclose(p_file);
+
+            if (os_io_fopen (m_FileTracker, "wb+", &p_file) != ERROR)
+            {
+                fseek (p_file, 0L, SEEK_SET);
+                fprintf(p_file, "%s", m_DanFilePtr[m_DanFileIndex]);
+                os_io_fclose(p_file);
+            }
+
+            m_DanFileIndex++;
+            if (m_DanFileIndex >= sizeof(m_DanFilePtr) / sizeof(char *))
+            {
+                m_DanFileIndex = 0;
+            }
+        }
+
+        m_RTDMDataLogIndex = 0;
+    }
+
+}
+
+static void OpenDanTracker (void)
+{
+    FILE *p_file = NULL;
+    INT32 numBytes = 0;
+    UINT16 danIndex = 0;
+    char danTrackerFileName[10];
+
+    if (os_io_fopen (m_FileTracker, "ab+", &p_file) != ERROR)
+    {
+        /* Get the number of bytes */
+        fseek (p_file, 0L, SEEK_END);
+        numBytes = ftell (p_file);
+
+        if (numBytes == 0)
+        {
+            /* File doesn't exist, so assume this is the first call */
+            os_io_fclose(p_file);
+        }
+        else
+        {
+            fseek (p_file, 0L, SEEK_SET);
+            danIndex = 0;
+            fgets (danTrackerFileName, 10, p_file);
+            while (danIndex < sizeof(m_DanFilePtr) / sizeof(char *))
+            {
+                if (!strcmp (m_DanFilePtr[danIndex], danTrackerFileName))
+                {
+                    break;
+                }
+                danIndex++;
+            }
+
+            danIndex++;
+            if (danIndex >= sizeof(m_DanFilePtr) / sizeof(char *))
+            {
+                danIndex = 0;
+            }
+            // Get the current file and start writing to the next one
+        }
+    }
+    else
+    {
+        // TODO process file error
+    }
+
+    m_DanFileIndex = danIndex;
+
+}
 
 /*******************************************************************************************
  *
@@ -171,7 +306,7 @@ void Write_RTDM (RtdmXmlStr *rtdmXmlData)
                 fseek (p_file1, 0L, SEEK_SET);
 
                 fseek (p_file1, DataLog_Info_str.RTDM_Header_Location_Offset,
-                                SEEK_SET);
+                SEEK_SET);
 
                 /* Re-Write RTDM Header with updated data */
                 fwrite (RTDM_Header_Array, 1, sizeof(RTDM_Header_Struct),

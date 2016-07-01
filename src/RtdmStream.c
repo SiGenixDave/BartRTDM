@@ -240,7 +240,7 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     OutputStream (interface, &newSignalData, networkAvailable, &errorCode,
                     rtdmXmlData, &currentTime);
 
-    //ProcessDataLog(interface, &newSignalData, rtdmXmlData, &currentTime);
+    ProcessDataLog(interface, &newSignalData, rtdmXmlData, &currentTime);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
