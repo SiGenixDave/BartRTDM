@@ -278,8 +278,6 @@ void Write_RTDM (RtdmXmlStr *rtdmXmlData)
             }
             else
             {
-                mon_broadcast_printf("RTDM_Stream.c - Could Not Open rtdm.dan file %s For Updating\n", RTDM_DATA_FILE); /* Test Print */
-
                 error_code_dan = OPEN_FAIL;
                 /* Log fault if persists */
             }
@@ -317,7 +315,6 @@ void Write_RTDM (RtdmXmlStr *rtdmXmlData)
                     }
 
                     line_count++;
-                    /*mon_broadcast_printf("Line Count %d\n", line_count);*/
                 }
 
                 /* More efficient to keep file open and call fflush without closing file */
@@ -329,8 +326,6 @@ void Write_RTDM (RtdmXmlStr *rtdmXmlData)
             }
             else
             {
-                mon_broadcast_printf("RTDM_Stream.c - Could Not Open rtdm.dan file %s For Updating\n", RTDM_DATA_FILE); /* Test Print */
-
                 error_code_dan = OPEN_FAIL;
                 /* Log fault if persists */
             }
@@ -433,7 +428,6 @@ static void Populate_RTDM_Header (RtdmXmlStr *rtdmXmlData)
 
     /* Number of Samples in current stream */
     RTDM_Header_Array[0].Num_Streams = RTDM_Stream_Counter;
-    /*mon_broadcast_printf("Num of Streams Header_Array[0] in populate RTDM header = %d\n", RTDM_Stream_Counter);*/
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
     rtdm_header_crc = 0;
@@ -443,7 +437,6 @@ static void Populate_RTDM_Header (RtdmXmlStr *rtdmXmlData)
                                     (sizeof(RTDM_Header_Array[0])
                                                     - RTDM_HEADER_CHECKSUM_ADJUST));
     RTDM_Header_Array[0].Header_Checksum = rtdm_header_crc;
-    /* mon_broadcast_printf("CRC-32 of &RTDM_Header_Array[0] in populate header = %x\n", rtdm_header_crc);   Test Print */
 
 } /* End Populate_RTDM_Header */
 

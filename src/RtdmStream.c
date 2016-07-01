@@ -106,28 +106,48 @@
 #include "Rtdmxml.h"
 #include "RtdmStream.h"
 
-/* TEST */
+/*******************************************************************
+ *
+ *     C  O  N  S  T  A  N  T  S
+ *
+ *******************************************************************/
 
+/*******************************************************************
+ *
+ *     E  N  U  M  S
+ *
+ *******************************************************************/
+
+/*******************************************************************
+ *
+ *    S  T  R  U  C  T  S
+ *
+ *******************************************************************/
+
+/*******************************************************************
+ *
+ *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
+ *
+ *******************************************************************/
 /* global interface pointer */
 TYPE_RTDM_STREAM_IF *m_Interface1Ptr = NULL;
 
-/* For system time */
-OS_STR_TIME_POSIX sys_posix_time;
-
 RTDMStream_str *m_RtdmStreamPtr = NULL;
 
-/* Number of streams sent out as Message Data */
-static UINT32 MD_Send_Counter = 0;
 /* # samples */
 static UINT16 m_SampleCount = 0;
 
-UINT8 populate_header_count = 0;
 /* Number of streams in RTDM.dan file */
 UINT32 RTDM_Stream_Counter = 0;
 
 static RTDM_Struct m_RtdmSampleArray;
 extern STRM_Header_Struct STRM_Header;
 
+/*******************************************************************
+ *
+ *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
+ *
+ *******************************************************************/
 static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode);
 static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
                 RTDM_Struct *newSignalData, BOOL networkAvailable,
@@ -142,6 +162,18 @@ static void PopulateSignalsWithNewSamples (RTDM_Struct *newData,
 static int GetEpochTime (RTDMTimeStr* currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
+
+/*******************************************************************************************
+ *
+ *
+ *   Parameters : None
+ *
+ *   Returned :  None
+ *
+ *   History :       11/11/2015    RC  - Creation
+ *   Revised :
+ *
+ ******************************************************************************************/
 
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
@@ -208,8 +240,7 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     OutputStream (interface, &newSignalData, networkAvailable, &errorCode,
                     rtdmXmlData, &currentTime);
 
-    //TODO ProcessDataLog(interface, &newSignalData, rtdmXmlData,
-    //                &currentTime);
+    //ProcessDataLog(interface, &newSignalData, rtdmXmlData, &currentTime);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -312,6 +343,12 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
 
     }
 
+    /* Save previousSendTimeSec always on the first call to this function */
+    if (previousSendTimeSec == 0)
+    {
+        previousSendTimeSec = currentTime->seconds;
+    }
+
 #if DAS
     //TODO Need to move/modify this... all about the data logger
 
@@ -330,7 +367,6 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
         Write_RTDM (rtdmXmlData);
         /* Toggle back to zero */
         m_Interface1Ptr->RTDMDataLogStop = 0;
-        mon_broadcast_printf("Got to rtdm_stream.c STOP\n");
     }
 
     if (DataLog_Info_str.RTDMDataLogWriteState == RESTART)
@@ -678,8 +714,6 @@ static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
     /* Set Last TimeStamp for RTDM Header */
     DataLog_Info_str.Stream_Last_TimeStamp_S = STRM_Header.TimeStamp_S;
     DataLog_Info_str.Stream_Last_TimeStamp_mS = STRM_Header.TimeStamp_mS;
-    /*mon_broadcast_printf("Last Stream Timestamp %lu  %lu\n",current_time_Sec,DataLog_Info_str.Stream_Last_TimeStamp_S);*/
-    /*mon_broadcast_printf("populate_header_count %d\n",populate_header_count);*/
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
     STRM_Header.TimeStamp_accuracy = m_Interface1Ptr->RTCTimeAccuracy;
@@ -707,10 +741,7 @@ static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
                     ((unsigned char*) &STRM_Header.Header_Version),
                     (sizeof(STRM_Header) - STREAM_HEADER_CHECKSUM_ADJUST));
     STRM_Header.Header_Checksum = stream_header_crc;
-    /* mon_broadcast_printf("CRC-32 of &STRM_Header_Array[0] in populate header = %x\n", stream_header_crc);  Test Print */
 
-    /* increment counter -  This is used for the timestamp */
-    populate_header_count++;
 
 } /* End Populate_Stream_Header */
 
@@ -733,6 +764,9 @@ static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
  ******************************************************************************************/
 static int GetEpochTime (RTDMTimeStr* currentTime)
 {
+    /* For system time */
+    OS_STR_TIME_POSIX sys_posix_time;
+
     /* Get TimeStamp */
     if (os_c_get (&sys_posix_time) == OK)
     {
@@ -775,7 +809,7 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
     UINT16 result = 0;
 
     /* No fault - return */
-    if (error_code == 0)
+    if (error_code == NO_ERROR)
     {
         return (0);
     }
@@ -794,7 +828,6 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
     if ((time_diff >= 10) && (trig_fault == FALSE))
     {
         trig_fault = TRUE;
-        mon_broadcast_printf("fault timer expired\n");mon_broadcast_printf("current time %d\n",current_time_Sec);mon_broadcast_printf("start time %d\n",start_time);mon_broadcast_printf("time diff %d\n",time_diff);
     }
 
     /* clear timers and flags */
@@ -830,6 +863,9 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
     UINT32 actual_buffer_size = 0;
     UINT16 ipt_result = 0;
     UINT16 errorCode = 0;
+
+    /* Number of streams sent out as Message Data */
+    static UINT32 MD_Send_Counter = 0;
 
     /* This is the actual buffer size as calculated below */
     actual_buffer_size = ((rtdmXmlData->max_main_buffer_count
@@ -1132,7 +1168,6 @@ void Populate_Header_Test(UINT32 samples_crc)
                     ((unsigned char*) &STRM_Header.Header_Version),
                     (sizeof(STRM_Header) - STREAM_HEADER_CHECKSUM_ADJUST));
     STRM_Header.Header_Checksum = stream_header_crc;
-    /* mon_broadcast_printf("CRC-32 of &STRM_Header_Array[0] in populate header = %x\n", stream_header_crc);  Test Print */
 
     /*********************************** End HEADER *************************************************************/
 

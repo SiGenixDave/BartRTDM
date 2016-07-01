@@ -427,7 +427,6 @@ static int FindSignals (char* pStringLocation1)
         pStringLocation1 = pStringLocation1 + strlen(xml_dataType) + 2;
         /* dataType is of type char, this needs converted to a # which will be used to calculate the MAX_BUFFER_SIZE */
         strncpy (temp_array, pStringLocation1, 5);
-        /* mon_broadcast_printf("The dataType is %s\n", temp_array);  Test Print */
         if ((strncmp (temp_array, xml_uint32, 5) == 0)
                         || (strncmp (temp_array, xml_int32, 5) == 0))
         {
@@ -480,7 +479,6 @@ void ReferenceOnly(void)
         /* Get the number of bytes */
         fseek (p_file, 0L, SEEK_END);
         numbytes = ftell (p_file);
-        mon_broadcast_printf("numbytes = %d\n",numbytes); /* Test Print */
 
         if (numbytes == 0)
         {
@@ -491,8 +489,6 @@ void ReferenceOnly(void)
             /* Get location of RTDM Header for future writes */
             fseek (p_file, 0L, SEEK_END);
             DataLog_Info_str.RTDM_Header_Location_Offset = ftell (p_file);
-            mon_broadcast_printf("Header Location from .xml (xml header is not present) %ld\n", DataLog_Info_str.RTDM_Header_Location_Offset);
-
             DataLog_Info_str.xml_header_is_present = TRUE;
         }
         else
@@ -514,8 +510,6 @@ void ReferenceOnly(void)
                     /* Get location of RTDM Header for future writes */
                     DataLog_Info_str.RTDM_Header_Location_Offset = ftell (
                                     p_file);
-                    mon_broadcast_printf("Header Location from .xml (xml header is present) %ld\n", DataLog_Info_str.RTDM_Header_Location_Offset);
-
                     break;
                 }
 
@@ -531,7 +525,6 @@ void ReferenceOnly(void)
     }
     else
     {
-        mon_broadcast_printf("RTDM_read_xml.c - Could Not Open rtdm.dan file %s For Writing\n", RTDM_DATA_FILE); /* Test Print */
         /* Do not return here - still need to get data from .xml config file and do the streaming */
         error_code_dan = OPEN_FAIL;
         /* Log fault if persists */
