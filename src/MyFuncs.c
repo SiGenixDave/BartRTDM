@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include "MyTypes.h"
+#include <sys\timeb.h>
 
 
 int os_io_fopen(char *fileName, char *arg, FILE **fp)
@@ -23,10 +24,11 @@ int os_io_fopen(char *fileName, char *arg, FILE **fp)
 
 int os_c_get(OS_STR_TIME_POSIX *sys_posix_time)
 {
-	// TODO get posix time on PC
+    struct timeb tm;
+    ftime(&tm);
 
-	sys_posix_time->sec = 10;
-	sys_posix_time->nanosec = 100;
+	sys_posix_time->sec = tm.time;
+	sys_posix_time->nanosec = tm.millitm * 1000000UL;
 
 	return OK;
 }

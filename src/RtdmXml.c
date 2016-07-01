@@ -95,6 +95,11 @@ typedef struct
  *******************************************************************/
 RtdmXmlStr RtdmXmlData;
 
+
+/* dynamically allocated buffer which contains the whole RTDMConfiguration_PCU.xml file */
+static char *m_ConfigXmlBufferPtr = NULL;
+
+
 const XMLConfigReader m_XmlConfigReader[] =
 {
 { "id", INTEGER_DTYPE, &RtdmXmlData.DataRecorderCfgID, NO_CONFIG_ID },
@@ -138,6 +143,8 @@ NO_MAX_TIME_BEFORE_SEND },
 static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr);
 static int OpenFileTrackerFile (void);
 static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index);
+static int FindSignals (char* pStringLocation1);
+
 
 /*********************************************************************************************************
  Open RTDMConfiguration_PCU.xml
@@ -150,34 +157,14 @@ static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index);
  ***********************************************************************************************************/
 int ReadXmlFile (void)
 {
-    FILE* p_file = NULL;
-    long numbytes;
-
-    char *configXmlBufferPtr = NULL; /* buffer which contains the whole RTDMConfiguration_PCU.xml file */
     char xml_DataRecorderCfg[] = "DataRecorderCfg";
-    char xml_signal_id[] = "Signal id";
-    char xml_dataType[] = "dataType";
-    char xml_uint32[] = "UINT3";
-    char xml_uint16[] = "UINT1";
-    char xml_uint8[] = "UINT8";
-    char xml_int16[] = "INT16";
-    char xml_int32[] = "INT32";
     char *pStringLocation1 = NULL;
-    char *pStringLocation3 = NULL;
-    char temp_array[5];
     int signal_count = 0;
-
-    unsigned int signalId = 0;
-    int dataType = 0;
     unsigned int i = 0;
-    char xml_RTDMCfg[] = "</RtdmCfg>";
-    char *pStringLocation = NULL;
-    char line[300];
-    UINT8 line_count = 0;
     int returnValue;
 
     // Try to open XML configuration file
-    returnValue = OpenXMLConfigurationFile (&configXmlBufferPtr);
+    returnValue = OpenXMLConfigurationFile (&m_ConfigXmlBufferPtr);
     if (returnValue != NO_ERROR)
     {
         return returnValue;
@@ -190,81 +177,11 @@ int ReadXmlFile (void)
         return returnValue;
     }
 
-
-    /********************************************************************************************/
-    /* Write the above RTDMConfiguration_PCU.xml file to the data recorder file rtdm.dan */
-    /* This is the required header for the rtdm.dan file */
-    /* The header will be written for a new device or if device was formatted to clear data */
-    /********************************************************************************************/
-    /* open file to check if the header is present */
-    /* 'ab+' is append, open, or create binary file */
-    if (os_io_fopen (RTDM_DATA_FILE, "ab+", &p_file) != ERROR)
-    {
-        /* Get the number of bytes */
-        fseek (p_file, 0L, SEEK_END);
-        numbytes = ftell (p_file);
-        mon_broadcast_printf("numbytes = %d\n",numbytes); /* Test Print */
-
-        if (numbytes == 0)
-        {
-            /* file does not exist, so we need to write the .xml header */
-            /* write RTDMConfiguration_PCU.xml to rtdm.dan, this is the required header (text format, not binary) */
-            fprintf (p_file, "%s\n", configXmlBufferPtr);
-
-            /* Get location of RTDM Header for future writes */
-            fseek (p_file, 0L, SEEK_END);
-            DataLog_Info_str.RTDM_Header_Location_Offset = ftell (p_file);
-            mon_broadcast_printf("Header Location from .xml (xml header is not present) %ld\n", DataLog_Info_str.RTDM_Header_Location_Offset);
-
-            DataLog_Info_str.xml_header_is_present = TRUE;
-        }
-        else
-        {
-            /* Get location of RTDM Header for future writes */
-            /* Go to beginning of file */
-            fseek (p_file, 0L, SEEK_SET);
-
-            while (fgets (line, 300, p_file) != NULL)
-            {
-                /* Find "</RtdmCfg>" in .dan file, the next line is the start of the RTDM header */
-                pStringLocation = strstr (line, xml_RTDMCfg);
-
-                if (pStringLocation != NULL)
-                {
-                    /* Cursor is now at the position 'R' of RTDM, this will be the start of the "RTDM" header */
-                    fseek (p_file, 0, SEEK_CUR);
-
-                    /* Get location of RTDM Header for future writes */
-                    DataLog_Info_str.RTDM_Header_Location_Offset = ftell (
-                                    p_file);
-                    mon_broadcast_printf("Header Location from .xml (xml header is present) %ld\n", DataLog_Info_str.RTDM_Header_Location_Offset);
-
-                    break;
-                }
-
-                line_count++;
-            }
-
-            /* .xml header is present so need to retrieve 1st timestamp and num streams from .dan */
-            /* still should check for </RtdmCfg> */
-            DataLog_Info_str.RTDMDataLogWriteState = RESTART;
-        }
-
-        os_io_fclose(p_file);
-    }
-    else
-    {
-        mon_broadcast_printf("RTDM_read_xml.c - Could Not Open rtdm.dan file %s For Writing\n", RTDM_DATA_FILE); /* Test Print */
-        /* Do not return here - still need to get data from .xml config file and do the streaming */
-        error_code_dan = OPEN_FAIL;
-        /* Log fault if persists */
-    }
-
     /***********************************************************************************************************************/
     /* This is where we extract the data from the config.xml file which gets sent to the stream data */
     /* DataRecorderCfg, id, version, enabled, and maxtime */
     /* Find DataRecorderCfg - pointer to text "DataRecorderCfg", pointer contains all remaining text in the file */
-    pStringLocation1 = strstr (configXmlBufferPtr, xml_DataRecorderCfg);
+    pStringLocation1 = strstr (m_ConfigXmlBufferPtr, xml_DataRecorderCfg);
 
     if (pStringLocation1 != NULL)
     {
@@ -275,7 +192,7 @@ int ReadXmlFile (void)
             errorCode = ProcessXmlFileParams (pStringLocation1, index);
             if (errorCode != NO_ERROR)
             {
-                free (configXmlBufferPtr);
+                free (m_ConfigXmlBufferPtr);
                 return errorCode;
             }
             index++;
@@ -311,75 +228,28 @@ int ReadXmlFile (void)
         if (RtdmXmlData.bufferSize < 2000)
         {
             /* buffer size is not big enough, will overload the CPU */
-            free (configXmlBufferPtr);
+            free (m_ConfigXmlBufferPtr);
             return (NO_BUFFERSIZE);
         }
-
-        /* Set pointer to remainder of the file/string */
-        pStringLocation3 = pStringLocation1;
 
         /***********************************************************************************************************************/
         /* start loop for finding signal Id's */
         /* This section determines which PCU variable are included in the stream sample and data recorder */
         /* find signal_id */
-        while ((pStringLocation3 = strstr (pStringLocation3, xml_signal_id))
-                        != NULL)
-        {
-            /* find signal_id */
-            pStringLocation3 = strstr (pStringLocation3, xml_signal_id);
-            /* move pointer to id # */
-            pStringLocation3 = pStringLocation3 + 11;
-            /* convert signal_id to a # and save as int */
-            sscanf (pStringLocation3, "%d", &signalId);
-            RtdmXmlData.signal_id_num[signal_count] = signalId;
-
-            /* find dataType */
-            pStringLocation3 = strstr (pStringLocation3, xml_dataType);
-            /* move pointer to dataType */
-            pStringLocation3 = pStringLocation3 + 10;
-            /* dataType is of type char, this needs converted to a # which will be used to calculate the MAX_BUFFER_SIZE */
-            strncpy (temp_array, pStringLocation3, 5);
-            /* mon_broadcast_printf("The dataType is %s\n", temp_array);  Test Print */
-
-            if ((strncmp (temp_array, xml_uint32, 5) == 0)
-                            || (strncmp (temp_array, xml_int32, 5) == 0))
-            {
-                dataType = 4;
-            }
-            else if ((strncmp (temp_array, xml_uint16, 5) == 0)
-                            || (strncmp (temp_array, xml_int16, 5) == 0))
-            {
-                dataType = 2;
-            }
-            else if ((strncmp (temp_array, xml_uint8, 5) == 0))
-            {
-                dataType = 1;
-            }
-            else
-            {
-                dataType = 1; /* default 1 */
-            }
-
-            RtdmXmlData.signal_id_size[signal_count] = dataType;
-
-            /* Count # of signals found in config.xml file */
-            signal_count++;
-            RtdmXmlData.signal_count = signal_count;
-
-        } /* End loop for finding signal ID's */
+        signal_count = FindSignals (pStringLocation1);
         /***********************************************************************************************************************/
     }
     else
     {
         /* DataRecorderCfg string not found */
         /* free the memory we used for the buffer */
-        free (configXmlBufferPtr);
+        free (m_ConfigXmlBufferPtr);
 
         return (NO_DATARECORDERCFG);
     }
 
     /* free the memory we used for the buffer */
-    free (configXmlBufferPtr);
+    free (m_ConfigXmlBufferPtr);
 
     /* Calculate the sample size as read from the config.xml file */
     /* don't care about the order (ID#), just the total bytes */
@@ -521,4 +391,153 @@ static int OpenFileTrackerFile (void)
 
     return (NO_ERROR);
 }
+
+static int FindSignals (char* pStringLocation1)
+{
+    const char xml_signal_id[] = "Signal id";
+    const char xml_dataType[] = "dataType";
+    const char xml_uint32[] = "UINT3";
+    const char xml_uint16[] = "UINT1";
+    const char xml_uint8[] = "UINT8";
+    const char xml_int16[] = "INT16";
+    const char xml_int32[] = "INT32";
+
+    uint16_t signal_count = 0;
+    uint16_t signalId = 0;
+    int16_t dataType;
+
+    char temp_array[5];
+
+    /***********************************************************************************************************************/
+    /* start loop for finding signal Id's */
+    /* This section determines which PCU variable are included in the stream sample and data recorder */
+    /* find signal_id */
+    while ((pStringLocation1 = strstr (pStringLocation1, xml_signal_id)) != NULL)
+    {
+        /* find signal_id */
+        pStringLocation1 = strstr (pStringLocation1, xml_signal_id);
+        /* move pointer to id # */
+        pStringLocation1 = pStringLocation1 + strlen(xml_signal_id) + 2;
+        /* convert signal_id to a # and save as int */
+        sscanf (pStringLocation1, "%u", &signalId);
+        RtdmXmlData.signal_id_num[signal_count] = signalId;
+        /* find dataType */
+        pStringLocation1 = strstr (pStringLocation1, xml_dataType);
+        /* move pointer to dataType */
+        pStringLocation1 = pStringLocation1 + strlen(xml_dataType) + 2;
+        /* dataType is of type char, this needs converted to a # which will be used to calculate the MAX_BUFFER_SIZE */
+        strncpy (temp_array, pStringLocation1, 5);
+        /* mon_broadcast_printf("The dataType is %s\n", temp_array);  Test Print */
+        if ((strncmp (temp_array, xml_uint32, 5) == 0)
+                        || (strncmp (temp_array, xml_int32, 5) == 0))
+        {
+            dataType = 4;
+        }
+        else if ((strncmp (temp_array, xml_uint16, 5) == 0)
+                        || (strncmp (temp_array, xml_int16, 5) == 0))
+        {
+            dataType = 2;
+        }
+        else if ((strncmp (temp_array, xml_uint8, 5) == 0))
+        {
+            dataType = 1;
+        }
+        else
+        {
+            dataType = 1; /* default 1 */
+        }
+
+        RtdmXmlData.signal_id_size[signal_count] = dataType;
+        /* Count # of signals found in config.xml file */
+        signal_count++;
+        RtdmXmlData.signal_count = signal_count;
+    }
+    /* End loop for finding signal ID's */
+    return signal_count;
+}
+
+#if DAS
+void ReferenceOnly(void)
+{
+    FILE* p_file = NULL;
+    long numbytes;
+    char xml_RTDMCfg[] = "</RtdmCfg>";
+    char *pStringLocation = NULL;
+    char line[300];
+    UINT8 line_count = 0;
+
+    //DAS Saved for later; not needed but saved for reference since we're going to be using multiple files
+
+    /********************************************************************************************/
+    /* Write the above RTDMConfiguration_PCU.xml file to the data recorder file rtdm.dan */
+    /* This is the required header for the rtdm.dan file */
+    /* The header will be written for a new device or if device was formatted to clear data */
+    /********************************************************************************************/
+    /* open file to check if the header is present */
+    /* 'ab+' is append, open, or create binary file */
+    if (os_io_fopen (RTDM_DATA_FILE, "ab+", &p_file) != ERROR)
+    {
+        /* Get the number of bytes */
+        fseek (p_file, 0L, SEEK_END);
+        numbytes = ftell (p_file);
+        mon_broadcast_printf("numbytes = %d\n",numbytes); /* Test Print */
+
+        if (numbytes == 0)
+        {
+            /* file does not exist, so we need to write the .xml header */
+            /* write RTDMConfiguration_PCU.xml to rtdm.dan, this is the required header (text format, not binary) */
+            fprintf (p_file, "%s\n", m_ConfigXmlBufferPtr);
+
+            /* Get location of RTDM Header for future writes */
+            fseek (p_file, 0L, SEEK_END);
+            DataLog_Info_str.RTDM_Header_Location_Offset = ftell (p_file);
+            mon_broadcast_printf("Header Location from .xml (xml header is not present) %ld\n", DataLog_Info_str.RTDM_Header_Location_Offset);
+
+            DataLog_Info_str.xml_header_is_present = TRUE;
+        }
+        else
+        {
+            /* Get location of RTDM Header for future writes */
+            /* Go to beginning of file */
+            fseek (p_file, 0L, SEEK_SET);
+
+            while (fgets (line, 300, p_file) != NULL)
+            {
+                /* Find "</RtdmCfg>" in .dan file, the next line is the start of the RTDM header */
+                pStringLocation = strstr (line, xml_RTDMCfg);
+
+                if (pStringLocation != NULL)
+                {
+                    /* Cursor is now at the position 'R' of RTDM, this will be the start of the "RTDM" header */
+                    fseek (p_file, 0, SEEK_CUR);
+
+                    /* Get location of RTDM Header for future writes */
+                    DataLog_Info_str.RTDM_Header_Location_Offset = ftell (
+                                    p_file);
+                    mon_broadcast_printf("Header Location from .xml (xml header is present) %ld\n", DataLog_Info_str.RTDM_Header_Location_Offset);
+
+                    break;
+                }
+
+                line_count++;
+            }
+
+            /* .xml header is present so need to retrieve 1st timestamp and num streams from .dan */
+            /* still should check for </RtdmCfg> */
+            DataLog_Info_str.RTDMDataLogWriteState = RESTART;
+        }
+
+        os_io_fclose(p_file);
+    }
+    else
+    {
+        mon_broadcast_printf("RTDM_read_xml.c - Could Not Open rtdm.dan file %s For Writing\n", RTDM_DATA_FILE); /* Test Print */
+        /* Do not return here - still need to get data from .xml config file and do the streaming */
+        error_code_dan = OPEN_FAIL;
+        /* Log fault if persists */
+    }
+
+}
+#endif
+
 

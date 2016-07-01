@@ -22,8 +22,6 @@
 #include "RtdmXml.h"
 #include "RtdmStream.h"
 
-extern RTDM_Struct m_RTDMSampleArray[];
-
 static UINT16 ReadXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
 
 void RTDMInitialize(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
@@ -38,7 +36,9 @@ void RTDMInitialize(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 	// Read XML file
 	ReadXML(interface, rtdmXmlData);
 
-	InitRtdmSampleArray();
+	InitializeRtdmStream(rtdmXmlData);
+
+
 
 }
 
@@ -64,12 +64,6 @@ static UINT16 ReadXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 	rtdmXmlData->max_main_buffer_count = ((rtdmXmlData->bufferSize
 			/ rtdmXmlData->sample_size) - 2);
 	interface->RTDMMainBuffCount = rtdmXmlData->max_main_buffer_count;
-
-	/* Set Time */
-	result = Get_Time(&current_time_Sec, &current_time_nano);
-	//TODO check result before setting time
-	//TODO not sure why this is here
-	// previous_send_time = current_time_Sec;
 
 	/* Set to interface so we can see in DCUTerm */
 	interface->RTDMSignalCount = rtdmXmlData->signal_count;

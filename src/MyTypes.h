@@ -24,11 +24,12 @@ typedef int32_t				INT32;
 typedef int8_t				INT8;
 
 typedef uint8_t				BOOL;
-
 typedef uint8_t				BYTE;
 typedef uint32_t			DWORD;
 typedef uint16_t			WORD;
 typedef uint8_t				OS_TIMEDATE48[6];
+
+
 
 typedef struct
 {

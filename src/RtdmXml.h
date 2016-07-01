@@ -40,7 +40,7 @@ typedef struct
     uint16_t NumberSamplesInFile;
     uint8_t FilesFullPolicy;
     uint16_t NumberSamplesBeforeSave;
-    uint16_t MaxTimeBeforeSaveMs;
+    uint16_t MaxTimeBeforeSaveMs;  /* max time between stream samples if data hasn't changed */
     uint8_t OutputStream_enabled;
     uint32_t comId;
     uint16_t bufferSize;

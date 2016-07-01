@@ -16,33 +16,34 @@
 #include "RtdmStream.h"
 #include "RTDMInitialize.h"
 #include "RTDM_Stream_ext.h"
+#include "MySleep.h"
 
 TYPE_RTDM_STREAM_IF mStreamInfo;
 extern RtdmXmlStr RtdmXmlData;
 RTDMStream_str RTDMStreamData;
-RTDM_Struct m_RTDMSampleArray[1];
-STRM_Header_Struct STRM_Header_Array[1];
+STRM_Header_Struct STRM_Header;
 RTDM_Header_Struct RTDM_Header_Array[1];
 
+int main (void)
+{
 
-int main(void) {
+    mStreamInfo.VNC_CarData_S_WhoAmISts = TRUE;
 
-	mStreamInfo.VNC_CarData_S_WhoAmISts = TRUE;
+    setvbuf (stdout, NULL, _IONBF, 0);
+    setvbuf (stderr, NULL, _IONBF, 0);
+#ifdef _DEBUG
+    setbuf(stdout,NULL); // this disables buffering for stdout.
+#endif
 
+    RTDMInitialize (&mStreamInfo, &RtdmXmlData);
 
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
-	#ifdef _DEBUG
-	setbuf(stdout,NULL); // this disables buffering for stdout.
-	#endif
+    //TODO Need to place in 50 msec loop
+    while (TRUE)
+    {
+        RTDM_Stream (&mStreamInfo, &RtdmXmlData);
+        MySleep (50);
+    }
 
-
-	RTDMInitialize(&mStreamInfo, &RtdmXmlData);
-
-	//TODO Need to place in 50 msec loop
-	while (TRUE)
-		RTDM_Stream(&mStreamInfo, &RtdmXmlData);
-
-	puts("!!!Hello World!!!"); /* prints !!!Hello World!!! */
-	return EXIT_SUCCESS;
+    puts ("!!!Hello World!!!"); /* prints !!!Hello World!!! */
+    return EXIT_SUCCESS;
 }

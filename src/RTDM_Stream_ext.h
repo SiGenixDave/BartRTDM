@@ -1,7 +1,6 @@
 #ifndef RTDM_STREAM_EXT_H
 #define RTDM_STREAM_EXT_H
 
-
 #ifndef TEST_ON_PC
 #include "rts_api.h"
 #endif
@@ -28,7 +27,6 @@
 
 /* Data Log file which contains streams */
 #define RTDM_DATA_FILE 				"rtdm.dan"
-
 
 /* RTDM Header Version */
 #define RTDM_HEADER_VERSION			2
@@ -74,130 +72,137 @@
 UINT8 error_code_dan;
 #define OPEN_FAIL					20
 
-
 #define FIFO_POLICY					100
 #define STOP_POLICY					101
 
 /* Main Stream buffer to be send out via MD message */
+typedef struct
+{
+    uint32_t seconds __attribute__ ((packed));
+    uint16_t msecs __attribute__ ((packed));
+    uint8_t accuracy;
+} TimeStampStr;
+
+typedef struct
+{
+    uint16_t ID_0 __attribute__ ((packed));
+    int32_t Value_0 __attribute__ ((packed));
+    uint16_t ID_1 __attribute__ ((packed));
+    int16_t Value_1 __attribute__ ((packed));
+    uint16_t ID_2 __attribute__ ((packed));
+    int16_t Value_2 __attribute__ ((packed));
+    uint16_t ID_3 __attribute__ ((packed));
+    int16_t Value_3 __attribute__ ((packed));
+    uint16_t ID_4 __attribute__ ((packed));
+    int16_t Value_4 __attribute__ ((packed));
+    uint16_t ID_5 __attribute__ ((packed));
+    int16_t Value_5 __attribute__ ((packed));
+    uint16_t ID_6 __attribute__ ((packed));
+    int16_t Value_6 __attribute__ ((packed));
+    uint16_t ID_7 __attribute__ ((packed));
+    int16_t Value_7 __attribute__ ((packed));
+    uint16_t ID_8 __attribute__ ((packed));
+    int32_t Value_8 __attribute__ ((packed));
+    uint16_t ID_9 __attribute__ ((packed));
+    uint32_t Value_9 __attribute__ ((packed));
+    uint16_t ID_10 __attribute__ ((packed));
+    uint8_t Value_10;
+    uint16_t ID_11 __attribute__ ((packed));
+    uint8_t Value_11;
+    uint16_t ID_12 __attribute__ ((packed));
+    uint8_t Value_12;
+    uint16_t ID_13 __attribute__ ((packed));
+    uint8_t Value_13;
+    uint16_t ID_14 __attribute__ ((packed));
+    uint8_t Value_14;
+    uint16_t ID_15 __attribute__ ((packed));
+    uint8_t Value_15;
+    uint16_t ID_16 __attribute__ ((packed));
+    uint8_t Value_16;
+    uint16_t ID_17 __attribute__ ((packed));
+    uint8_t Value_17;
+    uint16_t ID_18 __attribute__ ((packed));
+    uint8_t Value_18;
+    uint16_t ID_19 __attribute__ ((packed));
+    uint8_t Value_19;
+    uint16_t ID_20 __attribute__ ((packed));
+    uint8_t Value_20;
+    uint16_t ID_21 __attribute__ ((packed));
+    uint8_t Value_21;
+    uint16_t ID_22 __attribute__ ((packed));
+    uint8_t Value_22;
+    uint16_t ID_23 __attribute__ ((packed));
+    uint16_t Value_23 __attribute__ ((packed));
+
+} SignalStr;
 
 /* Structure to contain all variables in the samples */
 typedef struct
 {
-  uint32_t  TimeStamp_S			  	__attribute__ ((packed));
-  uint16_t 	TimeStamp_mS  			__attribute__ ((packed));
-  uint8_t  	TimeStamp_accuracy  							;
-  uint16_t  Num_Signals  			__attribute__ ((packed));
-  uint16_t  SigID_0  				__attribute__ ((packed));
-  int32_t 	SigValue_0  			__attribute__ ((packed));
-  uint16_t  SigID_1  				__attribute__ ((packed));
-  int16_t 	SigValue_1  			__attribute__ ((packed));
-  uint16_t  SigID_2  				__attribute__ ((packed));
-  int16_t 	SigValue_2  			__attribute__ ((packed));
-  uint16_t  SigID_3  				__attribute__ ((packed));
-  int16_t 	SigValue_3  			__attribute__ ((packed));
-  uint16_t  SigID_4  				__attribute__ ((packed));
-  int16_t 	SigValue_4  			__attribute__ ((packed)); 
-  uint16_t  SigID_5  				__attribute__ ((packed));
-  int16_t 	SigValue_5  			__attribute__ ((packed));
-  uint16_t  SigID_6  				__attribute__ ((packed));
-  int16_t 	SigValue_6  			__attribute__ ((packed));
-  uint16_t  SigID_7  				__attribute__ ((packed));
-  int16_t 	SigValue_7  			__attribute__ ((packed));
-  uint16_t  SigID_8  				__attribute__ ((packed));
-  int32_t 	SigValue_8  			__attribute__ ((packed));
-  uint16_t  SigID_9  				__attribute__ ((packed));
-  uint32_t 	SigValue_9  			__attribute__ ((packed));
-  uint16_t  SigID_10  				__attribute__ ((packed));
-  uint8_t 	SigValue_10  									;
-  uint16_t  SigID_11  				__attribute__ ((packed));
-  uint8_t 	SigValue_11  									;
-  uint16_t  SigID_12  				__attribute__ ((packed));
-  uint8_t 	SigValue_12  									;
-  uint16_t  SigID_13  				__attribute__ ((packed));
-  uint8_t 	SigValue_13  									;
-  uint16_t  SigID_14  				__attribute__ ((packed));
-  uint8_t 	SigValue_14  									;
-  uint16_t  SigID_15  				__attribute__ ((packed));
-  uint8_t 	SigValue_15  									;
-  uint16_t  SigID_16  				__attribute__ ((packed));
-  uint8_t 	SigValue_16  									;
-  uint16_t  SigID_17  				__attribute__ ((packed));
-  uint8_t 	SigValue_17  									;
-  uint16_t  SigID_18  				__attribute__ ((packed));
-  uint8_t 	SigValue_18  									;
-  uint16_t  SigID_19  				__attribute__ ((packed));
-  uint8_t 	SigValue_19  									;
-  uint16_t  SigID_20  				__attribute__ ((packed));
-  uint8_t 	SigValue_20  									;
-  uint16_t  SigID_21  				__attribute__ ((packed));
-  uint8_t 	SigValue_21  									;
-  uint16_t  SigID_22  				__attribute__ ((packed));
-  uint8_t 	SigValue_22  									;
-  uint16_t  SigID_23  				__attribute__ ((packed));
-  uint16_t 	SigValue_23  			__attribute__ ((packed));
+    TimeStampStr TimeStamp;
+    uint16_t Count __attribute__ ((packed));
+    SignalStr Signal;
 } RTDM_Struct;
 
 /* Structure to contain variables in the Stream header of the message */
 typedef struct
 {
-  char		Delimiter[4]		  								;
-  uint8_t  	Endiannes  											;
-  uint16_t 	Header_Size		  			__attribute__ ((packed));
-  uint32_t  Header_Checksum			  	__attribute__ ((packed));
-  uint8_t  	Header_Version  									;
-  uint8_t	Consist_ID[16]			  							;
-  uint8_t	Car_ID[16]				  							;
-  uint8_t	Device_ID[16]			  							;
-  uint16_t 	Data_Record_ID	  			__attribute__ ((packed));
-  uint16_t 	Data_Record_Version			__attribute__ ((packed));
-  uint32_t  TimeStamp_S			  		__attribute__ ((packed));
-  uint16_t 	TimeStamp_mS  				__attribute__ ((packed));
-  uint8_t  	TimeStamp_accuracy  								;
-  uint32_t  MDS_Receive_S		  		__attribute__ ((packed));
-  uint16_t  MDS_Receive_mS		  		__attribute__ ((packed));
-  uint16_t  Sample_Size_for_header 		__attribute__ ((packed));
-  uint32_t  Sample_Checksum		  		__attribute__ ((packed));
-  uint16_t  Num_Samples			  		__attribute__ ((packed));
+    char Delimiter[4];
+    uint8_t Endiannes;
+    uint16_t Header_Size __attribute__ ((packed));
+    uint32_t Header_Checksum __attribute__ ((packed));
+    uint8_t Header_Version;
+    uint8_t Consist_ID[16];
+    uint8_t Car_ID[16];
+    uint8_t Device_ID[16];
+    uint16_t Data_Record_ID __attribute__ ((packed));
+    uint16_t Data_Record_Version __attribute__ ((packed));
+    uint32_t TimeStamp_S __attribute__ ((packed));
+    uint16_t TimeStamp_mS __attribute__ ((packed));
+    uint8_t TimeStamp_accuracy;
+    uint32_t MDS_Receive_S __attribute__ ((packed));
+    uint16_t MDS_Receive_mS __attribute__ ((packed));
+    uint16_t Sample_Size_for_header __attribute__ ((packed));
+    uint32_t Sample_Checksum __attribute__ ((packed));
+    uint16_t Num_Samples __attribute__ ((packed));
 } STRM_Header_Struct;
 
 /* Structure to contain variables in the RTDM header of the message */
 typedef struct
 {
-  char		Delimiter[4]		  								;
-  uint8_t  	Endiannes  											;
-  uint16_t 	Header_Size		  			__attribute__ ((packed));
-  uint32_t  Header_Checksum			  	__attribute__ ((packed));
-  uint8_t  	Header_Version  									;
-  uint8_t	Consist_ID[16]			  							;
-  uint8_t	Car_ID[16]				  							;
-  uint8_t	Device_ID[16]			  							;
-  uint16_t 	Data_Record_ID	  			__attribute__ ((packed));
-  uint16_t 	Data_Record_Version			__attribute__ ((packed));
-  uint32_t  FirstTimeStamp_S	  		__attribute__ ((packed));
-  uint16_t 	FirstTimeStamp_mS  			__attribute__ ((packed));
-  uint32_t  LastTimeStamp_S		  		__attribute__ ((packed));
-  uint16_t 	LastTimeStamp_mS  			__attribute__ ((packed));
-  uint32_t  Num_Streams			  		__attribute__ ((packed));
+    char Delimiter[4];
+    uint8_t Endiannes;
+    uint16_t Header_Size __attribute__ ((packed));
+    uint32_t Header_Checksum __attribute__ ((packed));
+    uint8_t Header_Version;
+    uint8_t Consist_ID[16];
+    uint8_t Car_ID[16];
+    uint8_t Device_ID[16];
+    uint16_t Data_Record_ID __attribute__ ((packed));
+    uint16_t Data_Record_Version __attribute__ ((packed));
+    uint32_t FirstTimeStamp_S __attribute__ ((packed));
+    uint16_t FirstTimeStamp_mS __attribute__ ((packed));
+    uint32_t LastTimeStamp_S __attribute__ ((packed));
+    uint16_t LastTimeStamp_mS __attribute__ ((packed));
+    uint32_t Num_Streams __attribute__ ((packed));
 } RTDM_Header_Struct;
-
 
 /* Structure to contain all variables for Data Logging */
 struct DataLog_Info
 {
-  uint8_t  	RTDMDataLogStop;
-  uint8_t  	RTDMDataLogWriteState;
-  uint32_t  Stream_1st_TimeStamp_S;
-  uint16_t  Stream_1st_TimeStamp_mS;
-  uint32_t  Stream_Last_TimeStamp_S;
-  uint16_t  Stream_Last_TimeStamp_mS;
-  uint32_t  Num_of_Streams_Read_from_file;
-  uint8_t  	xml_header_is_present;
-  int32_t	RTDM_Header_Location_Offset;
+    uint8_t RTDMDataLogStop;
+    uint8_t RTDMDataLogWriteState;
+    uint32_t Stream_1st_TimeStamp_S;
+    uint16_t Stream_1st_TimeStamp_mS;
+    uint32_t Stream_Last_TimeStamp_S;
+    uint16_t Stream_Last_TimeStamp_mS;
+    uint32_t Num_of_Streams_Read_from_file;
+    uint8_t xml_header_is_present;
+    int32_t RTDM_Header_Location_Offset;
 };
 struct DataLog_Info DataLog_Info_str;
 
-void Write_RTDM();
-
+void Write_RTDM ();
 
 #endif
 

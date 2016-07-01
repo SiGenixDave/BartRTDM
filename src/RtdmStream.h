@@ -58,12 +58,19 @@ typedef struct
     uint8_t IBufferArray[] __attribute__ ((packed));
 } RTDMStream_str;
 
+typedef struct
+{
+    UINT32 seconds;
+    UINT32 nanoseconds;
+
+} RTDMTimeStr;
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-void InitRtdmSampleArray (void);
+void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
 void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
 
 #ifdef __cplusplus
