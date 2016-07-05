@@ -51,6 +51,7 @@
 #include <string.h>
 
 #include "RTDM_Stream_ext.h"
+#include "RtdmStream.h"
 #include "RtdmXml.h"
 
 /*******************************************************************
@@ -140,10 +141,47 @@ NO_MAX_TIME_BEFORE_SEND },
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+static int ReadXmlFile (void);
 static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr);
 static int OpenFileTrackerFile (void);
 static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index);
 static int FindSignals (char* pStringLocation1);
+
+
+UINT16 InitializeXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+{
+    UINT16 errorCode = NO_ERROR;
+
+    // Read the XML file
+    errorCode = ReadXmlFile();
+
+    if (errorCode != NO_ERROR)
+    {
+        //TODO
+        // if errorCode then need to log fault and inform that XML file read failed
+        return (errorCode);
+    }
+
+    /* Calculate MAX buffer size - subtract 2 to make room for Main Header - how many samples
+     * will fit into buffer size from .xml ex: 60,000 */
+    rtdmXmlData->max_main_buffer_count = ((rtdmXmlData->bufferSize
+            / rtdmXmlData->sample_size) - 2);
+    interface->RTDMMainBuffCount = rtdmXmlData->max_main_buffer_count;
+
+    /* Set to interface so we can see in DCUTerm */
+    interface->RTDMSignalCount = rtdmXmlData->signal_count;
+    interface->RTDMSampleSize = rtdmXmlData->sample_size;
+    interface->RTDMSendTime = rtdmXmlData->maxTimeBeforeSendMs;
+    interface->RTDMMainBuffSize = rtdmXmlData->bufferSize;
+
+    if (DataLog_Info_str.RTDMDataLogWriteState != RESTART)
+    {
+        DataLog_Info_str.RTDMDataLogWriteState = RUN;
+    }
+
+    return (NO_ERROR);
+}
+
 
 
 /*********************************************************************************************************
@@ -155,7 +193,7 @@ static int FindSignals (char* pStringLocation1);
  parse temp buffer for needed data
  free temp buffer
  ***********************************************************************************************************/
-int ReadXmlFile (void)
+static int ReadXmlFile (void)
 {
     char xml_DataRecorderCfg[] = "DataRecorderCfg";
     char *pStringLocation1 = NULL;

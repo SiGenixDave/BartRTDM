@@ -103,8 +103,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "RTDM_Stream_ext.h"
-#include "Rtdmxml.h"
 #include "RtdmStream.h"
+#include "Rtdmxml.h"
 
 /*******************************************************************
  *
@@ -140,6 +140,7 @@ static UINT16 m_SampleCount = 0;
 /* Number of streams in RTDM.dan file */
 UINT32 RTDM_Stream_Counter = 0;
 
+static SignalStr m_RtdmOldSample;
 static RTDM_Struct m_RtdmSampleArray;
 extern STRM_Header_Struct STRM_Header;
 
@@ -150,15 +151,21 @@ extern STRM_Header_Struct STRM_Header;
  *******************************************************************/
 static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode);
 static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
-                RTDM_Struct *newSignalData, BOOL networkAvailable,
+                SignalStr *newSignalData, BOOL networkAvailable,
                 UINT16 *errorCode, RtdmXmlStr *rtdmXmlData,
                 RTDMTimeStr *currentTime);
-static int Populate_Samples (RtdmXmlStr *rtdmXmlData,
-                RTDM_Struct *newSignalData, RTDMTimeStr *currentTime);
+static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
+                SignalStr *newSignalData, RTDMTimeStr *currentTime);
 static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
                 RTDMTimeStr *currentTime);
-static void PopulateSignalsWithNewSamples (RTDM_Struct *newData,
+static void PopulateSignalsWithNewSamples (SignalStr *newSignalData,
                 RtdmXmlStr *rtdmXmlData);
+
+static UINT16 PopulateBufferWithAllSignals (UINT8 signalBuffer[],
+                SignalStr *newSignalData);
+static UINT16 PopulateBufferWithChanges (UINT8 signalBuffer[],
+                RtdmXmlStr *rtdmXmlData, SignalStr *newSignalData);
+
 static int GetEpochTime (RTDMTimeStr* currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
@@ -179,6 +186,8 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
     memset (&m_RtdmSampleArray, 0, sizeof(RTDM_Struct));
+
+    memset (&m_RtdmOldSample, 0, sizeof(SignalStr));
 
     /* Allocate memory to store data according to buffer size from .xml file */
     m_RtdmStreamPtr = (RTDMStream_str *) calloc (
@@ -226,7 +235,7 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     RTDMTimeStr currentTime;
     BOOL networkAvailable = FALSE;
-    RTDM_Struct newSignalData;
+    SignalStr newSignalData;
 
     /* set global pointer to interface pointer */
     m_Interface1Ptr = interface;
@@ -240,7 +249,7 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     OutputStream (interface, &newSignalData, networkAvailable, &errorCode,
                     rtdmXmlData, &currentTime);
 
-    ProcessDataLog(interface, &newSignalData, rtdmXmlData, &currentTime);
+    ProcessDataLog (interface, &newSignalData, rtdmXmlData, &currentTime);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -271,7 +280,7 @@ static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 }
 
 static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
-                RTDM_Struct *newSignalData, BOOL networkAvailable,
+                SignalStr *newSignalData, BOOL networkAvailable,
                 UINT16 *errorCode, RtdmXmlStr *rtdmXmlData,
                 RTDMTimeStr *currentTime)
 {
@@ -280,6 +289,7 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
     UINT32 samplesCRC = 0;
     static UINT32 previousSendTimeSec = 0;
 
+    /* IS "networkAvailable" NEEDED ?????????????????? */
     if (!networkAvailable || !rtdmXmlData->OutputStream_enabled
                     || (*errorCode != NO_ERROR))
     {
@@ -288,7 +298,7 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
 
     /* Fill m_RtdmSampleArray with samples of data if data changed or the amount of time
      * between captures exceeds the allowed amount */
-    if (Populate_Samples (rtdmXmlData, newSignalData, currentTime))
+    if (PopulateSamples (rtdmXmlData, newSignalData, currentTime))
     {
         /* where to place sample into main buffer */
         /* i.e. (1 * 98) = iDataBuff[x] */
@@ -302,7 +312,7 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
 
         interface->RTDMSampleCount = m_SampleCount;
 
-        printf ("Sample Polpulated %d\n", m_SampleCount);
+        printf ("Sample Populated %d\n", m_SampleCount);
 
     }
 
@@ -394,15 +404,16 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
  *   Revised :
  *
  ******************************************************************************************/
-static int Populate_Samples (RtdmXmlStr *rtdmXmlData,
-                RTDM_Struct *newSignalData, RTDMTimeStr *currentTime)
+static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
+                SignalStr *newSignalData, RTDMTimeStr *currentTime)
 {
     int compareResult = 0;
     static UINT32 previousSampleTimeSec = 0;
     UINT32 timeDiffSec = 0;
+    UINT8 signalBuffer[200];
+    UINT16 signalChangeBufferSize;
 
-    compareResult = memcmp (&(m_RtdmSampleArray.Signal),
-                    &(newSignalData->Signal), sizeof(SignalStr));
+    compareResult = memcmp (&m_RtdmOldSample, newSignalData, sizeof(SignalStr));
 
     timeDiffSec = currentTime->seconds - previousSampleTimeSec;
 
@@ -417,11 +428,22 @@ static int Populate_Samples (RtdmXmlStr *rtdmXmlData,
 
     previousSampleTimeSec = currentTime->seconds;
 
-    /* Copy the new signals that will eventually be placed in the stream and data
-     * buffer.
-     */
-    memcpy (&m_RtdmSampleArray.Signal, &newSignalData->Signal,
-                    sizeof(SignalStr));
+    /* Populate buffer with all signals because timer expired or compression is disabled */
+    if ((timeDiffSec >= rtdmXmlData->MaxTimeBeforeSaveMs)
+                    || !rtdmXmlData->Compression_enabled)
+    {
+        signalChangeBufferSize = PopulateBufferWithAllSignals (signalBuffer,
+                        newSignalData);
+    }
+    else
+    {
+        /* Populate buffer with signals that changed */
+        signalChangeBufferSize = PopulateBufferWithChanges (signalBuffer,
+                        rtdmXmlData, newSignalData);
+    }
+
+    /* Always copy the new signals for the next comparison */
+    memcpy (&m_RtdmOldSample, newSignalData, sizeof(SignalStr));
 
     m_Interface1Ptr->RTDMSampleCount = m_SampleCount + 1;
 
@@ -440,16 +462,16 @@ static int Populate_Samples (RtdmXmlStr *rtdmXmlData,
     m_RtdmSampleArray.Count = rtdmXmlData->signal_count;
     /*********************************** End HEADER *************************************************************/
 
-    return (1);
+    return (signalChangeBufferSize);
 
-} /* End Populate_Samples() */
+} /* End PopulateSamples() */
 
-static void PopulateSignalsWithNewSamples (RTDM_Struct *newData,
+static void PopulateSignalsWithNewSamples (SignalStr *newData,
                 RtdmXmlStr *rtdmXmlData)
 {
     UINT16 i = 0;
 
-    memset (newData, 0, sizeof(RTDM_Struct));
+    memset (newData, 0, sizeof(SignalStr));
 
     /*********************************** SIGNALS ****************************************************************/
     /*  Load Samples with Signal data - Header plus SigID_1,SigValue_1 ... SigID_N,SigValue_N */
@@ -461,175 +483,376 @@ static void PopulateSignalsWithNewSamples (RTDM_Struct *newData,
 
             case 0:
                 /* Tractive Effort Request - lbs  - INT32 */
-                newData->Signal.ID_0 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_0 =
+                newData->ID_0 = rtdmXmlData->signal_id_num[i];
+                newData->Value_0 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.CTractEffortReq;
                 break;
 
             case 1:
                 /* DC Link Current A - INT16 */
-                newData->Signal.ID_1 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_1 =
+                newData->ID_1 = rtdmXmlData->signal_id_num[i];
+                newData->Value_1 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkCurr;
                 break;
 
             case 2:
                 /* DC Link Voltage - v  - INT16 */
-                newData->Signal.ID_2 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_2 =
+                newData->ID_2 = rtdmXmlData->signal_id_num[i];
+                newData->Value_2 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkVoltage;
                 break;
 
             case 3:
                 /* IDiffCurr - A   - INT16 */
-                newData->Signal.ID_3 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_3 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IDiffCurr;
+                newData->ID_3 = rtdmXmlData->signal_id_num[i];
+                newData->Value_3 = m_Interface1Ptr->oPCU_I1.Analog801.IDiffCurr;
                 break;
 
             case 4:
                 /* Line Current - INT16  */
-                newData->Signal.ID_4 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_4 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ILineCurr;
+                newData->ID_4 = rtdmXmlData->signal_id_num[i];
+                newData->Value_4 = m_Interface1Ptr->oPCU_I1.Analog801.ILineCurr;
                 break;
 
             case 5:
                 /* LineVoltage - V   - INT16 */
-                newData->Signal.ID_5 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_5 =
+                newData->ID_5 = rtdmXmlData->signal_id_num[i];
+                newData->Value_5 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.ILineVoltage;
                 break;
 
             case 6:
                 /* Rate - MPH - DIV/100 - INT16 */
-                newData->Signal.ID_6 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_6 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IRate;
+                newData->ID_6 = rtdmXmlData->signal_id_num[i];
+                newData->Value_6 = m_Interface1Ptr->oPCU_I1.Analog801.IRate;
                 break;
 
             case 7:
                 /* Rate Request - MPH - DIV/100   - INT16 */
-                newData->Signal.ID_7 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_7 =
+                newData->ID_7 = rtdmXmlData->signal_id_num[i];
+                newData->Value_7 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.IRateRequest;
                 break;
 
             case 8:
                 /* Tractive Effort Delivered - lbs - INT32 */
-                newData->Signal.ID_8 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_8 =
+                newData->ID_8 = rtdmXmlData->signal_id_num[i];
+                newData->Value_8 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.ITractEffortDeli;
                 break;
 
             case 9:
                 /* Odometer - MILES - DIV/10  - UINT32 */
-                newData->Signal.ID_9 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_9 =
+                newData->ID_9 = rtdmXmlData->signal_id_num[i];
+                newData->Value_9 =
                                 m_Interface1Ptr->oPCU_I1.Counter801.IOdometer;
                 break;
 
             case 10:
                 /* CHscbCmd - UINT8 */
-                newData->Signal.ID_10 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_10 =
+                newData->ID_10 = rtdmXmlData->signal_id_num[i];
+                newData->Value_10 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.CHscbCmd;
                 break;
 
             case 11:
                 /* CRunRelayCmd - UINT8  */
-                newData->Signal.ID_11 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_11 =
+                newData->ID_11 = rtdmXmlData->signal_id_num[i];
+                newData->Value_11 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.CRunRelayCmd;
                 break;
 
             case 12:
                 /* CCcContCmd - UINT8  */
-                newData->Signal.ID_12 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_12 =
+                newData->ID_12 = rtdmXmlData->signal_id_num[i];
+                newData->Value_12 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.CCcContCmd;
                 break;
 
             case 13:
                 /* DCU State - UINT8 */
-                newData->Signal.ID_13 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_13 =
+                newData->ID_13 = rtdmXmlData->signal_id_num[i];
+                newData->Value_13 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IDcuState;
                 break;
 
             case 14:
                 /* IDynBrkCutOut - UINT8 */
-                newData->Signal.ID_14 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_14 =
+                newData->ID_14 = rtdmXmlData->signal_id_num[i];
+                newData->Value_14 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IDynBrkCutOut;
                 break;
 
             case 15:
                 /* IMCSS Mode Select - UINT8 */
-                newData->Signal.ID_15 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_15 =
+                newData->ID_15 = rtdmXmlData->signal_id_num[i];
+                newData->Value_15 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IMCSSModeSel;
                 break;
 
             case 16:
                 /* PKO Status  - UINT8 */
-                newData->Signal.ID_16 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_16 =
+                newData->ID_16 = rtdmXmlData->signal_id_num[i];
+                newData->Value_16 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatus;
                 break;
 
             case 17:
                 /* IPKOStatusPKOnet  - UINT8 */
-                newData->Signal.ID_17 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_17 =
+                newData->ID_17 = rtdmXmlData->signal_id_num[i];
+                newData->Value_17 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatusPKOnet;
                 break;
 
             case 18:
                 /* IPropCutout  - UINT8 */
-                newData->Signal.ID_18 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_18 =
+                newData->ID_18 = rtdmXmlData->signal_id_num[i];
+                newData->Value_18 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IPropCutout;
                 break;
 
             case 19:
                 /* IPropSystMode  - UINT8 */
-                newData->Signal.ID_19 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_19 =
+                newData->ID_19 = rtdmXmlData->signal_id_num[i];
+                newData->Value_19 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IPropSystMode;
                 break;
 
             case 20:
                 /* IRegenCutOut  - UINT8 */
-                newData->Signal.ID_20 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_20 =
+                newData->ID_20 = rtdmXmlData->signal_id_num[i];
+                newData->Value_20 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.IRegenCutOut;
                 break;
 
             case 21:
                 /* ITractionSafeSts  - UINT8 */
-                newData->Signal.ID_21 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_21 =
+                newData->ID_21 = rtdmXmlData->signal_id_num[i];
+                newData->Value_21 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.ITractionSafeSts;
                 break;
 
             case 22:
                 /* PRailGapDet  - UINT8 */
-                newData->Signal.ID_22 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_22 =
+                newData->ID_22 = rtdmXmlData->signal_id_num[i];
+                newData->Value_22 =
                                 m_Interface1Ptr->oPCU_I1.Discrete801.PRailGapDet;
                 break;
 
             case 23:
                 /* ICarSpeed  - UINT16 */
-                newData->Signal.ID_23 = rtdmXmlData->signal_id_num[i];
-                newData->Signal.Value_23 =
+                newData->ID_23 = rtdmXmlData->signal_id_num[i];
+                newData->Value_23 =
                                 m_Interface1Ptr->oPCU_I1.Analog801.ICarSpeed;
                 break;
 
         } /* end switch */
 
     } /* end for */
+}
+
+static UINT16 PopulateBufferWithAllSignals (UINT8 signalBuffer[],
+                SignalStr *newSignalData)
+{
+    memcpy (signalBuffer, newSignalData, sizeof(SignalStr));
+
+    m_RtdmSampleArray.Count = 23;
+
+    return (sizeof(SignalStr));
+}
+
+static UINT16 PopulateBufferWithChanges (UINT8 signalBuffer[],
+                RtdmXmlStr *rtdmXmlData, SignalStr *newSignalData)
+{
+    UINT16 i = 0;
+    UINT16 signalChangeCount = 0;
+    UINT16 signalSize = 0;
+
+    memset (newSignalData, 0, sizeof(SignalStr));
+
+    /*********************************** SIGNALS ****************************************************************/
+    /*  Load Samples with Signal data - Header plus SigID_1,SigValue_1 ... SigID_N,SigValue_N */
+    for (i = 0; i < rtdmXmlData->signal_count; i++)
+    {
+        /* These ID's are fixed and cannot be changed */
+        switch (rtdmXmlData->signal_id_num[i])
+        {
+
+            case 0:
+                /* Tractive Effort Request - lbs  - INT32 */
+                newSignalData->ID_0 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_0 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.CTractEffortReq;
+                break;
+
+            case 1:
+                /* DC Link Current A - INT16 */
+                newSignalData->ID_1 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_1 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkCurr;
+                break;
+
+            case 2:
+                /* DC Link Voltage - v  - INT16 */
+                newSignalData->ID_2 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_2 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkVoltage;
+                break;
+
+            case 3:
+                /* IDiffCurr - A   - INT16 */
+                newSignalData->ID_3 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_3 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.IDiffCurr;
+                break;
+
+            case 4:
+                /* Line Current - INT16  */
+                newSignalData->ID_4 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_4 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.ILineCurr;
+                break;
+
+            case 5:
+                /* LineVoltage - V   - INT16 */
+                newSignalData->ID_5 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_5 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.ILineVoltage;
+                break;
+
+            case 6:
+                /* Rate - MPH - DIV/100 - INT16 */
+                newSignalData->ID_6 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_6 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.IRate;
+                break;
+
+            case 7:
+                /* Rate Request - MPH - DIV/100   - INT16 */
+                newSignalData->ID_7 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_7 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.IRateRequest;
+                break;
+
+            case 8:
+                /* Tractive Effort Delivered - lbs - INT32 */
+                newSignalData->ID_8 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_8 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.ITractEffortDeli;
+                break;
+
+            case 9:
+                /* Odometer - MILES - DIV/10  - UINT32 */
+                newSignalData->ID_9 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_9 =
+                                m_Interface1Ptr->oPCU_I1.Counter801.IOdometer;
+                break;
+
+            case 10:
+                /* CHscbCmd - UINT8 */
+                newSignalData->ID_10 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_10 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.CHscbCmd;
+                break;
+
+            case 11:
+                /* CRunRelayCmd - UINT8  */
+                newSignalData->ID_11 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_11 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.CRunRelayCmd;
+                break;
+
+            case 12:
+                /* CCcContCmd - UINT8  */
+                newSignalData->ID_12 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_12 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.CCcContCmd;
+                break;
+
+            case 13:
+                /* DCU State - UINT8 */
+                newSignalData->ID_13 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_13 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IDcuState;
+                break;
+
+            case 14:
+                /* IDynBrkCutOut - UINT8 */
+                newSignalData->ID_14 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_14 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IDynBrkCutOut;
+                break;
+
+            case 15:
+                /* IMCSS Mode Select - UINT8 */
+                newSignalData->ID_15 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_15 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IMCSSModeSel;
+                break;
+
+            case 16:
+                /* PKO Status  - UINT8 */
+                newSignalData->ID_16 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_16 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatus;
+                break;
+
+            case 17:
+                /* IPKOStatusPKOnet  - UINT8 */
+                newSignalData->ID_17 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_17 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatusPKOnet;
+                break;
+
+            case 18:
+                /* IPropCutout  - UINT8 */
+                newSignalData->ID_18 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_18 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IPropCutout;
+                break;
+
+            case 19:
+                /* IPropSystMode  - UINT8 */
+                newSignalData->ID_19 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_19 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IPropSystMode;
+                break;
+
+            case 20:
+                /* IRegenCutOut  - UINT8 */
+                newSignalData->ID_20 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_20 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.IRegenCutOut;
+                break;
+
+            case 21:
+                /* ITractionSafeSts  - UINT8 */
+                newSignalData->ID_21 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_21 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.ITractionSafeSts;
+                break;
+
+            case 22:
+                /* PRailGapDet  - UINT8 */
+                newSignalData->ID_22 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_22 =
+                                m_Interface1Ptr->oPCU_I1.Discrete801.PRailGapDet;
+                break;
+
+            case 23:
+                /* ICarSpeed  - UINT16 */
+                newSignalData->ID_23 = rtdmXmlData->signal_id_num[i];
+                newSignalData->Value_23 =
+                                m_Interface1Ptr->oPCU_I1.Analog801.ICarSpeed;
+                break;
+
+        } /* end switch */
+
+    } /* end for */
+
+    m_RtdmSampleArray.Count = signalChangeCount;
+
+    return (signalSize);
 
 }
 
@@ -741,7 +964,6 @@ static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
                     ((unsigned char*) &STRM_Header.Header_Version),
                     (sizeof(STRM_Header) - STREAM_HEADER_CHECKSUM_ADJUST));
     STRM_Header.Header_Checksum = stream_header_crc;
-
 
 } /* End Populate_Stream_Header */
 
@@ -1080,7 +1302,7 @@ void Populate_Samples_Test()
 
     /*********************************** END SIGNALS ************************************************************/
 
-} /* End Populate_Samples() */
+} /* End PopulateSamples() */
 
 void Populate_Header_Test(UINT32 samples_crc)
 {

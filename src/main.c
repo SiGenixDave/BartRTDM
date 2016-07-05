@@ -12,8 +12,8 @@
 #include <stdlib.h>
 
 #include "MyTypes.h"
-#include "RtdmXml.h"
 #include "RtdmStream.h"
+#include "RtdmXml.h"
 #include "RTDMInitialize.h"
 #include "RTDM_Stream_ext.h"
 #include "MySleep.h"

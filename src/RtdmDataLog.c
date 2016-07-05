@@ -100,17 +100,35 @@
 #include <stdlib.h>
 
 #include "RTDM_Stream_ext.h"
-#include "RtdmXml.h"
 #include "RtdmStream.h"
+#include "RtdmXml.h"
 
+/*******************************************************************
+ *
+ *     C  O  N  S  T  A  N  T  S
+ *
+ *******************************************************************/
 //#define ONE_HOUR        (60 * 60)
 #define ONE_HOUR        (10)
 #define LOG_RATE_MSECS  (50)
 
-/* RTDM */
-static void Populate_RTDM_Header (RtdmXmlStr *rtdmXmlData);
-static void OpenDanTracker (void);
+/*******************************************************************
+ *
+ *     E  N  U  M  S
+ *
+ *******************************************************************/
 
+/*******************************************************************
+ *
+ *    S  T  R  U  C  T  S
+ *
+ *******************************************************************/
+
+/*******************************************************************
+ *
+ *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
+ *
+ *******************************************************************/
 extern STRM_Header_Struct STRM_Header;
 
 static RTDM_Struct *m_RTDMDataLogPtr;
@@ -128,7 +146,17 @@ static char *m_DanFilePtr[] =
     "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan",
     "9.dan", "10.dan", "11.dan", "12.dan", "13.dan", "14.dan", "15.dan",
     "16.dan", "17.dan", "18.dan", "19.dan", "20.dan", "21.dan", "22.dan",
-    "23.dan", "24.dan", };
+    "23.dan", "24.dan", "25.dan"};
+
+/*******************************************************************
+ *
+ *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
+ *
+ *******************************************************************/
+static void Populate_RTDM_Header (RtdmXmlStr *rtdmXmlData);
+static void OpenDanTracker (void);
+
+
 
 void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -270,8 +298,6 @@ void Write_RTDM (RtdmXmlStr *rtdmXmlData)
     char line[300];
     FILE* p_file1 = NULL;
     static FILE* p_file1_saved_header_location = NULL;
-    UINT8 line_count = 0;
-    UINT32 temp_NumSamples = 0;
     static UINT8 temp_flag = 0;
     UINT32 buff_32[1];
     UINT32 *ptr_32 = NULL;
