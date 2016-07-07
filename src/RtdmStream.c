@@ -105,6 +105,7 @@
 #include "RTDM_Stream_ext.h"
 #include "RtdmStream.h"
 #include "Rtdmxml.h"
+#include "RtdmDataLog.h"
 
 /*******************************************************************
  *
@@ -135,14 +136,19 @@ TYPE_RTDM_STREAM_IF *m_Interface1Ptr = NULL;
 RTDMStream_str *m_RtdmStreamPtr = NULL;
 
 /* # samples */
+static UINT32 m_StreamBufferIndex = 0;
 static UINT16 m_SampleCount = 0;
 
 /* Number of streams in RTDM.dan file */
 UINT32 RTDM_Stream_Counter = 0;
 
-static SignalStr m_RtdmOldSample;
 static RTDM_Struct m_RtdmSampleArray;
 extern STRM_Header_Struct STRM_Header;
+
+/* Allocated dynamically after the amount of signals and signal data type is known */
+static UINT8 *m_NewSignalData = NULL;
+static UINT8 *m_OldSignalData = NULL;
+static UINT8 *m_ChangedSignalData = NULL;
 
 /*******************************************************************
  *
@@ -150,21 +156,17 @@ extern STRM_Header_Struct STRM_Header;
  *
  *******************************************************************/
 static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode);
-static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
-                SignalStr *newSignalData, BOOL networkAvailable,
-                UINT16 *errorCode, RtdmXmlStr *rtdmXmlData,
-                RTDMTimeStr *currentTime);
+static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
+                BOOL networkAvailable, UINT16 *errorCode,
+                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
 static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
-                SignalStr *newSignalData, RTDMTimeStr *currentTime);
+                RTDMTimeStr *currentTime);
 static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
                 RTDMTimeStr *currentTime);
-static void PopulateSignalsWithNewSamples (SignalStr *newSignalData,
-                RtdmXmlStr *rtdmXmlData);
+static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData);
 
-static UINT16 PopulateBufferWithAllSignals (UINT8 signalBuffer[],
-                SignalStr *newSignalData);
-static UINT16 PopulateBufferWithChanges (UINT8 signalBuffer[],
-                RtdmXmlStr *rtdmXmlData, SignalStr *newSignalData);
+static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData,
+                UINT16 *signalCount);
 
 static int GetEpochTime (RTDMTimeStr* currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
@@ -187,8 +189,6 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
     memset (&m_RtdmSampleArray, 0, sizeof(RTDM_Struct));
 
-    memset (&m_RtdmOldSample, 0, sizeof(SignalStr));
-
     /* Allocate memory to store data according to buffer size from .xml file */
     m_RtdmStreamPtr = (RTDMStream_str *) calloc (
                     sizeof(UINT16) + STREAM_HEADER_SIZE
@@ -196,6 +196,13 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
     /* size of buffer read from .xml file plus the size of the variable IBufferSize */
     m_RtdmStreamPtr->IBufferSize = rtdmXmlData->bufferSize + sizeof(UINT16);
+
+    m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
+                    sizeof(UINT8));
+    m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
+                    sizeof(UINT8));
+    m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
+                    sizeof(UINT8));
 
 }
 
@@ -232,24 +239,25 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     //DAS gets called every 50 msecs
     UINT16 result = 0;
     UINT16 errorCode = 0;
+    UINT16 numDataChangeBytes = 0;
 
     RTDMTimeStr currentTime;
     BOOL networkAvailable = FALSE;
-    SignalStr newSignalData;
 
     /* set global pointer to interface pointer */
     m_Interface1Ptr = interface;
 
     result = GetEpochTime (&currentTime);
 
-    PopulateSignalsWithNewSamples (&newSignalData, rtdmXmlData);
+    PopulateSignalsWithNewSamples (rtdmXmlData);
 
     networkAvailable = NetworkAvailable (interface, &errorCode);
 
-    OutputStream (interface, &newSignalData, networkAvailable, &errorCode,
+    numDataChangeBytes = OutputStream (interface, networkAvailable, &errorCode,
                     rtdmXmlData, &currentTime);
 
-    ProcessDataLog (interface, &newSignalData, rtdmXmlData, &currentTime);
+    ProcessDataLog (rtdmXmlData, &m_RtdmSampleArray, m_ChangedSignalData,
+                    numDataChangeBytes);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -279,50 +287,62 @@ static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 
 }
 
-static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
-                SignalStr *newSignalData, BOOL networkAvailable,
-                UINT16 *errorCode, RtdmXmlStr *rtdmXmlData,
-                RTDMTimeStr *currentTime)
+static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
+                BOOL networkAvailable, UINT16 *errorCode,
+                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
-    UINT32 mainBufferOffset = 0;
     UINT32 timeDiffSec = 0;
     UINT32 samplesCRC = 0;
+    UINT16 newChangedDataBytes = 0;
+    BOOL streamBecauseBufferFull = FALSE;
     static UINT32 previousSendTimeSec = 0;
 
     /* IS "networkAvailable" NEEDED ?????????????????? */
     if (!networkAvailable || !rtdmXmlData->OutputStream_enabled
                     || (*errorCode != NO_ERROR))
     {
-        return;
+        return (0);
     }
+
+    newChangedDataBytes = PopulateSamples (rtdmXmlData, currentTime);
 
     /* Fill m_RtdmSampleArray with samples of data if data changed or the amount of time
      * between captures exceeds the allowed amount */
-    if (PopulateSamples (rtdmXmlData, newSignalData, currentTime))
+    if (newChangedDataBytes != 0)
     {
-        /* where to place sample into main buffer */
-        /* i.e. (1 * 98) = iDataBuff[x] */
-        mainBufferOffset = (m_SampleCount * rtdmXmlData->sample_size);
 
-        /* Copy current sample into main buffer */
-        memcpy (&m_RtdmStreamPtr->IBufferArray[mainBufferOffset],
+        /* Copy the time stamp and signal count into main buffer */
+        memcpy (&m_RtdmStreamPtr->IBufferArray[m_StreamBufferIndex],
                         &m_RtdmSampleArray, sizeof(RTDM_Struct));
+
+        m_StreamBufferIndex += sizeof(RTDM_Struct);
+
+        /* Copy the changed data into main buffer */
+        memcpy (&m_RtdmStreamPtr->IBufferArray[m_StreamBufferIndex],
+                        m_ChangedSignalData, newChangedDataBytes);
+
+        m_StreamBufferIndex += newChangedDataBytes;
 
         m_SampleCount++;
 
-        interface->RTDMSampleCount = m_SampleCount;
+        printf ("Sample Populated %d\n", interface->RTDMSampleCount);
 
-        printf ("Sample Populated %d\n", m_SampleCount);
+    }
 
+    // TODO determine if next data change entry might overflow buffer
+    if ((m_StreamBufferIndex + rtdmXmlData->dataAllocationSize
+                    + sizeof(RTDM_Struct)) >= rtdmXmlData->bufferSize)
+    {
+        streamBecauseBufferFull = TRUE;
     }
 
     /* Check if its time to stream the data */
     timeDiffSec = currentTime->seconds - previousSendTimeSec;
 
     /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
-    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count)
+    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count) || (streamBecauseBufferFull)
                     || (timeDiffSec >= rtdmXmlData->maxTimeBeforeSendMs))
-                    && (previousSendTimeSec != 0))
+    && (previousSendTimeSec != 0))
     {
         /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
         STRM_Header.Num_Samples = m_SampleCount;
@@ -346,8 +366,10 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
 
         previousSendTimeSec = currentTime->seconds;
 
-        /* Reset the sample count */
+        /* Reset the sample count and the buffer index */
         m_SampleCount = 0;
+        m_StreamBufferIndex = 0;
+
 
         printf ("STREAM SENT %d\n", m_SampleCount);
 
@@ -358,6 +380,10 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
     {
         previousSendTimeSec = currentTime->seconds;
     }
+
+    interface->RTDMSampleCount = m_SampleCount;
+
+    return (newChangedDataBytes);
 
 #if DAS
     //TODO Need to move/modify this... all about the data logger
@@ -405,15 +431,16 @@ static void OutputStream (TYPE_RTDM_STREAM_IF *interface,
  *
  ******************************************************************************************/
 static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
-                SignalStr *newSignalData, RTDMTimeStr *currentTime)
+                RTDMTimeStr *currentTime)
 {
     int compareResult = 0;
     static UINT32 previousSampleTimeSec = 0;
     UINT32 timeDiffSec = 0;
-    UINT8 signalBuffer[200];
-    UINT16 signalChangeBufferSize;
+    UINT16 signalChangeBufferSize = 0;
+    UINT16 signalCount = 0;
 
-    compareResult = memcmp (&m_RtdmOldSample, newSignalData, sizeof(SignalStr));
+    compareResult = memcmp (m_OldSignalData, m_NewSignalData,
+                    rtdmXmlData->dataAllocationSize);
 
     timeDiffSec = currentTime->seconds - previousSampleTimeSec;
 
@@ -432,20 +459,20 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
     if ((timeDiffSec >= rtdmXmlData->MaxTimeBeforeSaveMs)
                     || !rtdmXmlData->Compression_enabled)
     {
-        signalChangeBufferSize = PopulateBufferWithAllSignals (signalBuffer,
-                        newSignalData);
+        memcpy (m_ChangedSignalData, m_NewSignalData,
+                        rtdmXmlData->dataAllocationSize);
+        signalChangeBufferSize = rtdmXmlData->dataAllocationSize;
+        signalCount = rtdmXmlData->signal_count;
     }
     else
     {
         /* Populate buffer with signals that changed */
-        signalChangeBufferSize = PopulateBufferWithChanges (signalBuffer,
-                        rtdmXmlData, newSignalData);
+        signalChangeBufferSize = PopulateBufferWithChanges (rtdmXmlData,
+                        &signalCount);
     }
 
     /* Always copy the new signals for the next comparison */
-    memcpy (&m_RtdmOldSample, newSignalData, sizeof(SignalStr));
-
-    m_Interface1Ptr->RTDMSampleCount = m_SampleCount + 1;
+    memcpy (m_OldSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
 
     /*********************************** HEADER ****************************************************************/
     /* TimeStamp - Seconds */
@@ -459,400 +486,115 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
     m_RtdmSampleArray.TimeStamp.accuracy = m_Interface1Ptr->RTCTimeAccuracy;
 
     /* Number of Signals in current sample*/
-    m_RtdmSampleArray.Count = rtdmXmlData->signal_count;
+    m_RtdmSampleArray.Count = signalCount;
+    //DAS printf("Signal Count = %d\n", signalCount);
     /*********************************** End HEADER *************************************************************/
 
     return (signalChangeBufferSize);
 
 } /* End PopulateSamples() */
 
-static void PopulateSignalsWithNewSamples (SignalStr *newData,
-                RtdmXmlStr *rtdmXmlData)
+static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
 {
     UINT16 i = 0;
+    UINT16 bufferIndex = 0;
+    UINT16 variableSize = 0;
 
-    memset (newData, 0, sizeof(SignalStr));
+    memset (m_NewSignalData, 0, sizeof(rtdmXmlData->dataAllocationSize));
 
-    /*********************************** SIGNALS ****************************************************************/
-    /*  Load Samples with Signal data - Header plus SigID_1,SigValue_1 ... SigID_N,SigValue_N */
     for (i = 0; i < rtdmXmlData->signal_count; i++)
     {
-        /* These ID's are fixed and cannot be changed */
-        switch (rtdmXmlData->signal_id_num[i])
+        /* Copy the signal Id */
+        memcpy (&m_NewSignalData[bufferIndex],
+                        &rtdmXmlData->signalDesription[i].id, sizeof(UINT16));
+        bufferIndex += sizeof(UINT16);
+
+        /* Copy the contents of the variable */
+        switch (rtdmXmlData->signalDesription[i].signalType)
         {
-
-            case 0:
-                /* Tractive Effort Request - lbs  - INT32 */
-                newData->ID_0 = rtdmXmlData->signal_id_num[i];
-                newData->Value_0 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.CTractEffortReq;
+            case UINT8_XML_TYPE:
+            case INT8_XML_TYPE:
+            default:
+                variableSize = 1;
                 break;
 
-            case 1:
-                /* DC Link Current A - INT16 */
-                newData->ID_1 = rtdmXmlData->signal_id_num[i];
-                newData->Value_1 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkCurr;
+            case UINT16_XML_TYPE:
+            case INT16_XML_TYPE:
+                variableSize = 2;
                 break;
 
-            case 2:
-                /* DC Link Voltage - v  - INT16 */
-                newData->ID_2 = rtdmXmlData->signal_id_num[i];
-                newData->Value_2 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkVoltage;
+            case UINT32_XML_TYPE:
+            case INT32_XML_TYPE:
+                variableSize = 4;
                 break;
 
-            case 3:
-                /* IDiffCurr - A   - INT16 */
-                newData->ID_3 = rtdmXmlData->signal_id_num[i];
-                newData->Value_3 = m_Interface1Ptr->oPCU_I1.Analog801.IDiffCurr;
-                break;
+        }
 
-            case 4:
-                /* Line Current - INT16  */
-                newData->ID_4 = rtdmXmlData->signal_id_num[i];
-                newData->Value_4 = m_Interface1Ptr->oPCU_I1.Analog801.ILineCurr;
-                break;
+        memcpy (&m_NewSignalData[bufferIndex],
+                        rtdmXmlData->signalDesription[i].variableAddr,
+                        variableSize);
+        bufferIndex += variableSize;
+    }
 
-            case 5:
-                /* LineVoltage - V   - INT16 */
-                newData->ID_5 = rtdmXmlData->signal_id_num[i];
-                newData->Value_5 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ILineVoltage;
-                break;
-
-            case 6:
-                /* Rate - MPH - DIV/100 - INT16 */
-                newData->ID_6 = rtdmXmlData->signal_id_num[i];
-                newData->Value_6 = m_Interface1Ptr->oPCU_I1.Analog801.IRate;
-                break;
-
-            case 7:
-                /* Rate Request - MPH - DIV/100   - INT16 */
-                newData->ID_7 = rtdmXmlData->signal_id_num[i];
-                newData->Value_7 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IRateRequest;
-                break;
-
-            case 8:
-                /* Tractive Effort Delivered - lbs - INT32 */
-                newData->ID_8 = rtdmXmlData->signal_id_num[i];
-                newData->Value_8 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ITractEffortDeli;
-                break;
-
-            case 9:
-                /* Odometer - MILES - DIV/10  - UINT32 */
-                newData->ID_9 = rtdmXmlData->signal_id_num[i];
-                newData->Value_9 =
-                                m_Interface1Ptr->oPCU_I1.Counter801.IOdometer;
-                break;
-
-            case 10:
-                /* CHscbCmd - UINT8 */
-                newData->ID_10 = rtdmXmlData->signal_id_num[i];
-                newData->Value_10 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.CHscbCmd;
-                break;
-
-            case 11:
-                /* CRunRelayCmd - UINT8  */
-                newData->ID_11 = rtdmXmlData->signal_id_num[i];
-                newData->Value_11 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.CRunRelayCmd;
-                break;
-
-            case 12:
-                /* CCcContCmd - UINT8  */
-                newData->ID_12 = rtdmXmlData->signal_id_num[i];
-                newData->Value_12 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.CCcContCmd;
-                break;
-
-            case 13:
-                /* DCU State - UINT8 */
-                newData->ID_13 = rtdmXmlData->signal_id_num[i];
-                newData->Value_13 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IDcuState;
-                break;
-
-            case 14:
-                /* IDynBrkCutOut - UINT8 */
-                newData->ID_14 = rtdmXmlData->signal_id_num[i];
-                newData->Value_14 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IDynBrkCutOut;
-                break;
-
-            case 15:
-                /* IMCSS Mode Select - UINT8 */
-                newData->ID_15 = rtdmXmlData->signal_id_num[i];
-                newData->Value_15 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IMCSSModeSel;
-                break;
-
-            case 16:
-                /* PKO Status  - UINT8 */
-                newData->ID_16 = rtdmXmlData->signal_id_num[i];
-                newData->Value_16 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatus;
-                break;
-
-            case 17:
-                /* IPKOStatusPKOnet  - UINT8 */
-                newData->ID_17 = rtdmXmlData->signal_id_num[i];
-                newData->Value_17 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatusPKOnet;
-                break;
-
-            case 18:
-                /* IPropCutout  - UINT8 */
-                newData->ID_18 = rtdmXmlData->signal_id_num[i];
-                newData->Value_18 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPropCutout;
-                break;
-
-            case 19:
-                /* IPropSystMode  - UINT8 */
-                newData->ID_19 = rtdmXmlData->signal_id_num[i];
-                newData->Value_19 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPropSystMode;
-                break;
-
-            case 20:
-                /* IRegenCutOut  - UINT8 */
-                newData->ID_20 = rtdmXmlData->signal_id_num[i];
-                newData->Value_20 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IRegenCutOut;
-                break;
-
-            case 21:
-                /* ITractionSafeSts  - UINT8 */
-                newData->ID_21 = rtdmXmlData->signal_id_num[i];
-                newData->Value_21 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.ITractionSafeSts;
-                break;
-
-            case 22:
-                /* PRailGapDet  - UINT8 */
-                newData->ID_22 = rtdmXmlData->signal_id_num[i];
-                newData->Value_22 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.PRailGapDet;
-                break;
-
-            case 23:
-                /* ICarSpeed  - UINT16 */
-                newData->ID_23 = rtdmXmlData->signal_id_num[i];
-                newData->Value_23 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ICarSpeed;
-                break;
-
-        } /* end switch */
-
-    } /* end for */
 }
 
-static UINT16 PopulateBufferWithAllSignals (UINT8 signalBuffer[],
-                SignalStr *newSignalData)
-{
-    memcpy (signalBuffer, newSignalData, sizeof(SignalStr));
-
-    m_RtdmSampleArray.Count = 23;
-
-    return (sizeof(SignalStr));
-}
-
-static UINT16 PopulateBufferWithChanges (UINT8 signalBuffer[],
-                RtdmXmlStr *rtdmXmlData, SignalStr *newSignalData)
+static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData,
+                UINT16 *signalCount)
 {
     UINT16 i = 0;
-    UINT16 signalChangeCount = 0;
-    UINT16 signalSize = 0;
+    UINT16 dataIndex = 0;
+    UINT16 signalIndex = 0;
+    UINT16 changedIndex = 0;
 
-    memset (newSignalData, 0, sizeof(SignalStr));
+    UINT16 variableSize = 0;
+    UINT16 compareResult = 0;
 
-    /*********************************** SIGNALS ****************************************************************/
-    /*  Load Samples with Signal data - Header plus SigID_1,SigValue_1 ... SigID_N,SigValue_N */
+    memset (m_ChangedSignalData, 0, sizeof(rtdmXmlData->dataAllocationSize));
+
     for (i = 0; i < rtdmXmlData->signal_count; i++)
     {
-        /* These ID's are fixed and cannot be changed */
-        switch (rtdmXmlData->signal_id_num[i])
+        switch (rtdmXmlData->signalDesription[i].signalType)
         {
-
-            case 0:
-                /* Tractive Effort Request - lbs  - INT32 */
-                newSignalData->ID_0 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_0 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.CTractEffortReq;
+            case UINT8_XML_TYPE:
+            case INT8_XML_TYPE:
+            default:
+                variableSize = 1;
                 break;
 
-            case 1:
-                /* DC Link Current A - INT16 */
-                newSignalData->ID_1 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_1 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkCurr;
+            case UINT16_XML_TYPE:
+            case INT16_XML_TYPE:
+                variableSize = 2;
                 break;
 
-            case 2:
-                /* DC Link Voltage - v  - INT16 */
-                newSignalData->ID_2 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_2 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IDcLinkVoltage;
+            case UINT32_XML_TYPE:
+            case INT32_XML_TYPE:
+                variableSize = 4;
                 break;
+        }
+        /* Set the dataIndex 2 bytes beyond the signal Id */
+        dataIndex += sizeof(UINT16);
 
-            case 3:
-                /* IDiffCurr - A   - INT16 */
-                newSignalData->ID_3 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_3 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IDiffCurr;
-                break;
+        compareResult = memcmp (&m_NewSignalData[dataIndex],
+                        &m_OldSignalData[dataIndex], variableSize);
 
-            case 4:
-                /* Line Current - INT16  */
-                newSignalData->ID_4 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_4 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ILineCurr;
-                break;
+        if (compareResult != 0)
+        {
+            /* Start copying the from the signal Id and copy Id and data */
+            memcpy (&m_ChangedSignalData[changedIndex],
+                            &m_NewSignalData[signalIndex],
+                            sizeof(UINT16) + variableSize);
+            changedIndex += sizeof(UINT16) + variableSize;
+            (*signalCount)++;
+        }
 
-            case 5:
-                /* LineVoltage - V   - INT16 */
-                newSignalData->ID_5 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_5 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ILineVoltage;
-                break;
+        /* Move on to next signal */
+        signalIndex += sizeof(UINT16) + variableSize;
+        dataIndex = signalIndex;
 
-            case 6:
-                /* Rate - MPH - DIV/100 - INT16 */
-                newSignalData->ID_6 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_6 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IRate;
-                break;
+    }
 
-            case 7:
-                /* Rate Request - MPH - DIV/100   - INT16 */
-                newSignalData->ID_7 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_7 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.IRateRequest;
-                break;
-
-            case 8:
-                /* Tractive Effort Delivered - lbs - INT32 */
-                newSignalData->ID_8 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_8 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ITractEffortDeli;
-                break;
-
-            case 9:
-                /* Odometer - MILES - DIV/10  - UINT32 */
-                newSignalData->ID_9 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_9 =
-                                m_Interface1Ptr->oPCU_I1.Counter801.IOdometer;
-                break;
-
-            case 10:
-                /* CHscbCmd - UINT8 */
-                newSignalData->ID_10 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_10 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.CHscbCmd;
-                break;
-
-            case 11:
-                /* CRunRelayCmd - UINT8  */
-                newSignalData->ID_11 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_11 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.CRunRelayCmd;
-                break;
-
-            case 12:
-                /* CCcContCmd - UINT8  */
-                newSignalData->ID_12 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_12 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.CCcContCmd;
-                break;
-
-            case 13:
-                /* DCU State - UINT8 */
-                newSignalData->ID_13 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_13 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IDcuState;
-                break;
-
-            case 14:
-                /* IDynBrkCutOut - UINT8 */
-                newSignalData->ID_14 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_14 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IDynBrkCutOut;
-                break;
-
-            case 15:
-                /* IMCSS Mode Select - UINT8 */
-                newSignalData->ID_15 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_15 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IMCSSModeSel;
-                break;
-
-            case 16:
-                /* PKO Status  - UINT8 */
-                newSignalData->ID_16 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_16 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatus;
-                break;
-
-            case 17:
-                /* IPKOStatusPKOnet  - UINT8 */
-                newSignalData->ID_17 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_17 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPKOStatusPKOnet;
-                break;
-
-            case 18:
-                /* IPropCutout  - UINT8 */
-                newSignalData->ID_18 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_18 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPropCutout;
-                break;
-
-            case 19:
-                /* IPropSystMode  - UINT8 */
-                newSignalData->ID_19 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_19 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IPropSystMode;
-                break;
-
-            case 20:
-                /* IRegenCutOut  - UINT8 */
-                newSignalData->ID_20 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_20 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.IRegenCutOut;
-                break;
-
-            case 21:
-                /* ITractionSafeSts  - UINT8 */
-                newSignalData->ID_21 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_21 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.ITractionSafeSts;
-                break;
-
-            case 22:
-                /* PRailGapDet  - UINT8 */
-                newSignalData->ID_22 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_22 =
-                                m_Interface1Ptr->oPCU_I1.Discrete801.PRailGapDet;
-                break;
-
-            case 23:
-                /* ICarSpeed  - UINT16 */
-                newSignalData->ID_23 = rtdmXmlData->signal_id_num[i];
-                newSignalData->Value_23 =
-                                m_Interface1Ptr->oPCU_I1.Analog801.ICarSpeed;
-                break;
-
-        } /* end switch */
-
-    } /* end for */
-
-    m_RtdmSampleArray.Count = signalChangeCount;
-
-    return (signalSize);
+    /* Changed index indicates the amount of signal id and data that needs to be updated in stream memory */
+    return (changedIndex);
 
 }
 

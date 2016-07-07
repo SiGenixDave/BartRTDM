@@ -83,65 +83,12 @@ typedef struct
     uint8_t accuracy;
 } TimeStampStr;
 
-typedef struct
-{
-    uint16_t ID_0 __attribute__ ((packed));
-    int32_t Value_0 __attribute__ ((packed));
-    uint16_t ID_1 __attribute__ ((packed));
-    int16_t Value_1 __attribute__ ((packed));
-    uint16_t ID_2 __attribute__ ((packed));
-    int16_t Value_2 __attribute__ ((packed));
-    uint16_t ID_3 __attribute__ ((packed));
-    int16_t Value_3 __attribute__ ((packed));
-    uint16_t ID_4 __attribute__ ((packed));
-    int16_t Value_4 __attribute__ ((packed));
-    uint16_t ID_5 __attribute__ ((packed));
-    int16_t Value_5 __attribute__ ((packed));
-    uint16_t ID_6 __attribute__ ((packed));
-    int16_t Value_6 __attribute__ ((packed));
-    uint16_t ID_7 __attribute__ ((packed));
-    int16_t Value_7 __attribute__ ((packed));
-    uint16_t ID_8 __attribute__ ((packed));
-    int32_t Value_8 __attribute__ ((packed));
-    uint16_t ID_9 __attribute__ ((packed));
-    uint32_t Value_9 __attribute__ ((packed));
-    uint16_t ID_10 __attribute__ ((packed));
-    uint8_t Value_10;
-    uint16_t ID_11 __attribute__ ((packed));
-    uint8_t Value_11;
-    uint16_t ID_12 __attribute__ ((packed));
-    uint8_t Value_12;
-    uint16_t ID_13 __attribute__ ((packed));
-    uint8_t Value_13;
-    uint16_t ID_14 __attribute__ ((packed));
-    uint8_t Value_14;
-    uint16_t ID_15 __attribute__ ((packed));
-    uint8_t Value_15;
-    uint16_t ID_16 __attribute__ ((packed));
-    uint8_t Value_16;
-    uint16_t ID_17 __attribute__ ((packed));
-    uint8_t Value_17;
-    uint16_t ID_18 __attribute__ ((packed));
-    uint8_t Value_18;
-    uint16_t ID_19 __attribute__ ((packed));
-    uint8_t Value_19;
-    uint16_t ID_20 __attribute__ ((packed));
-    uint8_t Value_20;
-    uint16_t ID_21 __attribute__ ((packed));
-    uint8_t Value_21;
-    uint16_t ID_22 __attribute__ ((packed));
-    uint8_t Value_22;
-    uint16_t ID_23 __attribute__ ((packed));
-    uint16_t Value_23 __attribute__ ((packed));
 
-} SignalStr;
-
-/* Structure to contain all variables in the samples */
+/* Structure to contain header for stream data */
 typedef struct
 {
     TimeStampStr TimeStamp;
     uint16_t Count __attribute__ ((packed));
-    SignalStr Signal;
 } RTDM_Struct;
 
 /* Structure to contain variables in the Stream header of the message */

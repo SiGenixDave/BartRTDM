@@ -19,10 +19,9 @@
 #include "MySleep.h"
 
 TYPE_RTDM_STREAM_IF mStreamInfo;
-extern RtdmXmlStr RtdmXmlData;
+extern RtdmXmlStr m_RtdmXmlData;
 RTDMStream_str RTDMStreamData;
 STRM_Header_Struct STRM_Header;
-RTDM_Header_Struct RTDM_Header_Array[1];
 
 int main (void)
 {
@@ -35,13 +34,13 @@ int main (void)
     setbuf(stdout,NULL); // this disables buffering for stdout.
 #endif
 
-    RTDMInitialize (&mStreamInfo, &RtdmXmlData);
+    RTDMInitialize (&mStreamInfo, &m_RtdmXmlData);
 
-    //TODO Need to place in 50 msec loop
     while (TRUE)
     {
-        RTDM_Stream (&mStreamInfo, &RtdmXmlData);
+        RTDM_Stream (&mStreamInfo, &m_RtdmXmlData);
         MySleep (50);
+        mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
     }
 
     puts ("!!!Hello World!!!"); /* prints !!!Hello World!!! */

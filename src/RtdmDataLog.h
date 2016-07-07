@@ -9,8 +9,8 @@
 #define RTDMDATALOG_H_
 
 void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void ProcessDataLog (TYPE_RTDM_STREAM_IF *interface, RTDM_Struct *newSignalData,
-                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
+void ProcessDataLog (RtdmXmlStr *rtdmXmlData, RTDM_Struct *streamHeader,
+                UINT8 *changedSignalData, UINT16 dataChangedAmount);
 
 void Write_RTDM (void);
 
