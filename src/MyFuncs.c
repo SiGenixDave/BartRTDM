@@ -10,7 +10,7 @@
 #include <sys\timeb.h>
 
 
-int os_io_fopen(char *fileName, char *arg, FILE **fp)
+int os_io_fopen(const char *fileName, char *arg, FILE **fp)
 {
 	*fp = fopen(fileName, arg);
 

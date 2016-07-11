@@ -52,7 +52,6 @@ typedef struct
 
 /* Function Prototypes */
 #include <stdio.h>
-int os_io_fopen(char *fileName, char *arg, FILE **fp);
 
 #define mon_broadcast_printf(fmt, args...)    /* Don't do anything in release builds;
                                                   code effectively doesn't exist */

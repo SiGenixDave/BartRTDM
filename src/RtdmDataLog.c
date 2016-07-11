@@ -90,12 +90,11 @@
  **********************************************************************************************************************/
 
 // Comment for commit
-
-
 #ifndef TEST_ON_PC
 #include "rts_api.h"
 #else
 #include "MyTypes.h"
+#include "MyFuncs.h"
 #endif
 
 #include <string.h>
@@ -112,7 +111,7 @@
  *
  *******************************************************************/
 //#define ONE_HOUR        (60 * 60)
-#define ONE_HOUR        (10)
+#define ONE_HOUR_UNITS_SECONDS        (10)
 #define LOG_RATE_MSECS  (50)
 
 /*******************************************************************
@@ -132,24 +131,28 @@
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
-extern STRM_Header_Struct STRM_Header;
+extern StreamHeaderStr STRM_Header;
 
-static UINT8 *m_RTDMDataLogPtr;
-static UINT32 m_RTDMDataLogIndex;
-static UINT16 m_DanFileIndex;
+static UINT8 *m_RTDMDataLogPingPtr = NULL;
+static UINT8 *m_RTDMDataLogPongPtr = NULL;
+static UINT8 *m_RTDMDataLogPingPongPtr = NULL;
 
-static RTDM_Header_Struct m_RTDM_Header_Array[1];
+static UINT32 m_MaxDataPerStreamBytes = 0;
 
+static UINT32 m_RTDMDataLogIndex = 0;
+static UINT16 m_DanFileIndex = 0;
+
+static RtdmHeaderStr m_RTDM_Header_Array = {0};
 
 UINT32 m_RequiredMemorySize = 0;
 
 /* The contents of this file is a filename. The filename indicates the last data log file
  * that was written.
  */
-static char *m_FileTracker = "DanFileTracker.txt";
+static const char *m_FileTracker = "DanFileTracker.txt";
 
 /* Each file contains an hours worth of data */
-static char *m_DanFilePtr[] =
+static const char *m_DanFilePtr[] =
 {
     "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan",
     "9.dan", "10.dan", "11.dan", "12.dan", "13.dan", "14.dan", "15.dan",
@@ -167,14 +170,55 @@ static void OpenDanTracker (void);
 void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
 
-    /* allocate enough memory to hold 1 hours worth of data
+    UINT32 minStreamPeriodSecs = 0;
+    UINT32 streamHeaderAllocation = 0;
+    UINT32 streamDueToBufferSizeSeconds = 0;
+    UINT32 dataAllocation = 0;
+
+    /* first determine the amount of memory required to hold 1 hours worth of data only
      * sizeof(RtdmXmlStr) * 1000 msecs / 50 msec sample rate * 60 seconds * 60 minutes */
-    m_RequiredMemorySize = (1000 / LOG_RATE_MSECS) * ONE_HOUR
-                    * (sizeof(RTDM_Struct) + rtdmXmlData->dataAllocationSize);
+    dataAllocation = (1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS
+                    * (sizeof(RtdmSampleStr) + rtdmXmlData->dataAllocationSize);
 
-    m_RTDMDataLogPtr = (UINT8 *) calloc (m_RequiredMemorySize, sizeof(UINT8));
 
-    if (m_RTDMDataLogPtr == NULL)
+
+    /* now determine the amount of memory required to handle the worst case stream headers
+     * NOTE: the datalog buffer is updated every time a stream is sent
+     */
+    streamDueToBufferSizeSeconds = rtdmXmlData->max_main_buffer_count
+                    / (1000 / LOG_RATE_MSECS);
+
+    /* Want the smaller period of the two so that the max rate can be used to determine the amount
+     * of memory needed for the stream header
+     */
+    minStreamPeriodSecs =
+                    ((1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS)
+                                    / (streamDueToBufferSizeSeconds
+                                                    <= rtdmXmlData->maxTimeBeforeSendMs) ?
+                                    streamDueToBufferSizeSeconds :
+                                    rtdmXmlData->maxTimeBeforeSendMs;
+
+    streamHeaderAllocation = ONE_HOUR_UNITS_SECONDS * sizeof(StreamHeaderStr) / minStreamPeriodSecs;
+
+    m_RequiredMemorySize = dataAllocation + streamHeaderAllocation;
+
+    m_MaxDataPerStreamBytes = (sizeof(RtdmSampleStr) + rtdmXmlData->dataAllocationSize) *
+                              ((1000 / LOG_RATE_MSECS) * minStreamPeriodSecs);
+
+    /* Two "callocs" are required just in case the task that writes data to a disk
+     * file takes longer than the next update to the data log memory
+     */
+    m_RTDMDataLogPingPtr = (UINT8 *) calloc (m_RequiredMemorySize,
+                    sizeof(UINT8));
+    m_RTDMDataLogPongPtr = (UINT8 *) calloc (m_RequiredMemorySize,
+                    sizeof(UINT8));
+
+    /* Set the pointer initially to the "ping" buffer. This pointer is toggled when
+     * a file write is about to occur in another task
+     */
+    m_RTDMDataLogPingPongPtr = m_RTDMDataLogPingPtr;
+
+    if ((m_RTDMDataLogPingPtr == NULL) || (m_RTDMDataLogPongPtr == NULL))
     {
         // TODO flag error
     }
@@ -185,32 +229,68 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 }
 
-void ProcessDataLog (RtdmXmlStr *rtdmXmlData, RTDM_Struct *streamHeader,
-                UINT8 *changedSignalData, UINT16 dataChangedAmount)
+void ProcessDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader,
+                uint8_t *stream, UINT32 dataAmount)
 {
     FILE *p_file = NULL;
 
-    memcpy (&m_RTDMDataLogPtr[m_RTDMDataLogIndex], streamHeader,
-                    sizeof(RTDM_Struct));
+#if NEED_WHEN_WRITING_FINAL_FILE
+    Populate_RTDM_Header (rtdmXmlData);
+    memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], &m_RTDM_Header_Array,
+                    sizeof(m_RTDM_Header_Array));
+    m_RTDMDataLogIndex += sizeof(m_RTDM_Header_Array);
+#endif
 
-    m_RTDMDataLogIndex += sizeof(RTDM_Struct);
+    memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], streamHeader,
+                    sizeof(StreamHeaderStr));
 
-    memcpy (&m_RTDMDataLogPtr[m_RTDMDataLogIndex], changedSignalData,
-                    dataChangedAmount);
+    m_RTDMDataLogIndex += sizeof(StreamHeaderStr);
 
-    m_RTDMDataLogIndex += dataChangedAmount;
+    memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], stream, dataAmount);
+
+    m_RTDMDataLogIndex += dataAmount;
+
+#if FILE_TRY
+    extern char *m_ConfigXmlBufferPtr;
+    extern long m_Numbytes;
+
+    if (os_io_fopen (m_DanFilePtr[m_DanFileIndex], "wb+", &p_file) != ERROR)
+    {
+        fseek (p_file, 0L, SEEK_SET);
+
+        fprintf(p_file,"%s\n", m_ConfigXmlBufferPtr);
+
+        /* Get location of RTDM Header for future writes */
+        fseek( p_file, 0L, SEEK_END);
+
+        fwrite (m_RTDMDataLogPingPtr, 1, m_RTDMDataLogIndex, p_file);
+        os_io_fclose(p_file);
+
+        if (os_io_fopen (m_FileTracker, "wb+", &p_file) != ERROR)
+        {
+            fseek (p_file, 0L, SEEK_SET);
+            fprintf (p_file, "%s", m_DanFilePtr[m_DanFileIndex]);
+            os_io_fclose(p_file);
+        }
+
+        m_DanFileIndex++;
+        if (m_DanFileIndex >= sizeof(m_DanFilePtr) / sizeof(char *))
+        {
+            m_DanFileIndex = 0;
+        }
+    }
+#else
 
     /* Determine if the next sample might overflow the buffer, if so save the file now and
-     * open new file for writing */
-    if (m_RTDMDataLogIndex
-                    >= (m_RequiredMemorySize
-                                    - (sizeof(RTDM_Struct)
-                                                    + rtdmXmlData->dataAllocationSize)))
+     * open new file for writing */  //TODO now need to handle the max size of a stream
+    if (m_RTDMDataLogIndex +  m_MaxDataPerStreamBytes + sizeof(StreamHeaderStr) > m_RequiredMemorySize)
     {
         if (os_io_fopen (m_DanFilePtr[m_DanFileIndex], "wb+", &p_file) != ERROR)
         {
             fseek (p_file, 0L, SEEK_SET);
-            fwrite (m_RTDMDataLogPtr, 1, m_RTDMDataLogIndex, p_file);
+
+            fwrite (m_RTDMDataLogPingPongPtr, 1, m_RTDMDataLogIndex, p_file);
+
             os_io_fclose(p_file);
 
             if (os_io_fopen (m_FileTracker, "wb+", &p_file) != ERROR)
@@ -229,7 +309,7 @@ void ProcessDataLog (RtdmXmlStr *rtdmXmlData, RTDM_Struct *streamHeader,
 
         m_RTDMDataLogIndex = 0;
     }
-
+#endif
 }
 
 static void OpenDanTracker (void)
@@ -346,7 +426,7 @@ void Write_RTDM (RtdmXmlStr *rtdmXmlData)
                             SEEK_SET);
 
             /* Re-Write RTDM Header with updated data */
-            fwrite (m_RTDM_Header_Array, 1, sizeof(RTDM_Header_Struct),
+            fwrite (m_RTDM_Header_Array, 1, sizeof(RtdmHeaderStr),
                             p_file1);
 
             /* Go to END of file */
@@ -549,67 +629,71 @@ static void Populate_RTDM_Header (RtdmXmlStr *rtdmXmlData)
     /*********************************** Populate ****************************************************************/
 
     /* Delimiter - Always "STRM" */
-    memcpy (&m_RTDM_Header_Array[0].Delimiter, &Delimiter_array[0],
+    memcpy (&m_RTDM_Header_Array.Delimiter, &Delimiter_array[0],
                     sizeof(Delimiter_array));
 
     /* Endiannes - Always BIG */
-    m_RTDM_Header_Array[0].Endiannes = BIG_ENDIAN;
+    m_RTDM_Header_Array.Endiannes = BIG_ENDIAN;
 
     /* Header size - Always 80 - STREAM_HEADER_SIZE */
-    m_RTDM_Header_Array[0].Header_Size = sizeof(m_RTDM_Header_Array[0]);
+    m_RTDM_Header_Array.Header_Size = sizeof(m_RTDM_Header_Array);
 
     /* Stream Header Checksum - CRC-32 */
     /* This is proper position, but move to end because we need to calculate after the timestamps are entered */
 
     /* Header Version - Always 2 */
-    m_RTDM_Header_Array[0].Header_Version = RTDM_HEADER_VERSION;
+    m_RTDM_Header_Array.Header_Version = RTDM_HEADER_VERSION;
 
     /* Consist ID */
-    memcpy (&m_RTDM_Header_Array[0].Consist_ID, &STRM_Header.Consist_ID,
-                    sizeof(m_RTDM_Header_Array[0].Consist_ID));
+    memcpy (&m_RTDM_Header_Array.Consist_ID, &STRM_Header.Consist_ID,
+                    sizeof(m_RTDM_Header_Array.Consist_ID));
 
     /* Car ID */
-    memcpy (&m_RTDM_Header_Array[0].Car_ID, &STRM_Header.Car_ID,
-                    sizeof(m_RTDM_Header_Array[0].Car_ID));
+    memcpy (&m_RTDM_Header_Array.Car_ID, &STRM_Header.Car_ID,
+                    sizeof(m_RTDM_Header_Array.Car_ID));
 
     /* Device ID */
-    memcpy (&m_RTDM_Header_Array[0].Device_ID, &STRM_Header.Device_ID,
-                    sizeof(m_RTDM_Header_Array[0].Device_ID));
+    memcpy (&m_RTDM_Header_Array.Device_ID, &STRM_Header.Device_ID,
+                    sizeof(m_RTDM_Header_Array.Device_ID));
 
     /* Data Recorder ID - from .xml file */
-    m_RTDM_Header_Array[0].Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
+    m_RTDM_Header_Array.Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
 
     /* Data Recorder Version - from .xml file */
-    m_RTDM_Header_Array[0].Data_Record_Version =
+    m_RTDM_Header_Array.Data_Record_Version =
                     rtdmXmlData->DataRecorderCfgVersion;
 
     /* First TimeStamp -  time in Seconds */
-    m_RTDM_Header_Array[0].FirstTimeStamp_S =
+    m_RTDM_Header_Array.FirstTimeStamp_S =
                     DataLog_Info_str.Stream_1st_TimeStamp_S;
 
     /* First TimeStamp - mS */
-    m_RTDM_Header_Array[0].FirstTimeStamp_mS =
+    m_RTDM_Header_Array.FirstTimeStamp_mS =
                     DataLog_Info_str.Stream_1st_TimeStamp_mS;
 
     /* Last TimeStamp -  time in Seconds */
-    m_RTDM_Header_Array[0].LastTimeStamp_S =
+    m_RTDM_Header_Array.LastTimeStamp_S =
                     DataLog_Info_str.Stream_Last_TimeStamp_S;
 
     /* Last TimeStamp - mS */
-    m_RTDM_Header_Array[0].LastTimeStamp_mS =
+    m_RTDM_Header_Array.LastTimeStamp_mS =
                     DataLog_Info_str.Stream_Last_TimeStamp_mS;
 
+#if PUT_BACK_IN
     /* Number of Samples in current stream */
     m_RTDM_Header_Array[0].Num_Streams = RTDM_Stream_Counter;
+#else
+    m_RTDM_Header_Array.Num_Streams = 1;
+#endif
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
     rtdm_header_crc = 0;
     rtdm_header_crc =
                     crc32 (rtdm_header_crc,
-                                    ((unsigned char*) &m_RTDM_Header_Array[0].Header_Version),
-                                    (sizeof(m_RTDM_Header_Array[0])
+                                    ((unsigned char*) &m_RTDM_Header_Array.Header_Version),
+                                    (sizeof(m_RTDM_Header_Array)
                                                     - RTDM_HEADER_CHECKSUM_ADJUST));
-    m_RTDM_Header_Array[0].Header_Checksum = rtdm_header_crc;
+    m_RTDM_Header_Array.Header_Checksum = rtdm_header_crc;
 
 } /* End Populate_RTDM_Header */
 

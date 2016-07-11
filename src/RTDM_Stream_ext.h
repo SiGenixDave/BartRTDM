@@ -12,9 +12,6 @@
 /****************************************************************************************/
 /* CANNOT BE CHANGED OR ADJUSTED WITHOUT CODE CHANGE */
 
-/* If Main Header is changed these #defines will need adjusted */
-/* Main Header Size - 071-ICD-0004_rev3_TCMS Common ECN Interface.pdf Section 3.2.3.1.2 */
-#define STREAM_HEADER_SIZE			85
 /* The header size needs reduced by this size for the checksum */
 /* Stream Header Checksum does not include the first 11 bytes, starts at Version */
 #define STREAM_HEADER_CHECKSUM_ADJUST		11
@@ -36,7 +33,11 @@
 /* Stream Header Verion */
 #define STREAM_HEADER_VERSION		2	
 
-#define BIG_ENDIAN					0
+#ifdef TEST_ON_PC
+#define BIG_ENDIAN					1
+#else
+#define BIG_ENDIAN                 0
+#endif
 
 #define OFF			1
 #define STOP		2
@@ -91,7 +92,7 @@ typedef struct
 {
     TimeStampStr TimeStamp;
     uint16_t Count __attribute__ ((packed));
-} RTDM_Struct;
+} RtdmSampleStr;
 
 /* Structure to contain variables in the Stream header of the message */
 typedef struct
@@ -114,7 +115,7 @@ typedef struct
     uint16_t Sample_Size_for_header __attribute__ ((packed));
     uint32_t Sample_Checksum __attribute__ ((packed));
     uint16_t Num_Samples __attribute__ ((packed));
-} STRM_Header_Struct;
+} StreamHeaderStr;
 
 /* Structure to contain variables in the RTDM header of the message */
 typedef struct
@@ -134,7 +135,7 @@ typedef struct
     uint32_t LastTimeStamp_S __attribute__ ((packed));
     uint16_t LastTimeStamp_mS __attribute__ ((packed));
     uint32_t Num_Streams __attribute__ ((packed));
-} RTDM_Header_Struct;
+} RtdmHeaderStr;
 
 /* Structure to contain all variables for Data Logging */
 struct DataLog_Info

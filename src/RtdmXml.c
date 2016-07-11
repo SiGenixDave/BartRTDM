@@ -211,9 +211,12 @@ static const VariableMap variableMap[] =
     {
         "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
         &mStreamInfo.oPCU_I1.Discrete801.ITractionSafeSts },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.PRailGapDet",
-        &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.PRailGapDet",
+            &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
+            {
+                "oPCU_I1.PCU_I1.Discrete801.IDcuState",
+                &mStreamInfo.oPCU_I1.Discrete801.IDcuState },
     {
         "oPCU_I1.PCU_I1.Analog801.ILineCurr",
         &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
@@ -223,8 +226,11 @@ static const VariableMap variableMap[] =
 // TODO make static
 RtdmXmlStr m_RtdmXmlData;
 
-/* dynamically allocated buffer which contains the whole RTDMConfiguration_PCU.xml file */
-static char *m_ConfigXmlBufferPtr = NULL;
+/* dynamically allocated buffer
+ * which contains the whole RTDMConfiguration_PCU.xml file */
+char *m_ConfigXmlBufferPtr = NULL;
+long m_Numbytes;
+
 
 const XMLConfigReader m_XmlConfigReader[] =
 {
@@ -293,9 +299,9 @@ UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
      * will fit into buffer size from .xml ex: 60,000 */
     rtdmXmlData->max_main_buffer_count = ((rtdmXmlData->bufferSize
                     / rtdmXmlData->sample_size) - 2);
-    interface->RTDMMainBuffCount = rtdmXmlData->max_main_buffer_count;
 
     /* Set to interface so we can see in DCUTerm */
+    interface->RTDMMainBuffCount = rtdmXmlData->max_main_buffer_count;
     interface->RTDMSignalCount = rtdmXmlData->signal_count;
     interface->RTDMSampleSize = rtdmXmlData->sample_size;
     interface->RTDMSendTime = rtdmXmlData->maxTimeBeforeSendMs;
@@ -404,7 +410,8 @@ static int ReadXmlFile (void)
     }
 
     /* free the memory we used for the buffer */
-    free (m_ConfigXmlBufferPtr);
+    //TODO Need to keep to data log file
+    //free (m_ConfigXmlBufferPtr);
 
     /* Add sample header size */
     m_RtdmXmlData.sample_size = m_RtdmXmlData.dataAllocationSize + SAMPLE_HEADER_SIZE;
@@ -423,20 +430,19 @@ static int ReadXmlFile (void)
 static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
 {
     FILE* filePtr = NULL;
-    long numbytes;
 
     /* open the existing configuration file for reading TEXT MODE */
     if (os_io_fopen (RTDM_XML_FILE, "r", &filePtr) != ERROR)
     {
         /* Get the number of bytes */
         fseek (filePtr, 0L, SEEK_END);
-        numbytes = ftell (filePtr);
+        m_Numbytes = ftell (filePtr);
 
         /* reset the file position indicator to the beginning of the file */
         fseek (filePtr, 0L, SEEK_SET);
 
         /* grab sufficient memory for the buffer to hold the text - clear to zero */
-        *configFileXMLBufferPtr = (char*) calloc (numbytes, sizeof(char));
+        *configFileXMLBufferPtr = (char*) calloc (m_Numbytes, sizeof(char));
 
         /* memory error */
         if (configFileXMLBufferPtr == NULL)
@@ -449,7 +455,7 @@ static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
         }
 
         /* copy all the text into the buffer */
-        fread (*configFileXMLBufferPtr, sizeof(char), numbytes, filePtr);
+        fread (*configFileXMLBufferPtr, sizeof(char), m_Numbytes, filePtr);
 
         /* Close the file, no longer needed */
         os_io_fclose(filePtr);

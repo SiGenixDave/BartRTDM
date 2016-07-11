@@ -99,13 +99,6 @@ typedef struct
 
 typedef struct
 {
-    uint16_t IBufferSize __attribute__ ((packed));
-    uint8_t header[85] __attribute__ ((packed));
-    uint8_t IBufferArray[] __attribute__ ((packed));
-} RTDMStream_str;
-
-typedef struct
-{
     UINT32 seconds;
     UINT32 nanoseconds;
 

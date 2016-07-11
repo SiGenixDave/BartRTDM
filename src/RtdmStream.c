@@ -90,8 +90,6 @@
  **********************************************************************************************************************/
 
 // Comment for commit
-
-
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -136,17 +134,17 @@
 /* global interface pointer */
 TYPE_RTDM_STREAM_IF *m_Interface1Ptr = NULL;
 
-RTDMStream_str *m_RtdmStreamPtr = NULL;
-
 /* # samples */
 static UINT32 m_StreamBufferIndex = 0;
 static UINT16 m_SampleCount = 0;
 
+static uint8_t *m_StreamData = NULL;
+
 /* Number of streams in RTDM.dan file */
 UINT32 RTDM_Stream_Counter = 0;
 
-static RTDM_Struct m_RtdmSampleArray;
-extern STRM_Header_Struct STRM_Header;
+static RtdmSampleStr m_RtdmSampleArray;
+extern StreamHeaderStr STRM_Header;
 
 /* Allocated dynamically after the amount of signals and signal data type is known */
 static UINT8 *m_NewSignalData = NULL;
@@ -190,15 +188,10 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
-    memset (&m_RtdmSampleArray, 0, sizeof(RTDM_Struct));
+    memset (&m_RtdmSampleArray, 0, sizeof(RtdmSampleStr));
 
     /* Allocate memory to store data according to buffer size from .xml file */
-    m_RtdmStreamPtr = (RTDMStream_str *) calloc (
-                    sizeof(UINT16) + STREAM_HEADER_SIZE
-                                    + rtdmXmlData->bufferSize, sizeof(UINT8));
-
-    /* size of buffer read from .xml file plus the size of the variable IBufferSize */
-    m_RtdmStreamPtr->IBufferSize = rtdmXmlData->bufferSize + sizeof(UINT16);
+    m_StreamData = (uint8_t *) calloc (rtdmXmlData->bufferSize, sizeof(UINT8));
 
     m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
                     sizeof(UINT8));
@@ -259,9 +252,6 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     numDataChangeBytes = OutputStream (interface, networkAvailable, &errorCode,
                     rtdmXmlData, &currentTime);
 
-    ProcessDataLog (rtdmXmlData, &m_RtdmSampleArray, m_ChangedSignalData,
-                    numDataChangeBytes);
-
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
 
@@ -315,14 +305,14 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
     {
 
         /* Copy the time stamp and signal count into main buffer */
-        memcpy (&m_RtdmStreamPtr->IBufferArray[m_StreamBufferIndex],
-                        &m_RtdmSampleArray, sizeof(RTDM_Struct));
+        memcpy (&m_StreamData[m_StreamBufferIndex], &m_RtdmSampleArray,
+                        sizeof(RtdmSampleStr));
 
-        m_StreamBufferIndex += sizeof(RTDM_Struct);
+        m_StreamBufferIndex += sizeof(RtdmSampleStr);
 
         /* Copy the changed data into main buffer */
-        memcpy (&m_RtdmStreamPtr->IBufferArray[m_StreamBufferIndex],
-                        m_ChangedSignalData, newChangedDataBytes);
+        memcpy (&m_StreamData[m_StreamBufferIndex], m_ChangedSignalData,
+                        newChangedDataBytes);
 
         m_StreamBufferIndex += newChangedDataBytes;
 
@@ -334,7 +324,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
 
     // TODO determine if next data change entry might overflow buffer
     if ((m_StreamBufferIndex + rtdmXmlData->dataAllocationSize
-                    + sizeof(RTDM_Struct)) >= rtdmXmlData->bufferSize)
+                    + sizeof(RtdmSampleStr)) >= rtdmXmlData->bufferSize)
     {
         streamBecauseBufferFull = TRUE;
     }
@@ -343,9 +333,10 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
     timeDiffSec = currentTime->seconds - previousSendTimeSec;
 
     /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
-    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count) || (streamBecauseBufferFull)
+    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count)
+                    || (streamBecauseBufferFull)
                     || (timeDiffSec >= rtdmXmlData->maxTimeBeforeSendMs))
-    && (previousSendTimeSec != 0))
+                    && (previousSendTimeSec != 0))
     {
         /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
         STRM_Header.Num_Samples = m_SampleCount;
@@ -353,28 +344,25 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
         samplesCRC = crc32 (samplesCRC,
                         (unsigned char *) &STRM_Header.Num_Samples,
                         sizeof(STRM_Header.Num_Samples));
-        samplesCRC = crc32 (samplesCRC,
-                        (unsigned char*) &m_RtdmStreamPtr->IBufferArray[0],
-                        (rtdmXmlData->max_main_buffer_count
-                                        * rtdmXmlData->sample_size));
+        samplesCRC = crc32 (samplesCRC, (unsigned char*) m_StreamData,
+                        (m_StreamBufferIndex));
 
         /* Time to construct main header */
         Populate_Stream_Header (samplesCRC, rtdmXmlData, currentTime);
 
-        /* Copy temp stream header buffer to Main Stream buffer */
-        memcpy (m_RtdmStreamPtr->header, &STRM_Header, sizeof(STRM_Header));
-
         /* Time to send message */
         *errorCode = SendStreamOverNetwork (rtdmXmlData);
 
+        ProcessDataLog (rtdmXmlData, &STRM_Header, m_StreamData,
+                        m_StreamBufferIndex);
+
         previousSendTimeSec = currentTime->seconds;
+
+        printf ("STREAM SENT %d\n", m_SampleCount);
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;
         m_StreamBufferIndex = 0;
-
-
-        printf ("STREAM SENT %d\n", m_SampleCount);
 
     }
 
@@ -621,7 +609,6 @@ static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData,
 static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
                 RTDMTimeStr *currentTime)
 {
-    UINT16 result = 0;
     char Delimiter_array[4] =
     { "STRM" };
     UINT32 stream_header_crc = 0;
@@ -646,16 +633,23 @@ static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
     STRM_Header.Header_Version = STREAM_HEADER_VERSION;
 
     /* Consist ID */
-    memcpy (&STRM_Header.Consist_ID, m_Interface1Ptr->VNC_CarData_X_ConsistID,
-                    sizeof(STRM_Header.Consist_ID));
+    memset (&STRM_Header.Consist_ID[0], 0, sizeof(STRM_Header.Consist_ID));
+    memcpy (&STRM_Header.Consist_ID[0],
+                    m_Interface1Ptr->VNC_CarData_X_ConsistID,
+                    strlen(m_Interface1Ptr->VNC_CarData_X_ConsistID));
 
     /* Car ID */
-    memcpy (&STRM_Header.Car_ID, m_Interface1Ptr->VNC_CarData_X_CarID,
-                    sizeof(STRM_Header.Car_ID));
+    memset (&STRM_Header.Car_ID[0], 0, sizeof(STRM_Header.Car_ID));
+    memcpy (&STRM_Header.Car_ID[0],
+                    m_Interface1Ptr->VNC_CarData_X_CarID,
+                    strlen(m_Interface1Ptr->VNC_CarData_X_CarID));
+
 
     /* Device ID */
-    memcpy (&STRM_Header.Device_ID, m_Interface1Ptr->VNC_CarData_X_DeviceID,
-                    sizeof(STRM_Header.Device_ID));
+    memset (&STRM_Header.Device_ID[0], 0, sizeof(STRM_Header.Device_ID));
+    memcpy (&STRM_Header.Device_ID[0],
+                    m_Interface1Ptr->VNC_CarData_X_DeviceID,
+                    strlen(m_Interface1Ptr->VNC_CarData_X_DeviceID));
 
     /* Data Recorder ID - from .xml file */
     STRM_Header.Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
@@ -836,17 +830,19 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
 
     /* This is the actual buffer size as calculated below */
     actual_buffer_size = ((rtdmXmlData->max_main_buffer_count
-                    * rtdmXmlData->sample_size) + STREAM_HEADER_SIZE + 2);
+                    * rtdmXmlData->sample_size) + sizeof(StreamHeaderStr) + 2);
 
+    // TODO Need to combine the former RTDM_Struct into buff, header, stream
+#if TODO
     /* Send message overriding of destination URI 800310000 - comId comes from .xml */
     ipt_result = MDComAPI_putMsgQ (rtdmXmlData->comId, /* ComId */
-    (const char*) m_RtdmStreamPtr, /* Data buffer */
-    actual_buffer_size, /* Number of data to be send */
-    0, /* No queue for communication ipt_result */
-    0, /* No caller reference value */
-    0, /* Topo counter */
-    "grpRTDM.lCar.lCst", /* overriding of destination URI */
-    0); /* No overriding of source URI */
+                    (const char*) m_RtdmStreamPtr, /* Data buffer */
+                    actual_buffer_size, /* Number of data to be send */
+                    0, /* No queue for communication ipt_result */
+                    0, /* No caller reference value */
+                    0, /* Topo counter */
+                    "grpRTDM.lCar.lCst", /* overriding of destination URI */
+                    0); /* No overriding of source URI */
     if (ipt_result != IPT_OK)
     {
         /* The sending couldn't be started. */
@@ -864,6 +860,7 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
         /* Clear Error Code */
         errorCode = NO_ERROR;
     }
+#endif
     return errorCode;
 }
 
