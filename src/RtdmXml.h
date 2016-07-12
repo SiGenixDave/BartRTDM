@@ -38,6 +38,8 @@
  *
  *******************************************************************/
 
-UINT16 InitializeXML(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
+UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
+char *GetXMLConfigFileBuffer(void);
+
 
 #endif /* RTDMXML_H_ */

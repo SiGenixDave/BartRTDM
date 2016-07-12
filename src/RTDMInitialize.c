@@ -22,16 +22,19 @@
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RtdmDataLog.h"
+#include "RtdmFileIO.h"
 
-void RTDMInitialize(TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+void RTDMInitialize (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
 
-	// Read XML file
-    InitializeXML(interface, rtdmXmlData);
+    // Read XML file
+    InitializeXML (interface, rtdmXmlData);
 
-	InitializeRtdmStream(rtdmXmlData);
+    InitializeRtdmStream (rtdmXmlData);
 
-	InitializeDataLog(interface, rtdmXmlData);
+    InitializeDataLog (interface, rtdmXmlData);
+
+    InitializeFileIO (interface, rtdmXmlData);
 
 }
 

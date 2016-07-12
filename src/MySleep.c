@@ -9,5 +9,5 @@
 
 void MySleep (int time)
 {
-    Sleep(time);
+    Sleep (time);
 }

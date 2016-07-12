@@ -44,6 +44,7 @@
  *******************************************************************************/
 #ifdef TEST_ON_PC
 #include "MyTypes.h"
+#include "MyFuncs.h"
 #endif
 
 #include <stdio.h>
@@ -56,7 +57,6 @@
 
 // Comment for commit
 
-
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -68,31 +68,6 @@
 /* XML file on VCUC */
 #define RTDM_XML_FILE           "RTDMConfiguration_PCU.xml"
 
-#if REFERNCE
-<Signal id="1" name="oPCU_I1.PCU_I1.Analog801.CTractEffortReq" friendlyName="PCU_I1_Analog801_CTractEffortReq" dataType="INT32" analysisType="ANALOG" unit="lbs" nbDecimals="1" description="Tractive Effort Request" ContainerPort="880500100" OffsetInContainer="132" RefreshRate="20" />
-<Signal id="2" name="oPCU_I1.PCU_I1.Analog801.ICarSpeed" friendlyName="PCU_I1_Analog801_ICarSpeed" dataType="UINT16" analysisType="ANALOG" scale="0.01" unit="mph" nbDecimals="2" description="Car Speed" ContainerPort="880500100" OffsetInContainer="146" RefreshRate="20" />
-<Signal id="3" name="oPCU_I1.PCU_I1.Analog801.IDcLinkCurr" friendlyName="PCU_I1_Analog801_IDcLinkCurr" dataType="INT16" analysisType="ANALOG" scale="0.1" unit="A" nbDecimals="1" description="Propulsion DC Link Current" ContainerPort="880500100" OffsetInContainer="122" RefreshRate="20" />
-<Signal id="4" name="oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage" friendlyName="PCU_I1_Analog801_IDcLinkVoltage" dataType="INT16" analysisType="ANALOG" scale="0.1" unit="V" nbDecimals="1" description="Propulsion DC Link Voltage" ContainerPort="880500100" OffsetInContainer="120" RefreshRate="20" />
-<Signal id="5" name="oPCU_I1.PCU_I1.Analog801.IDiffCurr" friendlyName="PCU_I1_Analog801_IDiffCurr" dataType="INT16" analysisType="ANALOG" scale="0.1" unit="A" nbDecimals="1" description="Propulsion Differential Current" ContainerPort="880500100" OffsetInContainer="116" RefreshRate="20" />
-<Signal id="6" name="oPCU_I1.PCU_I1.Analog801.ILineVoltage" friendlyName="PCU_I1_Analog801_ILineVoltage" dataType="INT16" analysisType="ANALOG" scale="0.1" unit="V" nbDecimals="1" description="Line Voltage" ContainerPort="880500100" OffsetInContainer="112" RefreshRate="20" />
-<Signal id="7" name="oPCU_I1.PCU_I1.Analog801.IRate" friendlyName="PCU_I1_Analog801_IRate" dataType="INT16" analysisType="ANALOG" scale="0.01" unit="mphps" nbDecimals="2" description="Actual Rate" ContainerPort="880500100" OffsetInContainer="100" RefreshRate="20" />
-<Signal id="8" name="oPCU_I1.PCU_I1.Analog801.IRateRequest" friendlyName="PCU_I1_Analog801_IRateRequest" dataType="INT16" analysisType="ANALOG" scale="0.01" unit="mphps" nbDecimals="2" description="Rate Request Command" ContainerPort="880500100" OffsetInContainer="98" RefreshRate="20" />
-<Signal id="9" name="oPCU_I1.PCU_I1.Analog801.ITractEffortDeli" friendlyName="PCU_I1_Analog801_ITractEffortDeli" dataType="INT32" analysisType="ANALOG" unit="lbs" nbDecimals="1" description="Tractive Effort Delivered" ContainerPort="880500100" OffsetInContainer="136" RefreshRate="20" />
-<Signal id="10" name="oPCU_I1.PCU_I1.Counter801.IOdometer" friendlyName="PCU_I1_Counter801_IOdometer" dataType="UINT32" analysisType="ANALOG" scale="0.005" unit="mi" nbDecimals="3" description="Odometer Value" ContainerPort="880500100" OffsetInContainer="192" RefreshRate="20" />
-<Signal id="11" name="oPCU_I1.PCU_I1.Discrete801.CHscbCmd" friendlyName="PCU_I1_Discrete801_CHscbCmd" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="HSCB Command Output" ContainerPort="880500100" OffsetInContainer="68" RefreshRate="20" />
-<Signal id="12" name="oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd" friendlyName="PCU_I1_Discrete801_CRunRelayCmd" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="RUN Relay Command Output" ContainerPort="880500100" OffsetInContainer="66" RefreshRate="20" />
-<Signal id="13" name="oPCU_I1.PCU_I1.Discrete801.CScContCmd" friendlyName="PCU_I1_Discrete801_CScContCmd" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="SC Contactor Command Output" ContainerPort="880500100" OffsetInContainer="60" RefreshRate="20" />
-<Signal id="14" name="oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut" friendlyName="PCU_I1_Discrete801_IDynBrkCutOut" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="Dynamic Brake Cut Out" ContainerPort="880500100" OffsetInContainer="53" RefreshRate="20" />
-<Signal id="15" name="oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel" friendlyName="PCU_I1_Discrete801_IMCSSModeSel" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="MCSS Mode Selection" ContainerPort="880500100" OffsetInContainer="49" RefreshRate="20" />
-<Signal id="16" name="oPCU_I1.PCU_I1.Discrete801.IPKOStatus" friendlyName="PCU_I1_Discrete801_IPKOStatus" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="PKO Status" ContainerPort="880500100" OffsetInContainer="79" RefreshRate="20" />
-<Signal id="17" name="oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet" friendlyName="PCU_I1_Discrete801_IPKOStatusPKOnet" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="PKO Status (PKOnet)" ContainerPort="880500100" OffsetInContainer="80" RefreshRate="20" />
-<Signal id="18" name="oPCU_I1.PCU_I1.Discrete801.IPropCutout" friendlyName="PCU_I1_Discrete801_IPropCutout" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="Propulsion Cut-out Status" ContainerPort="880500100" OffsetInContainer="59" RefreshRate="20" />
-<Signal id="19" name="oPCU_I1.PCU_I1.Discrete801.IPropSystMode" friendlyName="PCU_I1_Discrete801_IPropSystMode" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="Propulsion System Mode" ContainerPort="880500100" OffsetInContainer="73" RefreshRate="20" />
-<Signal id="20" name="oPCU_I1.PCU_I1.Discrete801.IRegenCutOut" friendlyName="PCU_I1_Discrete801_IRegenCutOut" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="Regenerative Brake Cut Out" ContainerPort="880500100" OffsetInContainer="54" RefreshRate="20" />
-<Signal id="21" name="oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts" friendlyName="PCU_I1_Discrete801_ITractionSafeSts" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="Traction Safe Status" ContainerPort="880500100" OffsetInContainer="83" RefreshRate="20" />
-<Signal id="22" name="oPCU_I1.PCU_I1.Discrete801.PRailGapDet" friendlyName="PCU_I1_Discrete801_PRailGapDet" dataType="UINT8" analysisType="ANALOG" nbDecimals="1" description="Rail Gap Detected" ContainerPort="880500100" OffsetInContainer="71" RefreshRate="20" />
-<Signal id="23" name="oPCU_I1.PCU_I1.Analog801.ILineCurr" friendlyName="PCU_I1_Analog801_ILineCurr" dataType="INT16" analysisType="ANALOG" scale="0.1" unit="A" nbDecimals="1" description="Propulsion Line Current" ContainerPort="880500100" OffsetInContainer="114" RefreshRate="20" />
-#endif
 
 /*******************************************************************
  *
@@ -135,6 +110,9 @@ typedef struct
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
+static char *m_ConfigXmlBufferPtr = NULL;
+
+
 static const DataTypeMap dataTypeMap[] =
 {
 { "UINT8", UINT8_XML_TYPE },
@@ -151,18 +129,14 @@ static const VariableMap variableMap[] =
     {
         "oPCU_I1.PCU_I1.Analog801.CTractEffortReq",
         &mStreamInfo.oPCU_I1.Analog801.CTractEffortReq },
-    {
-        "oPCU_I1.PCU_I1.Analog801.ICarSpeed",
-        &mStreamInfo.oPCU_I1.Analog801.ICarSpeed },
+    { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", &mStreamInfo.oPCU_I1.Analog801.ICarSpeed },
     {
         "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr",
         &mStreamInfo.oPCU_I1.Analog801.IDcLinkCurr },
     {
         "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage",
         &mStreamInfo.oPCU_I1.Analog801.IDcLinkVoltage },
-    {
-        "oPCU_I1.PCU_I1.Analog801.IDiffCurr",
-        &mStreamInfo.oPCU_I1.Analog801.IDiffCurr },
+    { "oPCU_I1.PCU_I1.Analog801.IDiffCurr", &mStreamInfo.oPCU_I1.Analog801.IDiffCurr },
     {
         "oPCU_I1.PCU_I1.Analog801.ILineVoltage",
         &mStreamInfo.oPCU_I1.Analog801.ILineVoltage },
@@ -211,25 +185,18 @@ static const VariableMap variableMap[] =
     {
         "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
         &mStreamInfo.oPCU_I1.Discrete801.ITractionSafeSts },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.PRailGapDet",
-            &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
-            {
-                "oPCU_I1.PCU_I1.Discrete801.IDcuState",
-                &mStreamInfo.oPCU_I1.Discrete801.IDcuState },
     {
-        "oPCU_I1.PCU_I1.Analog801.ILineCurr",
-        &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
+        "oPCU_I1.PCU_I1.Discrete801.PRailGapDet",
+        &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
+    {
+        "oPCU_I1.PCU_I1.Discrete801.IDcuState",
+        &mStreamInfo.oPCU_I1.Discrete801.IDcuState },
+    { "oPCU_I1.PCU_I1.Analog801.ILineCurr", &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
 
 };
 
 // TODO make static
 RtdmXmlStr m_RtdmXmlData;
-
-/* dynamically allocated buffer
- * which contains the whole RTDMConfiguration_PCU.xml file */
-char *m_ConfigXmlBufferPtr = NULL;
-long m_Numbytes;
 
 
 const XMLConfigReader m_XmlConfigReader[] =
@@ -243,19 +210,15 @@ NO_SAMPLING_RATE },
 NO_COMPRESSION_ENABLED },
 { "minRecordingRate", INTEGER_DTYPE, &m_RtdmXmlData.MinRecordingRate,
 NO_MIN_RECORD_RATE },
-{
-    "DataLogFileCfg enabled", BOOLEAN_DTYPE,
-    &m_RtdmXmlData.DataLogFileCfg_enabled,
-    NO_DATALOG_CFG_ENABLED },
+{ "DataLogFileCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.DataLogFileCfg_enabled,
+NO_DATALOG_CFG_ENABLED },
 { "filesCount", INTEGER_DTYPE, &m_RtdmXmlData.FilesCount, NO_FILES_COUNT },
 { "numberSamplesInFile", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesInFile,
 NO_NUM_SAMPLES_IN_FILE },
 { "filesFullPolicy", FILESFULL_DTYPE, &m_RtdmXmlData.FilesFullPolicy,
 NO_FILE_FULL_POLICY },
-{
-    "numberSamplesBeforeSave", INTEGER_DTYPE,
-    &m_RtdmXmlData.NumberSamplesBeforeSave,
-    NO_NUM_SAMPLES_BEFORE_SAVE },
+{ "numberSamplesBeforeSave", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesBeforeSave,
+NO_NUM_SAMPLES_BEFORE_SAVE },
 { "maxTimeBeforeSaveMs", INTEGER_DTYPE, &m_RtdmXmlData.MaxTimeBeforeSaveMs,
 NO_MAX_TIME_BEFORE_SAVE },
 { "OutputStreamCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.OutputStream_enabled,
@@ -297,8 +260,7 @@ UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     /* Calculate MAX buffer size - subtract 2 to make room for Main Header - how many samples
      * will fit into buffer size from .xml ex: 60,000 */
-    rtdmXmlData->max_main_buffer_count = ((rtdmXmlData->bufferSize
-                    / rtdmXmlData->sample_size) - 2);
+    rtdmXmlData->max_main_buffer_count = ((rtdmXmlData->bufferSize / rtdmXmlData->sample_size) - 2);
 
     /* Set to interface so we can see in DCUTerm */
     interface->RTDMMainBuffCount = rtdmXmlData->max_main_buffer_count;
@@ -307,12 +269,12 @@ UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     interface->RTDMSendTime = rtdmXmlData->maxTimeBeforeSendMs;
     interface->RTDMMainBuffSize = rtdmXmlData->bufferSize;
 
-    if (DataLog_Info_str.RTDMDataLogWriteState != RESTART)
-    {
-        DataLog_Info_str.RTDMDataLogWriteState = RUN;
-    }
-
     return (NO_ERROR);
+}
+
+char *GetXMLConfigFileBuffer(void)
+{
+    return m_ConfigXmlBufferPtr;
 }
 
 /*********************************************************************************************************
@@ -412,7 +374,6 @@ static int ReadXmlFile (void)
     /* free the memory we used for the buffer */
     //TODO Need to keep to data log file
     //free (m_ConfigXmlBufferPtr);
-
     /* Add sample header size */
     m_RtdmXmlData.sample_size = m_RtdmXmlData.dataAllocationSize + SAMPLE_HEADER_SIZE;
 
@@ -430,19 +391,21 @@ static int ReadXmlFile (void)
 static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
 {
     FILE* filePtr = NULL;
+    long numBytes;
+
 
     /* open the existing configuration file for reading TEXT MODE */
     if (os_io_fopen (RTDM_XML_FILE, "r", &filePtr) != ERROR)
     {
         /* Get the number of bytes */
         fseek (filePtr, 0L, SEEK_END);
-        m_Numbytes = ftell (filePtr);
+        numBytes = ftell (filePtr);
 
         /* reset the file position indicator to the beginning of the file */
         fseek (filePtr, 0L, SEEK_SET);
 
         /* grab sufficient memory for the buffer to hold the text - clear to zero */
-        *configFileXMLBufferPtr = (char*) calloc (m_Numbytes, sizeof(char));
+        *configFileXMLBufferPtr = (char*) calloc (numBytes, sizeof(char));
 
         /* memory error */
         if (configFileXMLBufferPtr == NULL)
@@ -455,7 +418,7 @@ static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
         }
 
         /* copy all the text into the buffer */
-        fread (*configFileXMLBufferPtr, sizeof(char), m_Numbytes, filePtr);
+        fread (*configFileXMLBufferPtr, sizeof(char), numBytes, filePtr);
 
         /* Close the file, no longer needed */
         os_io_fclose(filePtr);
@@ -476,20 +439,17 @@ static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index)
     UINT16 errorCode = NO_ERROR;
     char tempArray[10];
 
-    char *pStringLocation2 = strstr (pStringLocation1,
-                    m_XmlConfigReader[index].subString);
+    char *pStringLocation2 = strstr (pStringLocation1, m_XmlConfigReader[index].subString);
 
     if (pStringLocation2 != NULL)
     {
         /* move pointer to id # */
-        pStringLocation2 = pStringLocation2
-                        + strlen (m_XmlConfigReader[index].subString) + 2;
+        pStringLocation2 = pStringLocation2 + strlen (m_XmlConfigReader[index].subString) + 2;
 
         switch (m_XmlConfigReader[index].dataType)
         {
             case INTEGER_DTYPE:
-                sscanf (pStringLocation2, "%d",
-                                (int *) m_XmlConfigReader[index].xmlData);
+                sscanf (pStringLocation2, "%d", (int *) m_XmlConfigReader[index].xmlData);
                 break;
 
             case U32_DTYPE:
@@ -559,8 +519,8 @@ static UINT16 FindSignals (char* pStringLocation1)
     requiredMemorySize = sizeof(SignalDescription) * signalCount;
 
     // allocate memory
-    m_RtdmXmlData.signalDesription = (SignalDescription *) calloc (
-                    requiredMemorySize, sizeof(UINT8));
+    m_RtdmXmlData.signalDesription = (SignalDescription *) calloc (requiredMemorySize,
+                    sizeof(UINT8));
 
     /***********************************************************************************************************************/
     /* start loop for finding signal Id's */
@@ -576,7 +536,7 @@ static UINT16 FindSignals (char* pStringLocation1)
         pStringLocation1 = pStringLocation1 + strlen (xml_signal_id) + 2;
 
         i = 0;
-        memset(tempStr, 0, 255);
+        memset (tempStr, 0, 255);
         while (pStringLocation1[i] != '\"')
         {
             tempStr[i] = pStringLocation1[i];
@@ -584,9 +544,8 @@ static UINT16 FindSignals (char* pStringLocation1)
         }
 
         /* convert signal_id to a # and save as int */
-        sscanf (tempStr, "%u", (unsigned int *)&signalId);
+        sscanf (tempStr, "%u", (unsigned int *) &signalId);
         m_RtdmXmlData.signalDesription[signalCount].id = signalId;
-
 
         /* Get the variable name and map it to the actual variable address */
         pStringLocation1 = strstr (pStringLocation1, xml_name);
@@ -595,7 +554,7 @@ static UINT16 FindSignals (char* pStringLocation1)
 
         /* Get the XML signal name */
         i = 0;
-        memset(tempStr, 0, 255);
+        memset (tempStr, 0, 255);
         while (pStringLocation1[i] != '\"')
         {
             tempStr[i] = pStringLocation1[i];
@@ -611,20 +570,19 @@ static UINT16 FindSignals (char* pStringLocation1)
 
         if (i < sizeof(variableMap) / sizeof(VariableMap))
         {
-           m_RtdmXmlData.signalDesription[signalCount].variableAddr = variableMap[i].variableAddr;
+            m_RtdmXmlData.signalDesription[signalCount].variableAddr = variableMap[i].variableAddr;
         }
         else
         {
             //TODO handle error - variable name not found in current index
         }
 
-
         /* Get the data type */
         pStringLocation1 = strstr (pStringLocation1, xml_dataType);
         /* move pointer to dataType */
         pStringLocation1 = pStringLocation1 + strlen (xml_dataType) + 2;
 
-        memset(tempStr, 0, 255);
+        memset (tempStr, 0, 255);
         i = 0;
         while (pStringLocation1[i] != '\"')
         {
@@ -649,7 +607,7 @@ static UINT16 FindSignals (char* pStringLocation1)
         }
 
         /* Running calculation of the max amount of memory required if all signals change  */
-        dataAllocationBytes += sizeof (UINT16);
+        dataAllocationBytes += sizeof(UINT16);
         switch (m_RtdmXmlData.signalDesription[signalCount].signalType)
         {
             case UINT8_XML_TYPE:

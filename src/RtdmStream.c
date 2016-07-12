@@ -157,19 +157,15 @@ static UINT8 *m_ChangedSignalData = NULL;
  *
  *******************************************************************/
 static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode);
-static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
-                BOOL networkAvailable, UINT16 *errorCode,
-                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
-static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
-                RTDMTimeStr *currentTime);
+static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailable,
+                UINT16 *errorCode, RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
+static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
 static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
                 RTDMTimeStr *currentTime);
 static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData);
 
-static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData,
-                UINT16 *signalCount);
+static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signalCount);
 
-static int GetEpochTime (RTDMTimeStr* currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
 
@@ -193,12 +189,9 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     /* Allocate memory to store data according to buffer size from .xml file */
     m_StreamData = (uint8_t *) calloc (rtdmXmlData->bufferSize, sizeof(UINT8));
 
-    m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
-                    sizeof(UINT8));
-    m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
-                    sizeof(UINT8));
-    m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize,
-                    sizeof(UINT8));
+    m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize, sizeof(UINT8));
+    m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize, sizeof(UINT8));
+    m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize, sizeof(UINT8));
 
 }
 
@@ -235,7 +228,6 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     //DAS gets called every 50 msecs
     UINT16 result = 0;
     UINT16 errorCode = 0;
-    UINT16 numDataChangeBytes = 0;
 
     RTDMTimeStr currentTime;
     BOOL networkAvailable = FALSE;
@@ -249,8 +241,7 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     networkAvailable = NetworkAvailable (interface, &errorCode);
 
-    numDataChangeBytes = OutputStream (interface, networkAvailable, &errorCode,
-                    rtdmXmlData, &currentTime);
+    OutputStream (interface, networkAvailable, &errorCode, rtdmXmlData, &currentTime);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -259,6 +250,44 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     interface->RTDMStreamError = errorCode;
 
 }
+
+/*******************************************************************************************
+ *
+ *   Procedure Name : Get_Time()
+ *
+ *   Functional Description : Get current time in posix
+ *
+ *  Calls:
+ *  Get_Time()
+ *
+ *   Parameters : current_time_Sec, current_time_nano
+ *
+ *   Returned :  error
+ *
+ *   History :       11/23/2015    RC  - Creation
+ *   Revised :
+ *
+ ******************************************************************************************/
+int GetEpochTime (RTDMTimeStr* currentTime)
+{
+    /* For system time */
+    OS_STR_TIME_POSIX sys_posix_time;
+
+    /* Get TimeStamp */
+    if (os_c_get (&sys_posix_time) == OK)
+    {
+        currentTime->seconds = sys_posix_time.sec;
+        currentTime->nanoseconds = sys_posix_time.nanosec;
+    }
+    else
+    {
+        /* return error */
+        return (BAD_TIME);
+    }
+
+    return (NO_ERROR);
+
+} /* End Get_Time */
 
 static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 {
@@ -280,9 +309,8 @@ static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 
 }
 
-static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
-                BOOL networkAvailable, UINT16 *errorCode,
-                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
+static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailable,
+                UINT16 *errorCode, RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
     UINT32 timeDiffSec = 0;
     UINT32 samplesCRC = 0;
@@ -291,8 +319,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
     static UINT32 previousSendTimeSec = 0;
 
     /* IS "networkAvailable" NEEDED ?????????????????? */
-    if (!networkAvailable || !rtdmXmlData->OutputStream_enabled
-                    || (*errorCode != NO_ERROR))
+    if (!networkAvailable || !rtdmXmlData->OutputStream_enabled || (*errorCode != NO_ERROR))
     {
         return (0);
     }
@@ -305,14 +332,12 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
     {
 
         /* Copy the time stamp and signal count into main buffer */
-        memcpy (&m_StreamData[m_StreamBufferIndex], &m_RtdmSampleArray,
-                        sizeof(RtdmSampleStr));
+        memcpy (&m_StreamData[m_StreamBufferIndex], &m_RtdmSampleArray, sizeof(RtdmSampleStr));
 
         m_StreamBufferIndex += sizeof(RtdmSampleStr);
 
         /* Copy the changed data into main buffer */
-        memcpy (&m_StreamData[m_StreamBufferIndex], m_ChangedSignalData,
-                        newChangedDataBytes);
+        memcpy (&m_StreamData[m_StreamBufferIndex], m_ChangedSignalData, newChangedDataBytes);
 
         m_StreamBufferIndex += newChangedDataBytes;
 
@@ -323,8 +348,8 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
     }
 
     // TODO determine if next data change entry might overflow buffer
-    if ((m_StreamBufferIndex + rtdmXmlData->dataAllocationSize
-                    + sizeof(RtdmSampleStr)) >= rtdmXmlData->bufferSize)
+    if ((m_StreamBufferIndex + rtdmXmlData->dataAllocationSize + sizeof(RtdmSampleStr))
+                    >= rtdmXmlData->bufferSize)
     {
         streamBecauseBufferFull = TRUE;
     }
@@ -333,19 +358,16 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
     timeDiffSec = currentTime->seconds - previousSendTimeSec;
 
     /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
-    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count)
-                    || (streamBecauseBufferFull)
+    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count) || (streamBecauseBufferFull)
                     || (timeDiffSec >= rtdmXmlData->maxTimeBeforeSendMs))
                     && (previousSendTimeSec != 0))
     {
         /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
-        STRM_Header.Num_Samples = m_SampleCount;
+        STRM_Header.content.Num_Samples = m_SampleCount;
         samplesCRC = 0;
-        samplesCRC = crc32 (samplesCRC,
-                        (unsigned char *) &STRM_Header.Num_Samples,
-                        sizeof(STRM_Header.Num_Samples));
-        samplesCRC = crc32 (samplesCRC, (unsigned char*) m_StreamData,
-                        (m_StreamBufferIndex));
+        samplesCRC = crc32 (samplesCRC, (unsigned char *) &STRM_Header.content.Num_Samples,
+                        sizeof(STRM_Header.content.Num_Samples));
+        samplesCRC = crc32 (samplesCRC, (unsigned char*) m_StreamData, (m_StreamBufferIndex));
 
         /* Time to construct main header */
         Populate_Stream_Header (samplesCRC, rtdmXmlData, currentTime);
@@ -353,8 +375,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
         /* Time to send message */
         *errorCode = SendStreamOverNetwork (rtdmXmlData);
 
-        ProcessDataLog (rtdmXmlData, &STRM_Header, m_StreamData,
-                        m_StreamBufferIndex);
+        UpdateDataLog (rtdmXmlData, &STRM_Header, m_StreamData, m_StreamBufferIndex);
 
         previousSendTimeSec = currentTime->seconds;
 
@@ -376,32 +397,6 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
 
     return (newChangedDataBytes);
 
-#if DAS
-    //TODO Need to move/modify this... all about the data logger
-
-    /* if RTDM State is STOP, then finish the data recorder before starting new */
-    /* Could be triggered by PTU or DCUTerm */
-    /* This can be eliminated once we write the last timestamp and num of streams each time we write the buffer */
-    DataLog_Info_str.RTDMDataLogStop = m_Interface1Ptr->RTDMDataLogStop;
-    m_Interface1Ptr->RTDMDataLogState = DataLog_Info_str.RTDMDataLogWriteState;
-
-    /* Testing State - Control from DCUTerm - STOP */
-    if ((DataLog_Info_str.RTDMDataLogStop == 1
-                                    || DataLog_Info_str.RTDMDataLogWriteState == STOP)
-                    && rtdmXmlData->DataLogFileCfg_enabled == TRUE)
-    {
-        DataLog_Info_str.RTDMDataLogWriteState = STOP;
-        Write_RTDM (rtdmXmlData);
-        /* Toggle back to zero */
-        m_Interface1Ptr->RTDMDataLogStop = 0;
-    }
-
-    if (DataLog_Info_str.RTDMDataLogWriteState == RESTART)
-    {
-        Write_RTDM (rtdmXmlData);
-    }
-#endif
-
 }
 
 /*******************************************************************************************
@@ -421,8 +416,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface,
  *   Revised :
  *
  ******************************************************************************************/
-static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
-                RTDMTimeStr *currentTime)
+static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
     int compareResult = 0;
     static UINT32 previousSampleTimeSec = 0;
@@ -430,8 +424,7 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
     UINT16 signalChangeBufferSize = 0;
     UINT16 signalCount = 0;
 
-    compareResult = memcmp (m_OldSignalData, m_NewSignalData,
-                    rtdmXmlData->dataAllocationSize);
+    compareResult = memcmp (m_OldSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
 
     timeDiffSec = currentTime->seconds - previousSampleTimeSec;
 
@@ -447,19 +440,16 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
     previousSampleTimeSec = currentTime->seconds;
 
     /* Populate buffer with all signals because timer expired or compression is disabled */
-    if ((timeDiffSec >= rtdmXmlData->MaxTimeBeforeSaveMs)
-                    || !rtdmXmlData->Compression_enabled)
+    if ((timeDiffSec >= rtdmXmlData->MaxTimeBeforeSaveMs) || !rtdmXmlData->Compression_enabled)
     {
-        memcpy (m_ChangedSignalData, m_NewSignalData,
-                        rtdmXmlData->dataAllocationSize);
+        memcpy (m_ChangedSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
         signalChangeBufferSize = rtdmXmlData->dataAllocationSize;
         signalCount = rtdmXmlData->signal_count;
     }
     else
     {
         /* Populate buffer with signals that changed */
-        signalChangeBufferSize = PopulateBufferWithChanges (rtdmXmlData,
-                        &signalCount);
+        signalChangeBufferSize = PopulateBufferWithChanges (rtdmXmlData, &signalCount);
     }
 
     /* Always copy the new signals for the next comparison */
@@ -470,8 +460,7 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData,
     m_RtdmSampleArray.TimeStamp.seconds = currentTime->seconds;
 
     /* TimeStamp - mS */
-    m_RtdmSampleArray.TimeStamp.msecs = (UINT16) (currentTime->nanoseconds
-                    / 1000000);
+    m_RtdmSampleArray.TimeStamp.msecs = (UINT16) (currentTime->nanoseconds / 1000000);
 
     /* TimeStamp - Accuracy */
     m_RtdmSampleArray.TimeStamp.accuracy = m_Interface1Ptr->RTCTimeAccuracy;
@@ -496,8 +485,8 @@ static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
     for (i = 0; i < rtdmXmlData->signal_count; i++)
     {
         /* Copy the signal Id */
-        memcpy (&m_NewSignalData[bufferIndex],
-                        &rtdmXmlData->signalDesription[i].id, sizeof(UINT16));
+        memcpy (&m_NewSignalData[bufferIndex], &rtdmXmlData->signalDesription[i].id,
+                        sizeof(UINT16));
         bufferIndex += sizeof(UINT16);
 
         /* Copy the contents of the variable */
@@ -521,16 +510,14 @@ static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
 
         }
 
-        memcpy (&m_NewSignalData[bufferIndex],
-                        rtdmXmlData->signalDesription[i].variableAddr,
+        memcpy (&m_NewSignalData[bufferIndex], rtdmXmlData->signalDesription[i].variableAddr,
                         variableSize);
         bufferIndex += variableSize;
     }
 
 }
 
-static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData,
-                UINT16 *signalCount)
+static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signalCount)
 {
     UINT16 i = 0;
     UINT16 dataIndex = 0;
@@ -565,14 +552,13 @@ static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData,
         /* Set the dataIndex 2 bytes beyond the signal Id */
         dataIndex += sizeof(UINT16);
 
-        compareResult = memcmp (&m_NewSignalData[dataIndex],
-                        &m_OldSignalData[dataIndex], variableSize);
+        compareResult = memcmp (&m_NewSignalData[dataIndex], &m_OldSignalData[dataIndex],
+                        variableSize);
 
         if (compareResult != 0)
         {
             /* Start copying the from the signal Id and copy Id and data */
-            memcpy (&m_ChangedSignalData[changedIndex],
-                            &m_NewSignalData[signalIndex],
+            memcpy (&m_ChangedSignalData[changedIndex], &m_NewSignalData[signalIndex],
                             sizeof(UINT16) + variableSize);
             changedIndex += sizeof(UINT16) + variableSize;
             (*signalCount)++;
@@ -616,133 +602,90 @@ static void Populate_Stream_Header (UINT32 samples_crc, RtdmXmlStr *rtdmXmlData,
     /*********************************** Populate ****************************************************************/
 
     /* Delimiter - Always "STRM" */
-    memcpy (&STRM_Header.Delimiter, &Delimiter_array[0],
-                    sizeof(Delimiter_array));
+    memcpy (&STRM_Header.Delimiter, &Delimiter_array[0], sizeof(Delimiter_array));
 
     /* Endiannes - Always BIG */
-    STRM_Header.Endiannes = BIG_ENDIAN;
+    STRM_Header.content.Endiannes = BIG_ENDIAN;
 
     /* Header size - Always 85 - STREAM_HEADER_SIZE */
-    STRM_Header.Header_Size = sizeof(STRM_Header);
+    STRM_Header.content.Header_Size = sizeof(STRM_Header);
 
     /* Header Checksum - CRC-32 */
     /* Checksum of the following content of the header */
     /* Below - need to calculate after filling array */
 
     /* Header Version - Always 2 */
-    STRM_Header.Header_Version = STREAM_HEADER_VERSION;
+    STRM_Header.content.Header_Version = STREAM_HEADER_VERSION;
 
     /* Consist ID */
-    memset (&STRM_Header.Consist_ID[0], 0, sizeof(STRM_Header.Consist_ID));
-    memcpy (&STRM_Header.Consist_ID[0],
-                    m_Interface1Ptr->VNC_CarData_X_ConsistID,
-                    strlen(m_Interface1Ptr->VNC_CarData_X_ConsistID));
+    memset (&STRM_Header.content.Consist_ID[0], 0, sizeof(STRM_Header.content.Consist_ID));
+    memcpy (&STRM_Header.content.Consist_ID[0], m_Interface1Ptr->VNC_CarData_X_ConsistID,
+                    strlen (m_Interface1Ptr->VNC_CarData_X_ConsistID));
 
     /* Car ID */
-    memset (&STRM_Header.Car_ID[0], 0, sizeof(STRM_Header.Car_ID));
-    memcpy (&STRM_Header.Car_ID[0],
-                    m_Interface1Ptr->VNC_CarData_X_CarID,
-                    strlen(m_Interface1Ptr->VNC_CarData_X_CarID));
-
+    memset (&STRM_Header.content.Car_ID[0], 0, sizeof(STRM_Header.content.Car_ID));
+    memcpy (&STRM_Header.content.Car_ID[0], m_Interface1Ptr->VNC_CarData_X_CarID,
+                    strlen (m_Interface1Ptr->VNC_CarData_X_CarID));
 
     /* Device ID */
-    memset (&STRM_Header.Device_ID[0], 0, sizeof(STRM_Header.Device_ID));
-    memcpy (&STRM_Header.Device_ID[0],
-                    m_Interface1Ptr->VNC_CarData_X_DeviceID,
-                    strlen(m_Interface1Ptr->VNC_CarData_X_DeviceID));
+    memset (&STRM_Header.content.Device_ID[0], 0, sizeof(STRM_Header.content.Device_ID));
+    memcpy (&STRM_Header.content.Device_ID[0], m_Interface1Ptr->VNC_CarData_X_DeviceID,
+                    strlen (m_Interface1Ptr->VNC_CarData_X_DeviceID));
 
     /* Data Recorder ID - from .xml file */
-    STRM_Header.Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
+    STRM_Header.content.Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
 
     /* Data Recorder Version - from .xml file */
-    STRM_Header.Data_Record_Version = rtdmXmlData->DataRecorderCfgVersion;
+    STRM_Header.content.Data_Record_Version = rtdmXmlData->DataRecorderCfgVersion;
 
     /* TimeStamp - Current time in Seconds */
-    STRM_Header.TimeStamp_S = currentTime->seconds;
+    STRM_Header.content.TimeStamp_S = currentTime->seconds;
 
     /* TimeStamp - mS */
-    STRM_Header.TimeStamp_mS = (UINT16) (currentTime->nanoseconds / 1000000);
+    STRM_Header.content.TimeStamp_mS = (UINT16) (currentTime->nanoseconds / 1000000);
 
     /* This is the first stream written so capture the timestamp */
     /* If > 0 than a .dan already exists, do NOT overwrite */
     if (RTDM_Stream_Counter == 0)
     {
         /* Set First TimeStamp for RTDM Header */
-        DataLog_Info_str.Stream_1st_TimeStamp_S = STRM_Header.TimeStamp_S;
-        DataLog_Info_str.Stream_1st_TimeStamp_mS = STRM_Header.TimeStamp_mS;
+        DataLog_Info_str.Stream_1st_TimeStamp_S = STRM_Header.content.TimeStamp_S;
+        DataLog_Info_str.Stream_1st_TimeStamp_mS = STRM_Header.content.TimeStamp_mS;
     }
 
     /* This is the last stream written so capture the timestamp */
     /* Set Last TimeStamp for RTDM Header */
-    DataLog_Info_str.Stream_Last_TimeStamp_S = STRM_Header.TimeStamp_S;
-    DataLog_Info_str.Stream_Last_TimeStamp_mS = STRM_Header.TimeStamp_mS;
+    DataLog_Info_str.Stream_Last_TimeStamp_S = STRM_Header.content.TimeStamp_S;
+    DataLog_Info_str.Stream_Last_TimeStamp_mS = STRM_Header.content.TimeStamp_mS;
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
-    STRM_Header.TimeStamp_accuracy = m_Interface1Ptr->RTCTimeAccuracy;
+    STRM_Header.content.TimeStamp_accuracy = m_Interface1Ptr->RTCTimeAccuracy;
 
     /* MDS Receive Timestamp - ED is always 0 */
-    STRM_Header.MDS_Receive_S = 0;
+    STRM_Header.content.MDS_Receive_S = 0;
 
     /* MDS Receive Timestamp - ED is always 0 */
-    STRM_Header.MDS_Receive_mS = 0;
+    STRM_Header.content.MDS_Receive_mS = 0;
 
     /* Sample size - size of following content including this field */
     /* Add this field plus checksum and # samples to size */
-    STRM_Header.Sample_Size_for_header = ((rtdmXmlData->max_main_buffer_count
+    STRM_Header.content.Sample_Size_for_header = ((rtdmXmlData->max_main_buffer_count
                     * rtdmXmlData->sample_size) + SAMPLE_SIZE_ADJUSTMENT);
 
     /* Sample Checksum - Checksum of the following content CRC-32 */
-    STRM_Header.Sample_Checksum = samples_crc;
+    STRM_Header.content.Sample_Checksum = samples_crc;
 
     /* Number of Samples in current stream */
-    STRM_Header.Num_Samples = m_SampleCount;
+    STRM_Header.content.Num_Samples = m_SampleCount;
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
     stream_header_crc = 0;
     stream_header_crc = crc32 (stream_header_crc,
-                    ((unsigned char*) &STRM_Header.Header_Version),
-                    (sizeof(STRM_Header) - STREAM_HEADER_CHECKSUM_ADJUST));
-    STRM_Header.Header_Checksum = stream_header_crc;
+                    ((unsigned char*) &STRM_Header.content.Header_Version),
+                    (sizeof(STRM_Header.content) - STREAM_HEADER_CHECKSUM_ADJUST));
+    STRM_Header.content.Header_Checksum = stream_header_crc;
 
 } /* End Populate_Stream_Header */
-
-/*******************************************************************************************
- *
- *   Procedure Name : Get_Time()
- *
- *   Functional Description : Get current time in posix
- *
- *	Calls:
- *	Get_Time()
- *
- *   Parameters : current_time_Sec, current_time_nano
- *
- *   Returned :  error
- *
- *   History :       11/23/2015    RC  - Creation
- *   Revised :
- *
- ******************************************************************************************/
-static int GetEpochTime (RTDMTimeStr* currentTime)
-{
-    /* For system time */
-    OS_STR_TIME_POSIX sys_posix_time;
-
-    /* Get TimeStamp */
-    if (os_c_get (&sys_posix_time) == OK)
-    {
-        currentTime->seconds = sys_posix_time.sec;
-        currentTime->nanoseconds = sys_posix_time.nanosec;
-    }
-    else
-    {
-        /* return error */
-        return (BAD_TIME);
-    }
-
-    return (NO_ERROR);
-
-} /* End Get_Time */
 
 /*******************************************************************************************
  *
@@ -829,8 +772,8 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
     static UINT32 MD_Send_Counter = 0;
 
     /* This is the actual buffer size as calculated below */
-    actual_buffer_size = ((rtdmXmlData->max_main_buffer_count
-                    * rtdmXmlData->sample_size) + sizeof(StreamHeaderStr) + 2);
+    actual_buffer_size = ((rtdmXmlData->max_main_buffer_count * rtdmXmlData->sample_size)
+                    + sizeof(StreamHeaderStr) + 2);
 
     // TODO Need to combine the former RTDM_Struct into buff, header, stream
 #if TODO
@@ -863,278 +806,4 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
 #endif
     return errorCode;
 }
-
-/*********************************** TEST *************************************************************/
-/*********************************** TEST *************************************************************/
-
-#if DAS
-void Populate_Samples_Test()
-{
-    UINT16 i = 0;
-
-    /*********************************** HEADER ****************************************************************/
-    /* TimeStamp - Seconds */
-    m_RtdmSampleArray.TimeStamp_S = 1459430925;
-
-    /* TimeStamp - mS */
-    m_RtdmSampleArray.TimeStamp_mS = 123;
-
-    /* TimeStamp - Accuracy */
-    m_RtdmSampleArray.TimeStamp_accuracy = 0;
-
-    /* Number of Signals in current sample*/
-    m_RtdmSampleArray.Num_Signals = rtdmXmlData->signal_count;
-    /*********************************** End HEADER *************************************************************/
-
-    /*********************************** SIGNALS ****************************************************************/
-    /* 	Load Samples with Signal data - Header plus SigID_1,SigValue_1 ... SigID_N,SigValue_N */
-    for (i = 0; i < rtdmXmlData->signal_count; i++)
-    {
-        /* These ID's are fixed and cannot be changed */
-        switch (rtdmXmlData->signal_id_num[i])
-        {
-
-            case 0:
-            /* Tractive Effort Request - lbs  - INT32 */
-            m_RtdmSampleArray.SigID_0 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_0 = 1;
-            break;
-
-            case 1:
-            /* DC Link Current A - INT16 */
-            m_RtdmSampleArray.SigID_1 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_1 = 2;
-            break;
-
-            case 2:
-            /* DC Link Voltage - v  - INT16 */
-            m_RtdmSampleArray.SigID_2 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_2 = 3;
-            break;
-
-            case 3:
-            /* IDiffCurr - A   - INT16 */
-            m_RtdmSampleArray.SigID_3 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_3 = 4;
-            break;
-
-            case 4:
-            /* Line Current - INT16  */
-            m_RtdmSampleArray.SigID_4 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_4 = 5;
-            break;
-
-            case 5:
-            /* LineVoltage - V   - INT16 */
-            m_RtdmSampleArray.SigID_5 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_5 = 6;
-            break;
-
-            case 6:
-            /* Rate - MPH - DIV/100 - INT16 */
-            m_RtdmSampleArray.SigID_6 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_6 = 7;
-            break;
-
-            case 7:
-            /* Rate Request - MPH - DIV/100   - INT16 */
-            m_RtdmSampleArray.SigID_7 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_7 = 8;
-            break;
-
-            case 8:
-            /* Tractive Effort Delivered - lbs - INT32 */
-            m_RtdmSampleArray.SigID_8 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_8 = 9;
-            break;
-
-            case 9:
-            /* Odometer - MILES - DIV/10  - UINT32 */
-            m_RtdmSampleArray.SigID_9 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_9 = 1;
-            break;
-
-            case 10:
-            /* CHscbCmd - UINT8 */
-            m_RtdmSampleArray.SigID_10 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_10 = 2;
-            break;
-
-            case 11:
-            /* CRunRelayCmd - UINT8  */
-            m_RtdmSampleArray.SigID_11 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_11 = 3;
-            break;
-
-            case 12:
-            /* CCcContCmd - UINT8  */
-            m_RtdmSampleArray.SigID_12 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_12 = 4;
-            break;
-
-            case 13:
-            /* DCU State - UINT8 */
-            m_RtdmSampleArray.SigID_13 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_13 = 5;
-            break;
-
-            case 14:
-            /* IDynBrkCutOut - UINT8 */
-            m_RtdmSampleArray.SigID_14 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_14 = 6;
-            break;
-
-            case 15:
-            /* IMCSS Mode Select - UINT8 */
-            m_RtdmSampleArray.SigID_15 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_15 = 7;
-            break;
-
-            case 16:
-            /* PKO Status  - UINT8 */
-            m_RtdmSampleArray.SigID_16 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_16 = 8;
-            break;
-
-            case 17:
-            /* IPKOStatusPKOnet  - UINT8 */
-            m_RtdmSampleArray.SigID_17 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_17 = 9;
-            break;
-
-            case 18:
-            /* IPropCutout  - UINT8 */
-            m_RtdmSampleArray.SigID_18 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_18 = 1;
-            break;
-
-            case 19:
-            /* IPropSystMode  - UINT8 */
-            m_RtdmSampleArray.SigID_19 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_19 = 2;
-            break;
-
-            case 20:
-            /* IRegenCutOut  - UINT8 */
-            m_RtdmSampleArray.SigID_20 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_20 = 3;
-            break;
-
-            case 21:
-            /* ITractionSafeSts  - UINT8 */
-            m_RtdmSampleArray.SigID_21 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_21 = 4;
-            break;
-
-            case 22:
-            /* PRailGapDet  - UINT8 */
-            m_RtdmSampleArray.SigID_22 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_22 = 5;
-            break;
-
-            case 23:
-            /* ICarSpeed  - UINT16 */
-            m_RtdmSampleArray.SigID_23 = rtdmXmlData->signal_id_num[i];
-            m_RtdmSampleArray.SigValue_23 = 6;
-            break;
-
-        } /* end switch */
-
-    } /* end for */
-
-    /*********************************** END SIGNALS ************************************************************/
-
-} /* End PopulateSamples() */
-
-void Populate_Header_Test(UINT32 samples_crc)
-{
-
-    char Delimiter_array[4] =
-    {   "STRM"};
-    char temp_consistID_array[16] =
-    {   "ConsistID"};
-    char temp_carID_array[16] =
-    {   "CarID"};
-    char temp_deviceID_array[16] =
-    {   "DeviceID"};
-    UINT32 stream_header_crc = 0;
-
-    /*********************************** Populate ****************************************************************/
-
-    /* Delimiter - Always "STRM" */
-    memcpy(&STRM_Header.Delimiter, &Delimiter_array[0],
-                    sizeof(Delimiter_array));
-
-    /* Endiannes - Always BIG */
-    STRM_Header.Endiannes = 1;
-
-    /* Header size - Always 85 - STREAM_HEADER_SIZE */
-    /*STRM_Header_Array[0].Header_Size = sizeof(STRM_Header_Array[0]);*/
-    STRM_Header.Header_Size = STREAM_HEADER_SIZE;
-
-    /* Header Checksum - CRC-32 */
-    /* Below - need to calculate after filling array */
-
-    /* Header Version - Always 2 */
-    STRM_Header.Header_Version = 2;
-
-    /* Consist ID */
-    memcpy(&STRM_Header.Consist_ID, &temp_consistID_array[0],
-                    sizeof(temp_consistID_array));
-
-    /* Car ID */
-    memcpy(&STRM_Header.Car_ID, &temp_carID_array[0],
-                    sizeof(temp_carID_array));
-
-    /* Device ID */
-    memcpy(&STRM_Header.Device_ID, &temp_deviceID_array[0],
-                    sizeof(temp_deviceID_array));
-
-    /* Data Recorder ID - from .xml file */
-    /*STRM_Header_Array[0].Data_Record_ID = 'CC';*/
-    STRM_Header.Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
-
-    /* Data Recorder Version - from .xml file */
-    /*STRM_Header_Array[0].Data_Record_Version = 'DD';*/
-    STRM_Header.Data_Record_Version =
-    rtdmXmlData->DataRecorderCfgVersion;
-
-    /* TimeStamp - Current time in Seconds */
-    STRM_Header.TimeStamp_S = 1234;
-
-    /* TimeStamp - mS */
-    STRM_Header.TimeStamp_mS = 12;
-
-    /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
-    STRM_Header.TimeStamp_accuracy = 'G';
-
-    /* MDS Receive Timestamp - ED is always 0 */
-    STRM_Header.MDS_Receive_S = 'HHHH';
-
-    /* MDS Receive Timestamp - ED is always 0 */
-    STRM_Header.MDS_Receive_mS = 'II';
-
-    /* Sample size - size of following content including this field */
-    /* STRM_Header_Array[0].Sample_Size_for_header = 'JJ'; */
-    /* Add this field plus checksum and # samples to size */
-    STRM_Header.Sample_Size_for_header = (rtdmXmlData->sample_size
-                    + SAMPLE_SIZE_ADJUSTMENT);
-
-    /* Sample Checksum - Checksum of the following content CRC-32 */
-    STRM_Header.Sample_Checksum = samples_crc;
-
-    /* Number of Samples in current stream */
-    STRM_Header.Num_Samples = m_SampleCount;
-
-    /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
-    stream_header_crc = 0;
-    stream_header_crc = crc32(stream_header_crc,
-                    ((unsigned char*) &STRM_Header.Header_Version),
-                    (sizeof(STRM_Header) - STREAM_HEADER_CHECKSUM_ADJUST));
-    STRM_Header.Header_Checksum = stream_header_crc;
-
-    /*********************************** End HEADER *************************************************************/
-
-} /* End Populate_Header_Test */
-#endif
 

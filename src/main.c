@@ -50,9 +50,7 @@ typedef struct
     uint16_t Sample_Size_for_header __attribute__ ((packed));
     uint32_t Sample_Checksum __attribute__ ((packed));
     uint16_t Num_Samples __attribute__ ((packed));
-} StreamHeaderStr;
-
-
+}StreamHeaderStr;
 
 memcpy (&STRM_Header.Consist_ID, m_Interface1Ptr->VNC_CarData_X_ConsistID,
                 sizeof(STRM_Header.Consist_ID));
@@ -73,16 +71,13 @@ int main (void)
     mStreamInfo.VNC_CarData_S_WhoAmISts = TRUE;
 
     /* Consist ID */
-    memcpy (&mStreamInfo.VNC_CarData_X_ConsistID, "d1234",
-                    sizeof(STRM_Header.Consist_ID));
+    memcpy (&mStreamInfo.VNC_CarData_X_ConsistID, "d1234", sizeof(STRM_Header.content.Consist_ID));
 
     /* Car ID */
-    memcpy (&mStreamInfo.VNC_CarData_X_CarID, "d1234",
-                    sizeof(STRM_Header.Car_ID));
+    memcpy (&mStreamInfo.VNC_CarData_X_CarID, "d1234", sizeof(STRM_Header.content.Car_ID));
 
     /* Device ID */
-    memcpy (&mStreamInfo.VNC_CarData_X_DeviceID, "pcux",
-                    sizeof(STRM_Header.Device_ID));
+    memcpy (&mStreamInfo.VNC_CarData_X_DeviceID, "pcux", sizeof(STRM_Header.content.Device_ID));
 
     setvbuf (stdout, NULL, _IONBF, 0);
     setvbuf (stderr, NULL, _IONBF, 0);

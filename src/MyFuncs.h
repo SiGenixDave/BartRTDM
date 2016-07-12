@@ -10,8 +10,8 @@
 
 struct OS_STR_TIME_POSIX;
 
-int os_io_fopen(const char *fileName, char *arg, FILE **fp);
-int os_c_get(OS_STR_TIME_POSIX *sys_posix_time);
-
+void GetTimeDate (char *dateTime, UINT16 arraySize);
+int os_io_fopen (const char *fileName, char *arg, FILE **fp);
+int os_c_get (OS_STR_TIME_POSIX *sys_posix_time);
 
 #endif /* MYFUNCS_H_ */

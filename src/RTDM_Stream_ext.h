@@ -24,27 +24,13 @@
 
 /****************************************************************************************/
 
-/* Data Log file which contains streams */
-#define RTDM_DATA_FILE 				"rtdm.dan"
-
 /* RTDM Header Version */
 #define RTDM_HEADER_VERSION			2
 
 /* Stream Header Verion */
 #define STREAM_HEADER_VERSION		2	
 
-#ifdef TEST_ON_PC
-#define BIG_ENDIAN					1
-#else
 #define BIG_ENDIAN                 0
-#endif
-
-#define OFF			1
-#define STOP		2
-#define RUN			3
-#define FULL		4
-#define RESTART		5
-#define RESET		6
 
 /* Error Codes for RTDM Streaming */
 #define NO_ERROR					0
@@ -86,7 +72,6 @@ typedef struct
     uint8_t accuracy;
 } TimeStampStr;
 
-
 /* Structure to contain header for stream data */
 typedef struct
 {
@@ -94,10 +79,8 @@ typedef struct
     uint16_t Count __attribute__ ((packed));
 } RtdmSampleStr;
 
-/* Structure to contain variables in the Stream header of the message */
 typedef struct
 {
-    char Delimiter[4];
     uint8_t Endiannes;
     uint16_t Header_Size __attribute__ ((packed));
     uint32_t Header_Checksum __attribute__ ((packed));
@@ -115,6 +98,14 @@ typedef struct
     uint16_t Sample_Size_for_header __attribute__ ((packed));
     uint32_t Sample_Checksum __attribute__ ((packed));
     uint16_t Num_Samples __attribute__ ((packed));
+
+} StreamHeaderContent;
+
+/* Structure to contain variables in the Stream header of the message */
+typedef struct
+{
+    char Delimiter[4];
+    StreamHeaderContent content;
 } StreamHeaderStr;
 
 /* Structure to contain variables in the RTDM header of the message */
