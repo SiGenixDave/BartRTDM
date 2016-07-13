@@ -65,7 +65,6 @@ static const char *m_DanFilePtr[] =
     "11.dan", "12.dan", "13.dan", "14.dan", "15.dan", "16.dan", "17.dan", "18.dan", "19.dan",
     "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan" };
 
-
 extern StreamHeaderStr STRM_Header;
 
 /*******************************************************************
@@ -78,9 +77,13 @@ static INT16 GetOldestDanFileIndex (INT16 newestDanFileIndex);
 static void OpenDanTracker (void);
 static void CreateFileName (FILE **ptr);
 static void IncludeXMLFile (FILE *ftpFilePtr);
-static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest, UINT16 numStreams);
+static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
+                UINT16 numStreams);
 static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileIndex);
-static UINT16 CountStreams(INT16 oldestIndex, INT16 newestIndex);
+static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex);
+static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newestIndex);
+
+
 
 void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -156,8 +159,7 @@ void SpawnFTPDatalog (void)
     /* Get the oldest timestamp (first one) in the oldest file ; used for RTDM header */
     GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestDanFileIndex);
 
-    streamCount = CountStreams(oldestDanFileIndex, newestDanFileIndex);
-
+    streamCount = CountStreams (oldestDanFileIndex, newestDanFileIndex);
 
     /* Create filename and open it for writing */
     CreateFileName (&ftpFilePtr);
@@ -170,13 +172,16 @@ void SpawnFTPDatalog (void)
     /* Include xml file */
     IncludeXMLFile (ftpFilePtr);
 
-    // Include rtdm header
-    //TODO IncludeRTDMHeader (ftpFilePtr);
+    /* Include rtdm header */
+    IncludeRTDMHeader (ftpFilePtr, &oldestTimeStamp, &newestTimeStamp, streamCount);
 
-    // Open each file .dan (oldest first) and concatenate
-    // May have to parse to get additional info
+    /* Open each file .dan (oldest first) and concatenate */
+    IncludeStreamFiles (ftpFilePtr, oldestDanFileIndex, newestDanFileIndex);
 
-    // Close file and send to FTP server
+    /* Close file */
+    os_io_fclose(ftpFilePtr);
+
+    // Send to FTP server
 }
 
 static void OpenDanTracker (void)
@@ -192,12 +197,7 @@ static void OpenDanTracker (void)
         fseek (p_file, 0L, SEEK_END);
         numBytes = ftell (p_file);
 
-        if (numBytes == 0)
-        {
-            /* File doesn't exist, so assume this is the first call */
-            os_io_fclose(p_file);
-        }
-        else
+        if (numBytes != 0)
         {
             fseek (p_file, 0L, SEEK_SET);
             danIndex = 0;
@@ -225,7 +225,7 @@ static void OpenDanTracker (void)
     }
 
     m_DanFileIndex = danIndex;
-
+    os_io_fclose(p_file);
 }
 
 static INT16 GetNewestDanFileIndex (void)
@@ -289,7 +289,7 @@ static INT16 GetOldestDanFileIndex (INT16 newestDanFileIndex)
             newestDanFileIndex = (sizeof(m_DanFilePtr) / sizeof(const char *)) - 1;
         }
 
-        if (os_io_fopen (m_DanFilePtr[newestDanFileIndex], "r", &p_file) != ERROR)
+        if (os_io_fopen (m_DanFilePtr[newestDanFileIndex], "rb", &p_file) != ERROR)
         {
             /* Get the number of bytes */
             fseek (p_file, 0L, SEEK_END);
@@ -315,7 +315,6 @@ static INT16 GetOldestDanFileIndex (INT16 newestDanFileIndex)
         newestDanFileIndex--;
 
     } while (existingFileCount < sizeof(m_DanFilePtr) / sizeof(const char *));
-
 
     return (oldestDanFileIndex);
 
@@ -384,13 +383,14 @@ static void IncludeXMLFile (FILE *ftpFilePtr)
 
 }
 
-static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest, UINT16 numStreams)
+static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
+                UINT16 numStreams)
 {
     RtdmHeaderStr rtdmHeader;
     char *delimiter = "RTDM";
     UINT32 rtdm_header_crc = 0;
 
-    memcpy(&rtdmHeader.Delimiter[0], delimiter, strlen(delimiter));
+    memcpy (&rtdmHeader.Delimiter[0], delimiter, strlen (delimiter));
 
     /* Endiannes - Always BIG */
     rtdmHeader.Endiannes = BIG_ENDIAN;
@@ -405,15 +405,13 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     rtdmHeader.Header_Version = RTDM_HEADER_VERSION;
 
     /* Consist ID */
-    memcpy (&rtdmHeader.Consist_ID, &STRM_Header.content.Consist_ID,
-                    sizeof(rtdmHeader.Consist_ID));
+    memcpy (&rtdmHeader.Consist_ID, &STRM_Header.content.Consist_ID, sizeof(rtdmHeader.Consist_ID));
 
     /* Car ID */
     memcpy (&rtdmHeader.Car_ID, &STRM_Header.content.Car_ID, sizeof(rtdmHeader.Car_ID));
 
     /* Device ID */
-    memcpy (&rtdmHeader.Device_ID, &STRM_Header.content.Device_ID,
-                    sizeof(rtdmHeader.Device_ID));
+    memcpy (&rtdmHeader.Device_ID, &STRM_Header.content.Device_ID, sizeof(rtdmHeader.Device_ID));
 
     /* Data Recorder ID - from .xml file */
     rtdmHeader.Data_Record_ID = m_RtdmXmlData->DataRecorderCfgID;
@@ -437,16 +435,14 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
     rtdm_header_crc = 0;
-    rtdm_header_crc = crc32 (rtdm_header_crc,
-                    ((unsigned char*) &rtdmHeader.Header_Version),
+    rtdm_header_crc = crc32 (rtdm_header_crc, ((unsigned char*) &rtdmHeader.Header_Version),
                     (sizeof(rtdmHeader) - RTDM_HEADER_CHECKSUM_ADJUST));
     rtdmHeader.Header_Checksum = rtdm_header_crc;
 
-
     /* Assume file is opened */
-    fseek (ftpFilePtr, 0L, SEEK_END);
+    //DAS fseek (ftpFilePtr, 0L, SEEK_END);
 
-    fwrite (&rtdmHeader, 1, sizeof (rtdmHeader), ftpFilePtr);
+    fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
 
 }
 
@@ -462,7 +458,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileI
     /* Calling function should check for 0 to determine if any streams were detected */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    if (os_io_fopen (m_DanFilePtr[fileIndex], "r", &p_file) == ERROR)
+    if (os_io_fopen (m_DanFilePtr[fileIndex], "rb", &p_file) == ERROR)
     {
         return;
     }
@@ -510,10 +506,18 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileI
 
 }
 
-static UINT16 CountStreams(INT16 oldestIndex, INT16 newestIndex)
+static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex)
 {
     UINT16 streamCount = 0;
     UINT16 filesToParse = 0;
+    UINT16 parseCount = 0;
+    UINT16 fileIndex = 0;
+    FILE *streamFilePtr = NULL;
+    UINT8 buffer = 0;
+    UINT16 amountRead = 0;
+    const char *streamHeaderDelimiter = "STRM";
+    UINT16 sIndex = 0;
+    UINT32 byteCount = 0;
 
     if (newestIndex >= oldestIndex)
     {
@@ -521,50 +525,129 @@ static UINT16 CountStreams(INT16 oldestIndex, INT16 newestIndex)
     }
     else
     {
-        filesToParse = oldestIndex + (sizeof(m_DanFilePtr)/sizeof(const char *)) + 1 - newestIndex;
+        filesToParse = oldestIndex + (sizeof(m_DanFilePtr) / sizeof(const char *)) + 1
+                        - newestIndex;
     }
 
-    return 0;
+    fileIndex = oldestIndex;
 
-#if 0
     // In order to prevent memory leaks, no mallocs or callocs during runtime
-    while (1)
+    while (parseCount < filesToParse)
     {
-        /* Search for delimiter */
-        amountRead = fread (&buffer, sizeof(UINT8), 1, p_file);
-
-        /* End of file reached */
-        if (amountRead != sizeof(UINT8))
+        // Open file
+        if (os_io_fopen (m_DanFilePtr[fileIndex], "rb", &streamFilePtr) == ERROR)
         {
-            break;
+            streamFilePtr = NULL;
         }
 
-        if (buffer == streamHeaderDelimiter[sIndex])
+        /* Prepare fileIndex for next Stream File */
+        fileIndex++;
+        if (fileIndex >= sizeof(m_DanFilePtr)/sizeof(const char *))
         {
-            sIndex++;
-            if (sIndex == strlen (streamHeaderDelimiter))
-            {
-                fread (&streamHeaderContent, sizeof(streamHeaderContent), 1, p_file);
+            fileIndex = 0;
+        }
 
-                /* Get out of while loop on first occurrence */
-                if (age == OLDEST_TIMESTAMP)
+        if (streamFilePtr == NULL)
+        {
+            continue;
+        }
+
+        while (1)
+        {
+            /* Search for delimiter */
+            amountRead = fread (&buffer, sizeof(UINT8), 1, streamFilePtr);
+            byteCount += amountRead;
+
+            /* End of file reached */
+            if (amountRead != 1)
+            {
+                break;
+            }
+
+            if (buffer == streamHeaderDelimiter[sIndex])
+            {
+                sIndex++;
+                if (sIndex == strlen (streamHeaderDelimiter))
                 {
-                    break;
-                }
-                else
-                {
+                    streamCount++;
                     sIndex = 0;
                 }
             }
+            else
+            {
+                sIndex = 0;
+            }
         }
-        else
-        {
-            sIndex = 0;
-        }
+
+        sIndex = 0;
+        parseCount++;
+
+        /* close stream file */
+        os_io_fclose(streamFilePtr);
     }
-#endif
 
+    return (streamCount);
 
+}
 
+static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newestIndex)
+{
+    UINT16 filesToParse = 0;
+    UINT16 parseCount = 0;
+    UINT16 fileIndex = 0;
+    FILE *streamFilePtr = NULL;
+    UINT8 buffer[1024];
+    UINT16 amountRead = 0;
+
+    if (newestIndex >= oldestIndex)
+    {
+        filesToParse = (newestIndex - oldestIndex) + 1;
+    }
+    else
+    {
+        filesToParse = oldestIndex + (sizeof(m_DanFilePtr) / sizeof(const char *)) + 1
+                        - newestIndex;
+    }
+
+    fileIndex = oldestIndex;
+
+    // In order to prevent memory leaks, no mallocs or callocs during runtime
+    while (parseCount < filesToParse)
+    {
+        // Open file
+        if (os_io_fopen (m_DanFilePtr[fileIndex], "rb", &streamFilePtr) == ERROR)
+        {
+            streamFilePtr = NULL;
+        }
+
+        /* Prepare fileIndex for next Stream File */
+        fileIndex++;
+        if (fileIndex >= sizeof(m_DanFilePtr)/sizeof(const char *))
+        {
+            fileIndex = 0;
+        }
+
+        if (streamFilePtr == NULL)
+        {
+            continue;
+        }
+
+        while (1)
+        {
+            /* Search for delimiter */
+            amountRead = fread (&buffer[0], 1, 1024, streamFilePtr);
+
+            if (amountRead == 0)
+            {
+                os_io_fclose(streamFilePtr);
+                break;
+            }
+
+            fwrite(&buffer[0], amountRead, 1, ftpFilePtr);
+        }
+
+        parseCount++;
+
+    }
 }
 
