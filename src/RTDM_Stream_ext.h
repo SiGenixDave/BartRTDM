@@ -58,7 +58,6 @@
 #define NO_BUFFERSIZE				13
 
 /* Error Codes for RTDM Data Recorder */
-UINT8 error_code_dan;
 #define OPEN_FAIL					20
 
 #define FIFO_POLICY					100
@@ -116,9 +115,9 @@ typedef struct
     uint16_t Header_Size __attribute__ ((packed));
     uint32_t Header_Checksum __attribute__ ((packed));
     uint8_t Header_Version;
-    uint8_t Consist_ID[16];
-    uint8_t Car_ID[16];
-    uint8_t Device_ID[16];
+    char Consist_ID[16];
+    char Car_ID[16];
+    char Device_ID[16];
     uint16_t Data_Record_ID __attribute__ ((packed));
     uint16_t Data_Record_Version __attribute__ ((packed));
     uint32_t FirstTimeStamp_S __attribute__ ((packed));
@@ -127,23 +126,6 @@ typedef struct
     uint16_t LastTimeStamp_mS __attribute__ ((packed));
     uint32_t Num_Streams __attribute__ ((packed));
 } RtdmHeaderStr;
-
-/* Structure to contain all variables for Data Logging */
-struct DataLog_Info
-{
-    uint8_t RTDMDataLogStop;
-    uint8_t RTDMDataLogWriteState;
-    uint32_t Stream_1st_TimeStamp_S;
-    uint16_t Stream_1st_TimeStamp_mS;
-    uint32_t Stream_Last_TimeStamp_S;
-    uint16_t Stream_Last_TimeStamp_mS;
-    uint32_t Num_of_Streams_Read_from_file;
-    uint8_t xml_header_is_present;
-    int32_t RTDM_Header_Location_Offset;
-};
-struct DataLog_Info DataLog_Info_str;
-
-void Write_RTDM ();
 
 #endif
 

@@ -11,7 +11,7 @@
 #define RTDMDATALOG_H_
 
 void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void UpdateDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader, uint8_t *stream,
+void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader, uint8_t *stream,
                 UINT32 dataAmount);
 
 void Write_RTDM (void);

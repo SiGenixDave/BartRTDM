@@ -58,14 +58,13 @@ static const char *m_FileTracker = "DanFileTracker.txt";
 static TYPE_RTDM_STREAM_IF *m_Interface = NULL;
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 
-/* Each file contains an hours worth of data */
+/* Each file contains up to an hours worth of stream data */
 static const char *m_DanFilePtr[] =
 {
     "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan", "9.dan", "10.dan",
     "11.dan", "12.dan", "13.dan", "14.dan", "15.dan", "16.dan", "17.dan", "18.dan", "19.dan",
     "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan" };
 
-extern StreamHeaderStr STRM_Header;
 
 /*******************************************************************
  *
@@ -92,21 +91,25 @@ void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     OpenDanTracker ();
 
-    // DAS remove after test
-    SpawnFTPDatalog ();
 }
 
-void SpawnRtdmFileWrite (UINT8 *buffer, UINT32 size)
+//TODO Need to be run in a task
+void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 {
 
-    //TODO Create a low priority task
-
     FILE *p_file = NULL;
+
+    /* Verify there is stream data in the buffer; if not abort */
+    if (dataBytesInBuffer == 0)
+    {
+        return;
+    }
+
 
     if (os_io_fopen (m_DanFilePtr[m_DanFileIndex], "wb+", &p_file) != ERROR)
     {
         fseek (p_file, 0L, SEEK_SET);
-        fwrite (buffer, 1, size, p_file);
+        fwrite (oneHourStreamBuffer, 1, dataBytesInBuffer, p_file);
         os_io_fclose(p_file);
     }
 
@@ -124,6 +127,7 @@ void SpawnRtdmFileWrite (UINT8 *buffer, UINT32 size)
     }
 }
 
+//TODO Need to be run in a task
 void SpawnFTPDatalog (void)
 {
     INT16 newestDanFileIndex = -1;
@@ -132,8 +136,6 @@ void SpawnFTPDatalog (void)
     TimeStampStr newestTimeStamp;
     TimeStampStr oldestTimeStamp;
     UINT16 streamCount = 0;
-
-    //TODO Create a low priority task
 
     //TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete)
 
@@ -181,7 +183,9 @@ void SpawnFTPDatalog (void)
     /* Close file */
     os_io_fclose(ftpFilePtr);
 
-    // Send to FTP server
+    //TODO Send newly create file to FTP server
+
+    //TODO Delete file when FTP send complete
 }
 
 static void OpenDanTracker (void)
@@ -216,7 +220,6 @@ static void OpenDanTracker (void)
             {
                 danIndex = 0;
             }
-            // Get the current file and start writing to the next one
         }
     }
     else
@@ -390,12 +393,14 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     char *delimiter = "RTDM";
     UINT32 rtdm_header_crc = 0;
 
+    memset(&rtdmHeader, 0, sizeof(rtdmHeader));
+
     memcpy (&rtdmHeader.Delimiter[0], delimiter, strlen (delimiter));
 
     /* Endiannes - Always BIG */
     rtdmHeader.Endiannes = BIG_ENDIAN;
 
-    /* Header size - Always 80 - STREAM_HEADER_SIZE */
+    /* Header size */
     rtdmHeader.Header_Size = sizeof(rtdmHeader);
 
     /* Stream Header Checksum - CRC-32 */
@@ -404,14 +409,12 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Header Version - Always 2 */
     rtdmHeader.Header_Version = RTDM_HEADER_VERSION;
 
+
     /* Consist ID */
-    memcpy (&rtdmHeader.Consist_ID, &STRM_Header.content.Consist_ID, sizeof(rtdmHeader.Consist_ID));
+    strcpy (&rtdmHeader.Consist_ID[0], m_Interface->VNC_CarData_X_ConsistID);
+    strcpy (&rtdmHeader.Car_ID[0], m_Interface->VNC_CarData_X_CarID);
+    strcpy (&rtdmHeader.Device_ID[0], m_Interface->VNC_CarData_X_DeviceID);
 
-    /* Car ID */
-    memcpy (&rtdmHeader.Car_ID, &STRM_Header.content.Car_ID, sizeof(rtdmHeader.Car_ID));
-
-    /* Device ID */
-    memcpy (&rtdmHeader.Device_ID, &STRM_Header.content.Device_ID, sizeof(rtdmHeader.Device_ID));
 
     /* Data Recorder ID - from .xml file */
     rtdmHeader.Data_Record_ID = m_RtdmXmlData->DataRecorderCfgID;
@@ -438,9 +441,6 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     rtdm_header_crc = crc32 (rtdm_header_crc, ((unsigned char*) &rtdmHeader.Header_Version),
                     (sizeof(rtdmHeader) - RTDM_HEADER_CHECKSUM_ADJUST));
     rtdmHeader.Header_Checksum = rtdm_header_crc;
-
-    /* Assume file is opened */
-    //DAS fseek (ftpFilePtr, 0L, SEEK_END);
 
     fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
 
@@ -635,7 +635,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newes
         while (1)
         {
             /* Search for delimiter */
-            amountRead = fread (&buffer[0], 1, 1024, streamFilePtr);
+            amountRead = fread (&buffer[0], 1, sizeof(buffer), streamFilePtr);
 
             if (amountRead == 0)
             {

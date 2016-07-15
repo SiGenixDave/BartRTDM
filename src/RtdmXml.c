@@ -55,8 +55,6 @@
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 
-// Comment for commit
-
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
