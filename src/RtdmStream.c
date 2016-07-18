@@ -341,7 +341,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 
         m_SampleCount++;
 
-        printf ("Sample Populated %d\n", interface->RTDMSampleCount);
+        //DAS printf ("Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 

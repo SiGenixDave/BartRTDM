@@ -53,7 +53,7 @@ int main (void)
 
     printf("Hello World\n");
     RTDMInitialize (&mStreamInfo, &m_RtdmXmlData);
-    CreateUIThread();
+    //CreateUIThread();
 
     while (TRUE)
     {

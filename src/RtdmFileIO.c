@@ -21,6 +21,7 @@
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RTDM_Stream_ext.h"
+#include "crc32.h"
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -65,15 +66,14 @@ static const char *m_DanFilePtr[] =
     "11.dan", "12.dan", "13.dan", "14.dan", "15.dan", "16.dan", "17.dan", "18.dan", "19.dan",
     "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan" };
 
-
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+static void InitTrackerIndex(void);
 static INT16 GetNewestDanFileIndex (void);
 static INT16 GetOldestDanFileIndex (INT16 newestDanFileIndex);
-static void OpenDanTracker (void);
 static void CreateFileName (FILE **ptr);
 static void IncludeXMLFile (FILE *ftpFilePtr);
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
@@ -81,23 +81,24 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileIndex);
 static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex);
 static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newestIndex);
-
-
+static UINT8 VerifyFileIntegrity (const char *filename);
 
 void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
     m_Interface = interface;
     m_RtdmXmlData = rtdmXmlData;
 
-    OpenDanTracker ();
+    InitTrackerIndex();
 
 }
+
 
 //TODO Need to be run in a task
 void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 {
 
     FILE *p_file = NULL;
+    unsigned crc;
 
     /* Verify there is stream data in the buffer; if not abort */
     if (dataBytesInBuffer == 0)
@@ -105,20 +106,21 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
         return;
     }
 
+    /* Create a CRC for the file; used for file verification & integrity */
+    crc = 0;
+    crc = crc32 (crc, oneHourStreamBuffer, dataBytesInBuffer);
 
     if (os_io_fopen (m_DanFilePtr[m_DanFileIndex], "wb+", &p_file) != ERROR)
     {
         fseek (p_file, 0L, SEEK_SET);
+        /* Write the stream */
         fwrite (oneHourStreamBuffer, 1, dataBytesInBuffer, p_file);
+        /* Append the CRC */
+        fwrite (&crc, 1, sizeof(unsigned), p_file);
         os_io_fclose(p_file);
     }
 
-    if (os_io_fopen (m_FileTracker, "wb+", &p_file) != ERROR)
-    {
-        fseek (p_file, 0L, SEEK_SET);
-        fprintf (p_file, "%s", m_DanFilePtr[m_DanFileIndex]);
-        os_io_fclose(p_file);
-    }
+    VerifyFileIntegrity (m_DanFilePtr[m_DanFileIndex]);
 
     m_DanFileIndex++;
     if (m_DanFileIndex >= sizeof(m_DanFilePtr) / sizeof(char *))
@@ -188,48 +190,44 @@ void SpawnFTPDatalog (void)
     //TODO Delete file when FTP send complete
 }
 
-static void OpenDanTracker (void)
+static void InitTrackerIndex(void)
 {
-    FILE *p_file = NULL;
-    INT32 numBytes = 0;
-    UINT16 danIndex = 0;
-    char danTrackerFileName[10];
+    UINT16 fileIndex = 0;
+    UINT8 errorCode = NO_ERROR;
+    TimeStampStr timeStamp;
+    uint32_t newestTimestampSeconds = 0;
+    /* Make it the max possible file index in case no valid dan files are found */
+    UINT16 newestFileIndex = (sizeof(m_DanFilePtr) / sizeof(char *)) - 1;
 
-    if (os_io_fopen (m_FileTracker, "ab+", &p_file) != ERROR)
+    memset (&timeStamp, 0, sizeof(timeStamp));
+
+    /* Find the most recent valid file and point to the next file for writing */
+    for (fileIndex = 0; fileIndex < sizeof(m_DanFilePtr) / sizeof(char *); fileIndex++)
     {
-        /* Get the number of bytes */
-        fseek (p_file, 0L, SEEK_END);
-        numBytes = ftell (p_file);
-
-        if (numBytes != 0)
+        errorCode = VerifyFileIntegrity (m_DanFilePtr[fileIndex]);
+        if (errorCode == NO_ERROR)
         {
-            fseek (p_file, 0L, SEEK_SET);
-            danIndex = 0;
-            fgets (danTrackerFileName, 10, p_file);
-            while (danIndex < sizeof(m_DanFilePtr) / sizeof(char *))
+            GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, fileIndex);
+            if (timeStamp.seconds > newestTimestampSeconds)
             {
-                if (!strcmp (m_DanFilePtr[danIndex], danTrackerFileName))
-                {
-                    break;
-                }
-                danIndex++;
-            }
-
-            danIndex++;
-            if (danIndex >= sizeof(m_DanFilePtr) / sizeof(char *))
-            {
-                danIndex = 0;
+                newestFileIndex = fileIndex;
+                newestTimestampSeconds = timeStamp.seconds;
             }
         }
     }
+
+    if (newestFileIndex == (sizeof(m_DanFilePtr) / sizeof(char *)) - 1)
+    {
+        newestFileIndex = 0;
+    }
     else
     {
-        // TODO process file error
+        newestFileIndex++;
     }
 
-    m_DanFileIndex = danIndex;
-    os_io_fclose(p_file);
+    m_DanFileIndex = newestFileIndex;
 }
+
 
 static INT16 GetNewestDanFileIndex (void)
 {
@@ -393,7 +391,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     char *delimiter = "RTDM";
     UINT32 rtdm_header_crc = 0;
 
-    memset(&rtdmHeader, 0, sizeof(rtdmHeader));
+    memset (&rtdmHeader, 0, sizeof(rtdmHeader));
 
     memcpy (&rtdmHeader.Delimiter[0], delimiter, strlen (delimiter));
 
@@ -409,12 +407,10 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Header Version - Always 2 */
     rtdmHeader.Header_Version = RTDM_HEADER_VERSION;
 
-
     /* Consist ID */
     strcpy (&rtdmHeader.Consist_ID[0], m_Interface->VNC_CarData_X_ConsistID);
     strcpy (&rtdmHeader.Car_ID[0], m_Interface->VNC_CarData_X_CarID);
     strcpy (&rtdmHeader.Device_ID[0], m_Interface->VNC_CarData_X_DeviceID);
-
 
     /* Data Recorder ID - from .xml file */
     rtdmHeader.Data_Record_ID = m_RtdmXmlData->DataRecorderCfgID;
@@ -542,7 +538,7 @@ static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex)
 
         /* Prepare fileIndex for next Stream File */
         fileIndex++;
-        if (fileIndex >= sizeof(m_DanFilePtr)/sizeof(const char *))
+        if (fileIndex >= sizeof(m_DanFilePtr) / sizeof(const char *))
         {
             fileIndex = 0;
         }
@@ -622,7 +618,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newes
 
         /* Prepare fileIndex for next Stream File */
         fileIndex++;
-        if (fileIndex >= sizeof(m_DanFilePtr)/sizeof(const char *))
+        if (fileIndex >= sizeof(m_DanFilePtr) / sizeof(const char *))
         {
             fileIndex = 0;
         }
@@ -643,11 +639,76 @@ static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newes
                 break;
             }
 
-            fwrite(&buffer[0], amountRead, 1, ftpFilePtr);
+            fwrite (&buffer[0], amountRead, 1, ftpFilePtr);
         }
 
         parseCount++;
 
     }
+}
+
+static UINT8 VerifyFileIntegrity (const char *filename)
+{
+    FILE *p_file = NULL;
+    UINT8 buffer[1024];
+    UINT32 amountRead = 0;
+    UINT32 numBytes = 0;
+    UINT32 byteCount = 0;
+    unsigned calcCRC = 0;
+    unsigned fileCRC = 0;
+
+    if (os_io_fopen (filename, "rb", &p_file) != ERROR)
+    {
+        fseek (p_file, 0L, SEEK_END);
+        numBytes = ftell (p_file);
+        fseek (p_file, 0L, SEEK_SET);
+
+        while (1)
+        {
+            /* Search for delimiter */
+            amountRead = fread (&buffer[0], 1, sizeof(buffer), p_file);
+
+            byteCount += amountRead;
+
+            if (amountRead == 0)
+            {
+                os_io_fclose(p_file);
+                break;
+            }
+
+            if (byteCount == numBytes)
+            {
+                /* The last 4 bytes in the buffer are the CRC */
+#ifdef TEST_ON_PC
+                fileCRC = (unsigned) (buffer[amountRead - 1]) << 24
+                                | (unsigned) (buffer[amountRead - 2]) << 16
+                                | (unsigned) (buffer[amountRead - 3]) << 8
+                                | (unsigned) (buffer[amountRead - 4]) << 0;
+#else
+                fileCRC = (unsigned) (buffer[amountRead - 4]) << 24
+                | (unsigned) (buffer[amountRead - 3]) << 16
+                | (unsigned) (buffer[amountRead - 2]) << 8
+                | (unsigned) (buffer[amountRead - 1]) << 0;
+#endif
+                amountRead -= sizeof(unsigned);
+            }
+
+            calcCRC = crc32 (calcCRC, buffer, amountRead);
+        }
+    }
+    else
+    {
+        return (!NO_ERROR);
+    }
+
+    if (calcCRC == fileCRC)
+    {
+        return (NO_ERROR);
+    }
+    else
+    {
+        return (!NO_ERROR);
+    }
+
 }
 

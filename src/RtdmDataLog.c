@@ -112,7 +112,7 @@
  *
  *******************************************************************/
 //#define ONE_HOUR_UNITS_SECONDS        (60 * 60)
-#define ONE_HOUR_UNITS_SECONDS          (120)
+#define ONE_HOUR_UNITS_SECONDS          (10)
 #define LOG_RATE_MSECS                  (50)
 
 /*******************************************************************
@@ -243,6 +243,8 @@ void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeade
 
     //TODO check for error on return value
     GetEpochTime (&nowTime);
+
+    printf("First time %lu; Now time %lu\n",s_FirstEntryTime.seconds, nowTime.seconds);
 
     /* Determine if the next sample might overflow the buffer or if 1 hour has expired since the first write,
      * if so save the file now and open new file for writing */
