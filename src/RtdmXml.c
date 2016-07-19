@@ -42,16 +42,17 @@
  * RC - 10/26/2015
  *
  *******************************************************************************/
-#ifdef TEST_ON_PC
-#include "MyTypes.h"
-#include "MyFuncs.h"
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "RTDM_Stream_ext.h"
+#ifdef TEST_ON_PC
+#include "MyTypes.h"
+#include "MyFuncs.h"
+#include "usertypes.h"
+#endif
+
+#include "RtdmUtils.h"
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 
@@ -65,7 +66,6 @@
 
 /* XML file on VCUC */
 #define RTDM_XML_FILE           "RTDMConfiguration_PCU.xml"
-
 
 /*******************************************************************
  *
@@ -110,7 +110,6 @@ typedef struct
  *******************************************************************/
 static char *m_ConfigXmlBufferPtr = NULL;
 
-
 static const DataTypeMap dataTypeMap[] =
 {
 { "UINT8", UINT8_XML_TYPE },
@@ -123,79 +122,78 @@ static const DataTypeMap dataTypeMap[] =
 extern TYPE_RTDM_STREAM_IF mStreamInfo;
 
 static const VariableMap variableMap[] =
-{
-    {
-        "oPCU_I1.PCU_I1.Analog801.CTractEffortReq",
-        &mStreamInfo.oPCU_I1.Analog801.CTractEffortReq },
-    { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", &mStreamInfo.oPCU_I1.Analog801.ICarSpeed },
-    {
-        "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr",
-        &mStreamInfo.oPCU_I1.Analog801.IDcLinkCurr },
-    {
-        "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage",
-        &mStreamInfo.oPCU_I1.Analog801.IDcLinkVoltage },
-    { "oPCU_I1.PCU_I1.Analog801.IDiffCurr", &mStreamInfo.oPCU_I1.Analog801.IDiffCurr },
-    {
-        "oPCU_I1.PCU_I1.Analog801.ILineVoltage",
-        &mStreamInfo.oPCU_I1.Analog801.ILineVoltage },
+                {
+                    {
+                        "oPCU_I1.PCU_I1.Analog801.CTractEffortReq",
+                        &mStreamInfo.oPCU_I1.Analog801.CTractEffortReq },
+                    { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", &mStreamInfo.oPCU_I1.Analog801.ICarSpeed },
+                    {
+                        "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr",
+                        &mStreamInfo.oPCU_I1.Analog801.IDcLinkCurr },
+                    {
+                        "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage",
+                        &mStreamInfo.oPCU_I1.Analog801.IDcLinkVoltage },
+                    { "oPCU_I1.PCU_I1.Analog801.IDiffCurr", &mStreamInfo.oPCU_I1.Analog801.IDiffCurr },
+                    {
+                        "oPCU_I1.PCU_I1.Analog801.ILineVoltage",
+                        &mStreamInfo.oPCU_I1.Analog801.ILineVoltage },
 
-    { "oPCU_I1.PCU_I1.Analog801.IRate", &mStreamInfo.oPCU_I1.Analog801.IRate },
+                    { "oPCU_I1.PCU_I1.Analog801.IRate", &mStreamInfo.oPCU_I1.Analog801.IRate },
 
-    {
-        "oPCU_I1.PCU_I1.Analog801.IRateRequest",
-        &mStreamInfo.oPCU_I1.Analog801.IRateRequest },
-    {
-        "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli",
-        &mStreamInfo.oPCU_I1.Analog801.ITractEffortDeli },
-    {
-        "oPCU_I1.PCU_I1.Counter801.IOdometer",
-        &mStreamInfo.oPCU_I1.Counter801.IOdometer },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.CHscbCmd",
-        &mStreamInfo.oPCU_I1.Discrete801.CHscbCmd },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd",
-        &mStreamInfo.oPCU_I1.Discrete801.CRunRelayCmd },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.CScContCmd",
-        &mStreamInfo.oPCU_I1.Discrete801.CScContCmd },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut",
-        &mStreamInfo.oPCU_I1.Discrete801.IDynBrkCutOut },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel",
-        &mStreamInfo.oPCU_I1.Discrete801.IMCSSModeSel },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IPKOStatus",
-        &mStreamInfo.oPCU_I1.Discrete801.IPKOStatus },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet",
-        &mStreamInfo.oPCU_I1.Discrete801.IPKOStatusPKOnet },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IPropCutout",
-        &mStreamInfo.oPCU_I1.Discrete801.IPropCutout },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IPropSystMode",
-        &mStreamInfo.oPCU_I1.Discrete801.IPropSystMode },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut",
-        &mStreamInfo.oPCU_I1.Discrete801.IRegenCutOut },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
-        &mStreamInfo.oPCU_I1.Discrete801.ITractionSafeSts },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.PRailGapDet",
-        &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
-    {
-        "oPCU_I1.PCU_I1.Discrete801.IDcuState",
-        &mStreamInfo.oPCU_I1.Discrete801.IDcuState },
-    { "oPCU_I1.PCU_I1.Analog801.ILineCurr", &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
+                    {
+                        "oPCU_I1.PCU_I1.Analog801.IRateRequest",
+                        &mStreamInfo.oPCU_I1.Analog801.IRateRequest },
+                    {
+                        "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli",
+                        &mStreamInfo.oPCU_I1.Analog801.ITractEffortDeli },
+                    {
+                        "oPCU_I1.PCU_I1.Counter801.IOdometer",
+                        &mStreamInfo.oPCU_I1.Counter801.IOdometer },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.CHscbCmd",
+                        &mStreamInfo.oPCU_I1.Discrete801.CHscbCmd },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd",
+                        &mStreamInfo.oPCU_I1.Discrete801.CRunRelayCmd },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.CScContCmd",
+                        &mStreamInfo.oPCU_I1.Discrete801.CScContCmd },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut",
+                        &mStreamInfo.oPCU_I1.Discrete801.IDynBrkCutOut },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel",
+                        &mStreamInfo.oPCU_I1.Discrete801.IMCSSModeSel },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IPKOStatus",
+                        &mStreamInfo.oPCU_I1.Discrete801.IPKOStatus },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet",
+                        &mStreamInfo.oPCU_I1.Discrete801.IPKOStatusPKOnet },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IPropCutout",
+                        &mStreamInfo.oPCU_I1.Discrete801.IPropCutout },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IPropSystMode",
+                        &mStreamInfo.oPCU_I1.Discrete801.IPropSystMode },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut",
+                        &mStreamInfo.oPCU_I1.Discrete801.IRegenCutOut },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
+                        &mStreamInfo.oPCU_I1.Discrete801.ITractionSafeSts },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.PRailGapDet",
+                        &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
+                    {
+                        "oPCU_I1.PCU_I1.Discrete801.IDcuState",
+                        &mStreamInfo.oPCU_I1.Discrete801.IDcuState },
+                    { "oPCU_I1.PCU_I1.Analog801.ILineCurr", &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
 
-};
+                };
 
 /* TODO make static */
 RtdmXmlStr m_RtdmXmlData;
-
 
 const XMLConfigReader m_XmlConfigReader[] =
 {
@@ -237,9 +235,9 @@ NO_MAX_TIME_BEFORE_SEND },
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static int ReadXmlFile (void);
-static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr);
-static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index);
+static INT16 ReadXmlFile (void);
+static INT16 OpenXMLConfigurationFile (char **configFileXMLBufferPtr);
+static UINT16 ProcessXmlFileParams (char *pStringLocation1, INT16 index);
 static UINT16 FindSignals (char* pStringLocation1);
 
 UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
@@ -269,7 +267,7 @@ UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     return (NO_ERROR);
 }
 
-char *GetXMLConfigFileBuffer(void)
+char *GetXMLConfigFileBuffer (void)
 {
     return m_ConfigXmlBufferPtr;
 }
@@ -283,14 +281,14 @@ char *GetXMLConfigFileBuffer(void)
  parse temp buffer for needed data
  free temp buffer
  ***********************************************************************************************************/
-static int ReadXmlFile (void)
+static INT16 ReadXmlFile (void)
 {
     const char *xml_DataRecorderCfg = "DataRecorderCfg";
     char *pStringLocation1 = NULL;
     UINT16 signalCount = 0;
     UINT16 index = 0;
     UINT16 errorCode = 0;
-    int returnValue = 0;
+    INT16 returnValue = 0;
 
     /* Try to open XML configuration file */
     returnValue = OpenXMLConfigurationFile (&m_ConfigXmlBufferPtr);
@@ -352,12 +350,11 @@ static int ReadXmlFile (void)
             return (NO_BUFFERSIZE);
         }
 
-        /***********************************************************************************************************************/
-        /* start loop for finding signal Id's */
-        /* This section determines which PCU variable are included in the stream sample and data recorder */
-        /* find signal_id */
+        /***************************************************************************/
+        /* Start loop for finding signal Id's. This section determines which PCU
+         * variable are included in the stream sample and data recorder */
         signalCount = FindSignals (pStringLocation1);
-        /***********************************************************************************************************************/
+        /***************************************************************************/
     }
     else
     {
@@ -382,10 +379,10 @@ static int ReadXmlFile (void)
     return (NO_ERROR);
 }
 
-static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
+static INT16 OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
 {
     FILE* filePtr = NULL;
-    long numBytes = 0;
+    INT32 numBytes = 0;
 
     /* open the existing configuration file for reading TEXT MODE */
     if (os_io_fopen (RTDM_XML_FILE, "r", &filePtr) != ERROR)
@@ -419,14 +416,14 @@ static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
     /* File does not exist or internal error */
     else
     {
-        printf ("Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
+        debugPrintf("Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
 
     return (NO_ERROR);
 }
 
-static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index)
+static UINT16 ProcessXmlFileParams (char *pStringLocation1, INT16 index)
 {
 
     UINT16 errorCode = NO_ERROR;
@@ -442,23 +439,22 @@ static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index)
         switch (m_XmlConfigReader[index].dataType)
         {
             case INTEGER_DTYPE:
-                sscanf (pStringLocation2, "%d", (int *) m_XmlConfigReader[index].xmlData);
+                sscanf (pStringLocation2, "%d", (INT32 *) m_XmlConfigReader[index].xmlData);
                 break;
 
             case U32_DTYPE:
-                sscanf (pStringLocation2, "%lu",
-                                (unsigned long *) m_XmlConfigReader[index].xmlData);
+                sscanf (pStringLocation2, "%u", (UINT32 *) m_XmlConfigReader[index].xmlData);
                 break;
 
             case BOOLEAN_DTYPE:
                 strncpy (tempArray, pStringLocation2, 5);
                 if (strncmp (tempArray, "TRUE", 4) == 0)
                 {
-                    *(uint8_t *) m_XmlConfigReader[index].xmlData = TRUE;
+                    *(UINT8 *) m_XmlConfigReader[index].xmlData = TRUE;
                 }
                 else
                 {
-                    *(uint8_t *) m_XmlConfigReader[index].xmlData = FALSE;
+                    *(UINT8 *) m_XmlConfigReader[index].xmlData = FALSE;
                 }
                 break;
 
@@ -466,11 +462,11 @@ static UINT16 ProcessXmlFileParams (char *pStringLocation1, int index)
                 strncpy (tempArray, pStringLocation2, 5);
                 if (strncmp (tempArray, "FIFO", 4) == 0)
                 {
-                    *(uint8_t *) m_XmlConfigReader[index].xmlData = FIFO_POLICY;
+                    *(UINT8 *) m_XmlConfigReader[index].xmlData = FIFO_POLICY;
                 }
                 else
                 {
-                    *(uint8_t *) m_XmlConfigReader[index].xmlData = STOP_POLICY;
+                    *(UINT8 *) m_XmlConfigReader[index].xmlData = STOP_POLICY;
                 }
                 break;
             default:
@@ -537,7 +533,7 @@ static UINT16 FindSignals (char* pStringLocation1)
         }
 
         /* convert signal_id to a # and save as int */
-        sscanf (tempStr, "%u", (unsigned int *) &signalId);
+        sscanf (tempStr, "%u", (UINT32 *) &signalId);
         m_RtdmXmlData.signalDesription[signalCount].id = signalId;
 
         /* Get the variable name and map it to the actual variable address */

@@ -43,14 +43,14 @@ int os_c_get (OS_STR_TIME_POSIX *sys_posix_time)
     return OK;
 }
 
-int MDComAPI_putMsgQ (uint32_t comId, /* ComId */
+int MDComAPI_putMsgQ (UINT32 comId, /* ComId */
 const char *RTDMStream_ptr, /* Data buffer */
-uint32_t actual_buffer_size, /* Number of data to be send */
-uint32_t a, /* No queue for communication ipt_result */
-uint32_t b, /* No caller reference value */
-uint32_t c, /* Topo counter */
+UINT32 actual_buffer_size, /* Number of data to be send */
+UINT32 a, /* No queue for communication ipt_result */
+UINT32 b, /* No caller reference value */
+UINT32 c, /* Topo counter */
 const char* destUri, /* overriding of destination URI */
-uint32_t d) /* No overriding of source URI */
+UINT32 d) /* No overriding of source URI */
 {
     return IPT_OK;
 }

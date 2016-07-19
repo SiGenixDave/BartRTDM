@@ -5,6 +5,9 @@
  *      Author: Dave
  */
 
+#include <stdio.h>
+#include <string.h>
+
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -14,13 +17,12 @@
 #else
 #include "MyTypes.h"
 #include "MyFuncs.h"
+#include "usertypes.h"
 #endif
 
-#include <stdio.h>
-#include <string.h>
 #include "RtdmStream.h"
 #include "RtdmXml.h"
-#include "RTDM_Stream_ext.h"
+#include "RtdmUtils.h"
 #include "crc32.h"
 /*******************************************************************
  *
@@ -43,6 +45,25 @@ typedef enum
  *    S  T  R  U  C  T  S
  *
  *******************************************************************/
+/* Structure to contain variables in the RTDM header of the message */
+typedef struct
+{
+    char Delimiter[4];
+    UINT8 Endiannes;
+    UINT16 Header_Size __attribute__ ((packed));
+    UINT32 Header_Checksum __attribute__ ((packed));
+    UINT8 Header_Version;
+    char Consist_ID[16];
+    char Car_ID[16];
+    char Device_ID[16];
+    UINT16 Data_Record_ID __attribute__ ((packed));
+    UINT16 Data_Record_Version __attribute__ ((packed));
+    UINT32 FirstTimeStamp_S __attribute__ ((packed));
+    UINT16 FirstTimeStamp_mS __attribute__ ((packed));
+    UINT32 LastTimeStamp_S __attribute__ ((packed));
+    UINT16 LastTimeStamp_mS __attribute__ ((packed));
+    UINT32 Num_Streams __attribute__ ((packed));
+} RtdmHeaderStr;
 
 /*******************************************************************
  *
@@ -59,13 +80,14 @@ static RtdmXmlStr *m_RtdmXmlData = NULL;
 
 /* Each file contains up to an hours worth of stream data */
 static const char *m_DanFilePtr[] =
-{
-    "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan", "9.dan", "10.dan",
+                {
+                    "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan", "9.dan",
+                    "10.dan",
 #ifndef TEST_ON_PC
-    "11.dan", "12.dan", "13.dan", "14.dan", "15.dan", "16.dan", "17.dan", "18.dan", "19.dan",
-    "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan"
+                "11.dan", "12.dan", "13.dan", "14.dan", "15.dan", "16.dan", "17.dan", "18.dan", "19.dan",
+                "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan"
 #endif
-};
+            };
 static const UINT16 m_MaxNumberOfDanFiles = sizeof(m_DanFilePtr) / sizeof(const char *);
 
 static UINT16 m_ValidDanFileListIndexes[sizeof(m_DanFilePtr) / sizeof(const char *)];
@@ -105,7 +127,7 @@ void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     SortValidFileTimeStamps ();
 
-    SpawnFTPDatalog();
+    SpawnFTPDatalog ();
 
 }
 
@@ -114,7 +136,7 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 {
 
     FILE *p_file = NULL;
-    unsigned crc;
+    UINT32 crc;
 
     /* Verify there is stream data in the buffer; if not abort */
     if (dataBytesInBuffer == 0)
@@ -132,7 +154,7 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
         /* Write the stream */
         fwrite (oneHourStreamBuffer, 1, dataBytesInBuffer, p_file);
         /* Append the CRC */
-        fwrite (&crc, 1, sizeof(unsigned), p_file);
+        fwrite (&crc, 1, sizeof(UINT32), p_file);
         os_io_fclose(p_file);
     }
 
@@ -209,6 +231,17 @@ void SpawnFTPDatalog (void)
     os_io_fclose(ftpFilePtr);
 
     /* TODO Send newly create file to FTP server */
+#ifdef TODO
+    INT16 ftpc_file_put(
+                    char* server, /* In: name of server host */
+                    char* user, /* In: user name for server login */
+                    char* passwd, /* In: password for server login */
+                    char* acct, /* In: account for server login. Typically "". */
+                    char* dirname, /* In: directory to cd to before storing file */
+                    char* remote_file, /* In: filename to put on server */
+                    const char* local_file, /* In: filename of local file to copy to server */
+                    INT16* p_status) /* Out: Status on the operation */
+#endif
 
     /* TODO Delete file when FTP send complete */
 }
@@ -218,7 +251,7 @@ static void InitTrackerIndex (void)
     UINT16 fileIndex = 0;
     BOOL fileOK = FALSE;
     TimeStampStr timeStamp;
-    uint32_t newestTimestampSeconds = 0;
+    UINT32 newestTimestampSeconds = 0;
     /* Make it the max possible file index in case no valid dan files are found */
     UINT16 newestFileIndex = m_MaxNumberOfDanFiles - 1;
 
@@ -384,10 +417,18 @@ static void CreateFileName (FILE **ftpFilePtr)
 
     memset (dateTime, 0, sizeof(dateTime));
 
-#ifndef TEST_ON_PC
-    /* TODO need VCU function, this is local */
-#else
+#ifdef TEST_ON_PC
     GetTimeDate (dateTime, sizeof(dateTime));
+#else
+    /* TODO need to test on VCU */
+    GetEpochTime();
+
+    INT16 os_c_localtime(
+                    UINT32 sec, /* IN: System time */
+                    OS_STR_TIME_ANSI *p_ansi_time) /* OUT: Local time */
+
+    /* TODO Convert p_ansi_time members to YYMMDD-HHMMSS */
+
 #endif
 
     strcat (fileName, consistId);
@@ -466,7 +507,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
     rtdm_header_crc = 0;
-    rtdm_header_crc = crc32 (rtdm_header_crc, ((unsigned char*) &rtdmHeader.Header_Version),
+    rtdm_header_crc = crc32 (rtdm_header_crc, ((UINT8 *) &rtdmHeader.Header_Version),
                     (sizeof(rtdmHeader) - RTDM_HEADER_CHECKSUM_ADJUST));
     rtdmHeader.Header_Checksum = rtdm_header_crc;
 
@@ -654,8 +695,8 @@ static BOOL VerifyFileIntegrity (const char *filename)
     UINT32 amountRead = 0;
     UINT32 numBytes = 0;
     UINT32 byteCount = 0;
-    unsigned calcCRC = 0;
-    unsigned fileCRC = 0;
+    UINT32 calcCRC = 0;
+    UINT32 fileCRC = 0;
 
     if (os_io_fopen (filename, "rb", &p_file) != ERROR)
     {
@@ -680,17 +721,17 @@ static BOOL VerifyFileIntegrity (const char *filename)
             {
                 /* The last 4 bytes in the buffer are the CRC */
 #ifdef TEST_ON_PC
-                fileCRC = (unsigned) (buffer[amountRead - 1]) << 24
-                                | (unsigned) (buffer[amountRead - 2]) << 16
-                                | (unsigned) (buffer[amountRead - 3]) << 8
-                                | (unsigned) (buffer[amountRead - 4]) << 0;
+                fileCRC = (UINT32) (buffer[amountRead - 1]) << 24
+                                | (UINT32) (buffer[amountRead - 2]) << 16
+                                | (UINT32) (buffer[amountRead - 3]) << 8
+                                | (UINT32) (buffer[amountRead - 4]) << 0;
 #else
-                fileCRC = (unsigned) (buffer[amountRead - 4]) << 24
-                | (unsigned) (buffer[amountRead - 3]) << 16
-                | (unsigned) (buffer[amountRead - 2]) << 8
-                | (unsigned) (buffer[amountRead - 1]) << 0;
+                fileCRC = (UINT32) (buffer[amountRead - 4]) << 24
+                | (UINT32) (buffer[amountRead - 3]) << 16
+                | (UINT32) (buffer[amountRead - 2]) << 8
+                | (UINT32) (buffer[amountRead - 1]) << 0;
 #endif
-                amountRead -= sizeof(unsigned);
+                amountRead -= sizeof(UINT32);
             }
 
             calcCRC = crc32 (calcCRC, buffer, amountRead);

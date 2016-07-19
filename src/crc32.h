@@ -31,10 +31,7 @@ extern "C" {
 #endif
 
 
-unsigned crc32(
-          unsigned       crc,
-    const unsigned char *buf,
-          int            len);
+UINT32 crc32(UINT32 crc, const UINT8 *buf, INT32 len);
 
 
 #ifdef __cplusplus   /* to be compatible with C++ */

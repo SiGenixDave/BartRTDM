@@ -8,14 +8,22 @@
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
+#include <stdio.h>
 
-#include "crc32.h"
+#ifndef TEST_ON_PC
+#include "global_mwt.h"
+#include "rts_api.h"
+#include "../include/iptcom.h"
+#else
+#include "MyTypes.h"
+#include "MyFuncs.h"
+#endif
 
 
 /* ========================================================================
  * Table of CRC-32's of all single-byte values (made by make_crc_table)
  */
-static const unsigned crc_table[256] = {
+static const UINT32 crc_table[256] = {
   0x00000000L, 0x77073096L, 0xee0e612cL, 0x990951baL, 0x076dc419L,
   0x706af48fL, 0xe963a535L, 0x9e6495a3L, 0x0edb8832L, 0x79dcb8a4L,
   0xe0d5e91eL, 0x97d2d988L, 0x09b64c2bL, 0x7eb17cbdL, 0xe7b82d07L,
@@ -72,14 +80,14 @@ static const unsigned crc_table[256] = {
 
 
 /* ========================================================================= */
-#define DO1(buf) crc = crc_table[((int)crc ^ (*buf++)) & 0xff] ^ (crc >> 8);
+#define DO1(buf) crc = crc_table[((INT32)crc ^ (*buf++)) & 0xff] ^ (crc >> 8);
 #define DO2(buf)  DO1(buf); DO1(buf);
 #define DO4(buf)  DO2(buf); DO2(buf);
 #define DO8(buf)  DO4(buf); DO4(buf);
 
 /* ========================================================================= */
 
-unsigned crc32( unsigned crc, const unsigned char *buf, int len)
+UINT32 crc32(UINT32 crc, const UINT8 *buf, INT32 len)
 {
     crc = crc ^ 0xffffffffL;
     while (len >= 8)

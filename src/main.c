@@ -14,19 +14,19 @@
 #include <conio.h>
 
 #include "MyTypes.h"
+#include "MyFuncs.h"
+#include "usertypes.h"
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RTDMInitialize.h"
-#include "RTDM_Stream_ext.h"
 #include "MySleep.h"
+
 
 TYPE_RTDM_STREAM_IF mStreamInfo;
 extern RtdmXmlStr m_RtdmXmlData;
 
 
 extern void CreateUIThread (void);
-
-
 
 
 int main (void)
@@ -57,7 +57,7 @@ int main (void)
 
     while (TRUE)
     {
-        RTDM_Stream (&mStreamInfo, &m_RtdmXmlData);
+        RTDM_Stream (&mStreamInfo);
         MySleep (50);
         mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
     }

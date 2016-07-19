@@ -88,21 +88,21 @@
  *
  *
  **********************************************************************************************************************/
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #ifndef TEST_ON_PC
 #include "rts_api.h"
 #else
 #include "MyTypes.h"
 #include "MyFuncs.h"
+#include "usertypes.h"
 #endif
 
-#include <string.h>
-#include <string.h>
-#include <stdlib.h>
-
-#include "RTDM_Stream_ext.h"
-#include "RtdmStream.h"
+#include "RtdmUtils.h"
 #include "RtdmXml.h"
+#include "RtdmStream.h"
 #include "RtdmFileIO.h"
 
 /*******************************************************************
@@ -178,7 +178,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     /* first determine the amount of memory required to hold 1 hours worth of data only
      * sizeof(RtdmXmlStr) * 1000 msecs / 50 msec sample rate * 60 seconds * 60 minutes */
     dataAllocation = (1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS
-                    * (sizeof(RtdmSampleStr) + rtdmXmlData->dataAllocationSize);
+                    * (sizeof(DataSampleStr) + rtdmXmlData->dataAllocationSize);
 
     /* now determine the amount of memory required to handle the worst case stream headers
      * NOTE: the datalog buffer is updated every time a stream is sent
@@ -198,7 +198,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     m_RequiredMemorySize = dataAllocation + streamHeaderAllocation;
 
-    m_MaxDataPerStreamBytes = (sizeof(RtdmSampleStr) + rtdmXmlData->dataAllocationSize)
+    m_MaxDataPerStreamBytes = (sizeof(DataSampleStr) + rtdmXmlData->dataAllocationSize)
                     * ((1000 / LOG_RATE_MSECS) * minStreamPeriodSecs);
 
     /* Two "callocs" and therefore memory buffers are required just in case the task
@@ -222,7 +222,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 }
 
-void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader, uint8_t *stream,
+void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader, UINT8 *stream,
                 UINT32 dataAmount)
 {
     static RTDMTimeStr s_FirstEntryTime;
@@ -247,7 +247,7 @@ void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeade
     /* TODO check for error on return value */
     GetEpochTime (&nowTime);
 
-    printf("First time %lu; Now time %lu\n",s_FirstEntryTime.seconds, nowTime.seconds);
+    debugPrintf ("First time %u; Now time %u\n", s_FirstEntryTime.seconds, nowTime.seconds);
 
     /* Determine if the next sample might overflow the buffer or if 1 hour has expired since the first write,
      * if so save the file now and open new file for writing */
@@ -271,7 +271,7 @@ void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeade
 }
 
 /* Called when a request is made by the network to concatenate all dan files
-   into 1 file and send over network via FTP */
+ into 1 file and send over network via FTP */
 void FTPDataLog (void)
 {
     /* Close existing datalog file */

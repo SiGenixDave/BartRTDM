@@ -5,6 +5,10 @@
  *      Author: Dave
  */
 
+#include <string.h>
+#include <stdlib.h>
+
+
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -13,16 +17,18 @@
 #include "fltinfo.h"
 #else
 #include "MyTypes.h"
+#include "mwt_types.h"
+#include "usertypes.h"
 #endif
 
-#include <string.h>
-#include <stdlib.h>
-
-#include "RTDM_Stream_ext.h"
+#include "RtdmUtils.h"
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RtdmDataLog.h"
 #include "RtdmFileIO.h"
+
+void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
+
 
 void RTDMInitialize (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {

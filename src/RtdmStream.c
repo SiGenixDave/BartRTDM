@@ -53,11 +53,6 @@
  *	PRailGapDet
  *	ICarSpeed
  *
- * FUNCTIONS:
- *	void Populate_Samples(void)
- *	void Populate_Stream_Header(UINT32)
- *	int Get_Time(UINT32*,UINT32*)
- *	UINT16 Check_Fault(UINT16)
  *
  * INPUTS:
  *	oPCU_I1
@@ -88,6 +83,9 @@
  *
  *
  **********************************************************************************************************************/
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -98,14 +96,15 @@
 #else
 #include "MyTypes.h"
 #include "MyFuncs.h"
+#include "usertypes.h"
 #endif
 
-#include <string.h>
-#include <stdlib.h>
-#include "RTDM_Stream_ext.h"
+#include "RtdmUtils.h"
 #include "RtdmStream.h"
 #include "Rtdmxml.h"
 #include "RtdmDataLog.h"
+
+#include "crc32.h"
 
 /*******************************************************************
  *
@@ -136,14 +135,16 @@ TYPE_RTDM_STREAM_IF *m_InterfacePtr = NULL;
 /* # samples */
 static UINT16 m_SampleCount = 0;
 
-static uint8_t *m_StreamData = NULL;
+static UINT8 *m_StreamData = NULL;
 
-static RtdmSampleStr m_RtdmSampleArray;
+static DataSampleStr m_RtdmSampleArray;
 
 /* Allocated dynamically after the amount of signals and signal data type is known */
 static UINT8 *m_NewSignalData = NULL;
 static UINT8 *m_OldSignalData = NULL;
 static UINT8 *m_ChangedSignalData = NULL;
+
+static RtdmXmlStr *m_RtdmXmlData;
 
 /*******************************************************************
  *
@@ -166,11 +167,13 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
 
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
+    m_RtdmXmlData = rtdmXmlData;
+
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
-    memset (&m_RtdmSampleArray, 0, sizeof(RtdmSampleStr));
+    memset (&m_RtdmSampleArray, 0, sizeof(DataSampleStr));
 
     /* Allocate memory to store data according to buffer size from .xml file */
-    m_StreamData = (uint8_t *) calloc (rtdmXmlData->bufferSize, sizeof(UINT8));
+    m_StreamData = (UINT8 *) calloc (rtdmXmlData->bufferSize, sizeof(UINT8));
 
     m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize, sizeof(UINT8));
     m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->dataAllocationSize, sizeof(UINT8));
@@ -178,7 +181,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
 }
 
-void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface)
 {
     /* DAS FYI gets called every 50 msecs */
     UINT16 errorCode = 0;
@@ -192,11 +195,11 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     result = GetEpochTime (&currentTime);
 
-    PopulateSignalsWithNewSamples (rtdmXmlData);
+    PopulateSignalsWithNewSamples (m_RtdmXmlData);
 
     networkAvailable = NetworkAvailable (interface, &errorCode);
 
-    OutputStream (interface, networkAvailable, &errorCode, rtdmXmlData, &currentTime);
+    OutputStream (interface, networkAvailable, &errorCode, m_RtdmXmlData, &currentTime);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -206,26 +209,6 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 }
 
-int GetEpochTime (RTDMTimeStr* currentTime)
-{
-    /* For system time */
-    OS_STR_TIME_POSIX sys_posix_time;
-
-    /* Get TimeStamp */
-    if (os_c_get (&sys_posix_time) == OK)
-    {
-        currentTime->seconds = sys_posix_time.sec;
-        currentTime->nanoseconds = sys_posix_time.nanosec;
-    }
-    else
-    {
-        /* return error */
-        return (BAD_TIME);
-    }
-
-    return (NO_ERROR);
-
-} /* End Get_Time */
 
 static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 {
@@ -272,9 +255,9 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
     {
 
         /* Copy the time stamp and signal count into main buffer */
-        memcpy (&m_StreamData[s_StreamBufferIndex], &m_RtdmSampleArray, sizeof(RtdmSampleStr));
+        memcpy (&m_StreamData[s_StreamBufferIndex], &m_RtdmSampleArray, sizeof(DataSampleStr));
 
-        s_StreamBufferIndex += sizeof(RtdmSampleStr);
+        s_StreamBufferIndex += sizeof(DataSampleStr);
 
         /* Copy the changed data into main buffer */
         memcpy (&m_StreamData[s_StreamBufferIndex], m_ChangedSignalData, newChangedDataBytes);
@@ -283,12 +266,12 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 
         m_SampleCount++;
 
-        printf ("Sample Populated %d\n", interface->RTDMSampleCount);
+        debugPrintf ("Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 
     /* determine if next data change entry might overflow buffer */
-    if ((s_StreamBufferIndex + rtdmXmlData->dataAllocationSize + sizeof(RtdmSampleStr))
+    if ((s_StreamBufferIndex + rtdmXmlData->dataAllocationSize + sizeof(DataSampleStr))
                     >= rtdmXmlData->bufferSize)
     {
         streamBecauseBufferFull = TRUE;
@@ -307,9 +290,9 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
         /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
         streamHeader.content.Num_Samples = m_SampleCount;
         samplesCRC = 0;
-        samplesCRC = crc32 (samplesCRC, (unsigned char *) &streamHeader.content.Num_Samples,
+        samplesCRC = crc32 (samplesCRC, (UINT8 *) &streamHeader.content.Num_Samples,
                         sizeof(streamHeader.content.Num_Samples));
-        samplesCRC = crc32 (samplesCRC, (unsigned char*) m_StreamData, (s_StreamBufferIndex));
+        samplesCRC = crc32 (samplesCRC, (UINT8 *) m_StreamData, (s_StreamBufferIndex));
 
         /* Time to construct main header */
         PopulateStreamHeader (&streamHeader, samplesCRC, rtdmXmlData, currentTime);
@@ -321,7 +304,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 
         s_PreviousSendTimeSec = currentTime->seconds;
 
-        printf ("STREAM SENT %d\n", m_SampleCount);
+        debugPrintf ("STREAM SENT %d\n", m_SampleCount);
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;
@@ -360,7 +343,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
  ******************************************************************************************/
 static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
-    int compareResult = 0;
+    INT16 compareResult = 0;
     static UINT32 s_PreviousSampleTimeSec = 0;
     UINT32 timeDiffSec = 0;
     UINT16 signalChangeBufferSize = 0;
@@ -541,23 +524,23 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
     const char *delimiter = "STRM";
     UINT32 stream_header_crc = 0;
 
-    /*********************************** Populate ****************************************************************/
-    memset(streamHeader, 0, sizeof(StreamHeaderStr));
+    /*********************************** Populate *****************************************/
+    memset (streamHeader, 0, sizeof(StreamHeaderStr));
 
-    /* Delimiter - Always "STRM" */
+    /* Delimiter */
     memcpy (&streamHeader->Delimiter[0], delimiter, strlen (delimiter));
 
-    /* Endiannes - Always BIG */
+    /* Endianness - Always BIG - no support in DAN viewer for Little Endian */
     streamHeader->content.Endiannes = BIG_ENDIAN;
 
-    /* Header size - Always 85 - STREAM_HEADER_SIZE */
+    /* Header size */
     streamHeader->content.Header_Size = sizeof(sizeof(StreamHeaderStr));
 
     /* Header Checksum - CRC-32 */
     /* Checksum of the following content of the header */
     /* Below - need to calculate after filling array */
 
-    /* Header Version - Always 2 */
+    /* Header Version */
     streamHeader->content.Header_Version = STREAM_HEADER_VERSION;
 
     /* Consist ID */
@@ -606,8 +589,7 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
     stream_header_crc = 0;
-    stream_header_crc = crc32 (stream_header_crc,
-                    ((unsigned char*) &streamHeader->content.Header_Version),
+    stream_header_crc = crc32 (stream_header_crc, ((UINT8 *) &streamHeader->content.Header_Version),
                     (sizeof(StreamHeaderContent) - STREAM_HEADER_CHECKSUM_ADJUST));
 
     streamHeader->content.Header_Checksum = stream_header_crc;
