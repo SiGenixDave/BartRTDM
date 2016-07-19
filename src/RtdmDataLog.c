@@ -201,7 +201,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     m_MaxDataPerStreamBytes = (sizeof(DataSampleStr) + rtdmXmlData->dataAllocationSize)
                     * ((1000 / LOG_RATE_MSECS) * minStreamPeriodSecs);
 
-    /* Two "callocs" and therefore memory buffers are required just in case the task
+    /* Two "callocs" and therefore two memory buffers are required just in case the task
      * that writes data to a disk file takes longer than the next update to the
      * data log memory.
      */

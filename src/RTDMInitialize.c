@@ -29,11 +29,15 @@
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
 
 
-void RTDMInitialize (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+void RTDMInitialize (TYPE_RTDM_STREAM_IF *interface)
 {
 
-    /* Read XML file and update all XML and interface parameters */
-    InitializeXML (interface, rtdmXmlData);
+    RtdmXmlStr *rtdmXmlData;
+
+    /* Read XML file and update all XML and interface parameters. This call must be
+     * performed first because other init functions use parameters read from the
+     * XML config file */
+    InitializeXML (interface, &rtdmXmlData);
 
     InitializeRtdmStream (rtdmXmlData);
 

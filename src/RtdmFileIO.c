@@ -136,6 +136,20 @@ void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 {
 
+#ifdef TODO
+    INT16 os_t_spawn(
+    const char appl_name[], /* IN : Application name connected to the task */
+    INT32 appl_type, /* IN : Type of application AS_TYPE_AP_C,
+    AS_TYPE_AP_TOOL */
+    char task_name[], /* IN : Name of the task */
+    UINT8 priority, /* IN : Priority of the task */
+    INT32 stack_size, /* IN : Size of the stack */
+    FUNCPTR entry_pt, /* IN : Start adress of the task */
+    INT32 argc, /* IN : No of arguments to the function (Max 10.) */
+    INT32 argv[], /* IN : The argument list */
+    UINT32* task_id) /* OUT: VxWorks task id */
+#endif
+
     FILE *p_file = NULL;
     UINT32 crc;
 
@@ -169,6 +183,21 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 /* TODO Need to be run in a task */
 void SpawnFTPDatalog (void)
 {
+
+#ifdef TODO
+    INT16 os_t_spawn(
+    const char appl_name[], /* IN : Application name connected to the task */
+    INT32 appl_type, /* IN : Type of application AS_TYPE_AP_C,
+    AS_TYPE_AP_TOOL */
+    char task_name[], /* IN : Name of the task */
+    UINT8 priority, /* IN : Priority of the task */
+    INT32 stack_size, /* IN : Size of the stack */
+    FUNCPTR entry_pt, /* IN : Start adress of the task */
+    INT32 argc, /* IN : No of arguments to the function (Max 10.) */
+    INT32 argv[], /* IN : The argument list */
+    UINT32* task_id) /* OUT: VxWorks task id */
+#endif
+
     INT16 newestDanFileIndex = -1;
     INT16 oldestDanFileIndex = -1;
     FILE *ftpFilePtr = NULL;

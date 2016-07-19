@@ -23,7 +23,7 @@
 
 
 TYPE_RTDM_STREAM_IF mStreamInfo;
-extern RtdmXmlStr m_RtdmXmlData;
+
 
 
 extern void CreateUIThread (void);
@@ -51,7 +51,7 @@ int main (void)
 #endif
 
     printf("Hello World\n");
-    RTDMInitialize (&mStreamInfo, &m_RtdmXmlData);
+    RTDMInitialize (&mStreamInfo);
     //DAS can't single step debug when another thread is spawned
     //CreateUIThread();
 
