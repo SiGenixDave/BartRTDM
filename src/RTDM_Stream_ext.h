@@ -7,8 +7,6 @@
 
 #include "crc32.h"
 
-// Comment for commit
-
 /****************************************************************************************/
 /* CANNOT BE CHANGED OR ADJUSTED WITHOUT CODE CHANGE */
 

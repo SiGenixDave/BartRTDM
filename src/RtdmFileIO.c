@@ -54,8 +54,6 @@ static UINT16 m_DanFileIndex = 0;
 /* The contents of this file is a filename. The filename indicates the last data log file
  * that was written.
  */
-static const char *m_FileTracker = "DanFileTracker.txt";
-
 static TYPE_RTDM_STREAM_IF *m_Interface = NULL;
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 
@@ -63,37 +61,55 @@ static RtdmXmlStr *m_RtdmXmlData = NULL;
 static const char *m_DanFilePtr[] =
 {
     "1.dan", "2.dan", "3.dan", "4.dan", "5.dan", "6.dan", "7.dan", "8.dan", "9.dan", "10.dan",
+#ifndef TEST_ON_PC
     "11.dan", "12.dan", "13.dan", "14.dan", "15.dan", "16.dan", "17.dan", "18.dan", "19.dan",
-    "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan" };
+    "20.dan", "21.dan", "22.dan", "23.dan", "24.dan", "25.dan"
+#endif
+};
+static const UINT16 m_MaxNumberOfDanFiles = sizeof(m_DanFilePtr) / sizeof(const char *);
+
+static UINT16 m_ValidDanFileListIndexes[sizeof(m_DanFilePtr) / sizeof(const char *)];
+static UINT32 m_ValidTimeStampList[sizeof(m_DanFilePtr) / sizeof(const char *)];
 
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static void InitTrackerIndex(void);
+static void InitTrackerIndex (void);
+static void PopulateValidDanFileList (void);
+static void PopulateValidFileTimeStamps (void);
+static void SortValidFileTimeStamps (void);
 static INT16 GetNewestDanFileIndex (void);
-static INT16 GetOldestDanFileIndex (INT16 newestDanFileIndex);
+static INT16 GetOldestDanFileIndex (void);
 static void CreateFileName (FILE **ptr);
 static void IncludeXMLFile (FILE *ftpFilePtr);
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
                 UINT16 numStreams);
 static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileIndex);
-static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex);
-static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newestIndex);
-static UINT8 VerifyFileIntegrity (const char *filename);
+static UINT16 CountStreams (void);
+static void IncludeStreamFiles (FILE *ftpFilePtr);
+static BOOL VerifyFileIntegrity (const char *filename);
 
 void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
     m_Interface = interface;
     m_RtdmXmlData = rtdmXmlData;
 
-    InitTrackerIndex();
+    InitTrackerIndex ();
+
+    /* TODO REMOVE ALL OF THE FOLLOWING AFTER TEST */
+    PopulateValidDanFileList ();
+
+    PopulateValidFileTimeStamps ();
+
+    SortValidFileTimeStamps ();
+
+    SpawnFTPDatalog();
 
 }
 
-
-//TODO Need to be run in a task
+/* TODO Need to be run in a task */
 void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 {
 
@@ -120,16 +136,14 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
         os_io_fclose(p_file);
     }
 
-    VerifyFileIntegrity (m_DanFilePtr[m_DanFileIndex]);
-
     m_DanFileIndex++;
-    if (m_DanFileIndex >= sizeof(m_DanFilePtr) / sizeof(char *))
+    if (m_DanFileIndex >= m_MaxNumberOfDanFiles)
     {
         m_DanFileIndex = 0;
     }
 }
 
-//TODO Need to be run in a task
+/* TODO Need to be run in a task */
 void SpawnFTPDatalog (void)
 {
     INT16 newestDanFileIndex = -1;
@@ -139,38 +153,47 @@ void SpawnFTPDatalog (void)
     TimeStampStr oldestTimeStamp;
     UINT16 streamCount = 0;
 
-    //TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete)
+    /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
-    /* determine the most recent filename */
+    /* Determine all current valid dan files */
+    PopulateValidDanFileList ();
+    /* Get the oldest stream timestamp from every valid file */
+    PopulateValidFileTimeStamps ();
+    /* Sort the file indexes and timestamps from oldest to newest */
+    SortValidFileTimeStamps ();
+
+    /* Determine the newest file index */
     newestDanFileIndex = GetNewestDanFileIndex ();
 
     if (newestDanFileIndex < 0)
     {
-        //TODO handle error
+        /* TODO handle error */
     }
 
     /* Get the newest timestamp (last one) in the newest file; used for RTDM header */
     GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestDanFileIndex);
 
-    /* scan back through all of the older dan files to determine the oldest file */
-    oldestDanFileIndex = GetOldestDanFileIndex (newestDanFileIndex);
+    /* Determine the oldest file index */
+    oldestDanFileIndex = GetOldestDanFileIndex ();
 
     if (oldestDanFileIndex < 0)
     {
-        //TODO handle error
+        /* TODO handle error */
     }
 
     /* Get the oldest timestamp (first one) in the oldest file ; used for RTDM header */
     GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestDanFileIndex);
 
-    streamCount = CountStreams (oldestDanFileIndex, newestDanFileIndex);
+    /* Scan through all valid files and count the number of streams in each file; used for
+     * RTDM header */
+    streamCount = CountStreams ();
 
     /* Create filename and open it for writing */
     CreateFileName (&ftpFilePtr);
 
     if (ftpFilePtr == NULL)
     {
-        //TODO handle error
+        /* TODO handle error */
     }
 
     /* Include xml file */
@@ -180,32 +203,32 @@ void SpawnFTPDatalog (void)
     IncludeRTDMHeader (ftpFilePtr, &oldestTimeStamp, &newestTimeStamp, streamCount);
 
     /* Open each file .dan (oldest first) and concatenate */
-    IncludeStreamFiles (ftpFilePtr, oldestDanFileIndex, newestDanFileIndex);
+    IncludeStreamFiles (ftpFilePtr);
 
     /* Close file */
     os_io_fclose(ftpFilePtr);
 
-    //TODO Send newly create file to FTP server
+    /* TODO Send newly create file to FTP server */
 
-    //TODO Delete file when FTP send complete
+    /* TODO Delete file when FTP send complete */
 }
 
-static void InitTrackerIndex(void)
+static void InitTrackerIndex (void)
 {
     UINT16 fileIndex = 0;
-    UINT8 errorCode = NO_ERROR;
+    BOOL fileOK = FALSE;
     TimeStampStr timeStamp;
     uint32_t newestTimestampSeconds = 0;
     /* Make it the max possible file index in case no valid dan files are found */
-    UINT16 newestFileIndex = (sizeof(m_DanFilePtr) / sizeof(char *)) - 1;
+    UINT16 newestFileIndex = m_MaxNumberOfDanFiles - 1;
 
     memset (&timeStamp, 0, sizeof(timeStamp));
 
     /* Find the most recent valid file and point to the next file for writing */
-    for (fileIndex = 0; fileIndex < sizeof(m_DanFilePtr) / sizeof(char *); fileIndex++)
+    for (fileIndex = 0; fileIndex < m_MaxNumberOfDanFiles; fileIndex++)
     {
-        errorCode = VerifyFileIntegrity (m_DanFilePtr[fileIndex]);
-        if (errorCode == NO_ERROR)
+        fileOK = VerifyFileIntegrity (m_DanFilePtr[fileIndex]);
+        if (fileOK == TRUE)
         {
             GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, fileIndex);
             if (timeStamp.seconds > newestTimestampSeconds)
@@ -216,7 +239,7 @@ static void InitTrackerIndex(void)
         }
     }
 
-    if (newestFileIndex == (sizeof(m_DanFilePtr) / sizeof(char *)) - 1)
+    if (newestFileIndex == (m_MaxNumberOfDanFiles - 1))
     {
         newestFileIndex = 0;
     }
@@ -228,96 +251,106 @@ static void InitTrackerIndex(void)
     m_DanFileIndex = newestFileIndex;
 }
 
-
-static INT16 GetNewestDanFileIndex (void)
+static void PopulateValidDanFileList (void)
 {
-    FILE *p_file = NULL;
-    INT32 numBytes = 0;
-    static char newestDanFileName[10];
-    INT16 fileIndex = -1;
-    INT16 danIndex = 0;
+    BOOL fileOK = FALSE;
+    UINT16 fileIndex = 0;
+    UINT16 arrayIndex = 0;
 
-    if (os_io_fopen (m_FileTracker, "r", &p_file) != ERROR)
+    /* Set all members to invalid indexes */
+    memset (&m_ValidDanFileListIndexes[0], 0xFF, sizeof(m_ValidDanFileListIndexes));
+
+    /* Scan all files to determine what files are valid */
+    for (fileIndex = 0; fileIndex < m_MaxNumberOfDanFiles; fileIndex++)
     {
-        /* Get the number of bytes */
-        fseek (p_file, 0L, SEEK_END);
-        numBytes = ftell (p_file);
-
-        if (numBytes == 0)
+        fileOK = VerifyFileIntegrity (m_DanFilePtr[fileIndex]);
+        if (fileOK)
         {
-            /* File doesn't exist, one should so flag the error */
-            os_io_fclose(p_file);
+            m_ValidDanFileListIndexes[arrayIndex] = fileIndex;
+            arrayIndex++;
         }
-        else
-        {
-            fseek (p_file, 0L, SEEK_SET);
-            fgets (newestDanFileName, 10, p_file);
-
-            danIndex = 0;
-            while (danIndex < sizeof(m_DanFilePtr) / sizeof(const char *))
-            {
-                if (!strcmp (m_DanFilePtr[danIndex], newestDanFileName))
-                {
-                    break;
-                }
-                danIndex++;
-            }
-
-            if (danIndex < sizeof(m_DanFilePtr) / sizeof(const char *))
-            {
-                fileIndex = danIndex;
-            }
-
-        }
-
     }
-
-    return fileIndex;
 
 }
 
-static INT16 GetOldestDanFileIndex (INT16 newestDanFileIndex)
+static void PopulateValidFileTimeStamps (void)
 {
-    FILE *p_file = NULL;
-    INT32 numBytes = 0;
-    UINT16 existingFileCount = 0;
-    INT16 oldestDanFileIndex = -1;
+    UINT16 arrayIndex = 0;
+    TimeStampStr timeStamp;
 
-    do
+    /* Set all members to invalid indexes */
+    memset (&m_ValidTimeStampList[0], 0xFF, sizeof(m_ValidTimeStampList));
+
+    while ((m_ValidDanFileListIndexes[arrayIndex] != 0xFFFF) && (arrayIndex < m_MaxNumberOfDanFiles))
     {
-        if (newestDanFileIndex < 0)
-        {
-            newestDanFileIndex = (sizeof(m_DanFilePtr) / sizeof(const char *)) - 1;
-        }
+        GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, m_ValidDanFileListIndexes[arrayIndex]);
+        m_ValidTimeStampList[arrayIndex] = timeStamp.seconds;
+        arrayIndex++;
+    }
+}
 
-        if (os_io_fopen (m_DanFilePtr[newestDanFileIndex], "rb", &p_file) != ERROR)
-        {
-            /* Get the number of bytes */
-            fseek (p_file, 0L, SEEK_END);
-            numBytes = ftell (p_file);
-            os_io_fclose(p_file);
+static void SortValidFileTimeStamps (void)
+{
+    UINT16 c = 0;
+    UINT16 d = 0;
+    UINT16 numValidTimestamps = 0;
+    UINT32 swapTimestamp = 0;
+    UINT16 swapIndex = 0;
 
-            if (numBytes == 0)
+    /* Find the number of valid timestamps */
+    while ((m_ValidTimeStampList[numValidTimestamps] != 0xFFFFFFFF)
+                    && (numValidTimestamps < m_MaxNumberOfDanFiles))
+    {
+        numValidTimestamps++;
+    }
+
+    /* Bubble sort algorithm */
+    for (c = 0; c < (numValidTimestamps - 1); c++)
+    {
+        for (d = 0; d < numValidTimestamps - c - 1; d++)
+        {
+            if (m_ValidTimeStampList[d] > m_ValidTimeStampList[d + 1]) /* For decreasing order use < */
             {
-                break;
-            }
-            else
-            {
-                oldestDanFileIndex = newestDanFileIndex;
+                swapTimestamp = m_ValidTimeStampList[d];
+                m_ValidTimeStampList[d] = m_ValidTimeStampList[d + 1];
+                m_ValidTimeStampList[d + 1] = swapTimestamp;
+
+                swapIndex = m_ValidDanFileListIndexes[d];
+                m_ValidDanFileListIndexes[d] = m_ValidDanFileListIndexes[d + 1];
+                m_ValidDanFileListIndexes[d + 1] = swapIndex;
             }
         }
-        else
-        {
-            /* File doesn't exist, so assume this is the first call */
-            break;
-        }
+    }
+}
 
-        existingFileCount++;
-        newestDanFileIndex--;
+static INT16 GetNewestDanFileIndex (void)
+{
+    UINT16 danIndex = 0;
 
-    } while (existingFileCount < sizeof(m_DanFilePtr) / sizeof(const char *));
+    if (m_ValidDanFileListIndexes[0] == 0xFFFF)
+    {
+        return -1;
+    }
 
-    return (oldestDanFileIndex);
+    while ((m_ValidDanFileListIndexes[danIndex] != 0xFFFF) && (danIndex < m_MaxNumberOfDanFiles))
+    {
+        danIndex++;
+    }
+
+    danIndex--;
+
+    return (m_ValidDanFileListIndexes[danIndex]);
+
+}
+
+static INT16 GetOldestDanFileIndex (void)
+{
+    if (m_ValidDanFileListIndexes[0] == 0xFFFF)
+    {
+        return -1;
+    }
+
+    return (m_ValidDanFileListIndexes[0]);
 
 }
 
@@ -351,9 +384,8 @@ static void CreateFileName (FILE **ftpFilePtr)
 
     memset (dateTime, 0, sizeof(dateTime));
 
-    //TODO need VCU function, this is local
 #ifndef TEST_ON_PC
-
+    /* TODO need VCU function, this is local */
 #else
     GetTimeDate (dateTime, sizeof(dateTime));
 #endif
@@ -459,10 +491,11 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileI
         return;
     }
 
-    // In order to prevent memory leaks, no mallocs or callocs during runtime
     while (1)
     {
-        /* Search for delimiter */
+        /* TODO revisit and read more than 1 byte at a time
+         * Search for delimiter. Design decision to read only a byte at a time. If more than 1 byte is
+         * read into a buffer, than more complex logic is needed */
         amountRead = fread (&buffer, sizeof(UINT8), 1, p_file);
 
         /* End of file reached */
@@ -502,10 +535,9 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileI
 
 }
 
-static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex)
+static UINT16 CountStreams (void)
 {
     UINT16 streamCount = 0;
-    UINT16 filesToParse = 0;
     UINT16 parseCount = 0;
     UINT16 fileIndex = 0;
     FILE *streamFilePtr = NULL;
@@ -515,34 +547,18 @@ static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex)
     UINT16 sIndex = 0;
     UINT32 byteCount = 0;
 
-    if (newestIndex >= oldestIndex)
+    /* Scan through all valid dan files and tally the number of occurrences of "STRM" */
+    while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF) && (fileIndex < m_MaxNumberOfDanFiles))
     {
-        filesToParse = (newestIndex - oldestIndex) + 1;
-    }
-    else
-    {
-        filesToParse = oldestIndex + (sizeof(m_DanFilePtr) / sizeof(const char *)) + 1
-                        - newestIndex;
-    }
-
-    fileIndex = oldestIndex;
-
-    // In order to prevent memory leaks, no mallocs or callocs during runtime
-    while (parseCount < filesToParse)
-    {
-        // Open file
-        if (os_io_fopen (m_DanFilePtr[fileIndex], "rb", &streamFilePtr) == ERROR)
+        if (os_io_fopen (m_DanFilePtr[m_ValidDanFileListIndexes[fileIndex]], "rb",
+                        &streamFilePtr) == ERROR)
         {
             streamFilePtr = NULL;
         }
 
-        /* Prepare fileIndex for next Stream File */
         fileIndex++;
-        if (fileIndex >= sizeof(m_DanFilePtr) / sizeof(const char *))
-        {
-            fileIndex = 0;
-        }
 
+        /* TODO handle file error */
         if (streamFilePtr == NULL)
         {
             continue;
@@ -586,43 +602,22 @@ static UINT16 CountStreams (INT16 oldestIndex, INT16 newestIndex)
 
 }
 
-static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newestIndex)
+static void IncludeStreamFiles (FILE *ftpFilePtr)
 {
-    UINT16 filesToParse = 0;
     UINT16 parseCount = 0;
     UINT16 fileIndex = 0;
     FILE *streamFilePtr = NULL;
     UINT8 buffer[1024];
     UINT16 amountRead = 0;
 
-    if (newestIndex >= oldestIndex)
+    while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF) && (parseCount < m_MaxNumberOfDanFiles))
     {
-        filesToParse = (newestIndex - oldestIndex) + 1;
-    }
-    else
-    {
-        filesToParse = oldestIndex + (sizeof(m_DanFilePtr) / sizeof(const char *)) + 1
-                        - newestIndex;
-    }
-
-    fileIndex = oldestIndex;
-
-    // In order to prevent memory leaks, no mallocs or callocs during runtime
-    while (parseCount < filesToParse)
-    {
-        // Open file
         if (os_io_fopen (m_DanFilePtr[fileIndex], "rb", &streamFilePtr) == ERROR)
         {
             streamFilePtr = NULL;
         }
 
-        /* Prepare fileIndex for next Stream File */
-        fileIndex++;
-        if (fileIndex >= sizeof(m_DanFilePtr) / sizeof(const char *))
-        {
-            fileIndex = 0;
-        }
-
+        /* TODO Handle File Error */
         if (streamFilePtr == NULL)
         {
             continue;
@@ -636,6 +631,11 @@ static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newes
             if (amountRead == 0)
             {
                 os_io_fclose(streamFilePtr);
+                /* Move the file pointer back 4 bytes so that the CRC used in each dan file
+                 * for integrity is overwritten
+                 */
+                fseek (ftpFilePtr, -4L, SEEK_END);
+
                 break;
             }
 
@@ -647,7 +647,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr, INT16 oldestIndex, INT16 newes
     }
 }
 
-static UINT8 VerifyFileIntegrity (const char *filename)
+static BOOL VerifyFileIntegrity (const char *filename)
 {
     FILE *p_file = NULL;
     UINT8 buffer[1024];
@@ -698,16 +698,16 @@ static UINT8 VerifyFileIntegrity (const char *filename)
     }
     else
     {
-        return (!NO_ERROR);
+        return (FALSE);
     }
 
     if (calcCRC == fileCRC)
     {
-        return (NO_ERROR);
+        return (TRUE);
     }
     else
     {
-        return (!NO_ERROR);
+        return (FALSE);
     }
 
 }

@@ -193,7 +193,7 @@ static const VariableMap variableMap[] =
 
 };
 
-// TODO make static
+/* TODO make static */
 RtdmXmlStr m_RtdmXmlData;
 
 
@@ -246,13 +246,12 @@ UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
     UINT16 errorCode = NO_ERROR;
 
-    // Read the XML file
+    /* Read the XML file */
     errorCode = ReadXmlFile ();
 
     if (errorCode != NO_ERROR)
     {
-        //TODO
-        // if errorCode then need to log fault and inform that XML file read failed
+        /* TODO if errorCode then need to log fault and inform that XML file read failed */
         return (errorCode);
     }
 
@@ -293,7 +292,7 @@ static int ReadXmlFile (void)
     UINT16 errorCode = 0;
     int returnValue = 0;
 
-    // Try to open XML configuration file
+    /* Try to open XML configuration file */
     returnValue = OpenXMLConfigurationFile (&m_ConfigXmlBufferPtr);
     if (returnValue != NO_ERROR)
     {
@@ -369,13 +368,10 @@ static int ReadXmlFile (void)
         return (NO_DATARECORDERCFG);
     }
 
-    /* free the memory we used for the buffer */
-    //TODO Need to keep to data log file
-    //free (m_ConfigXmlBufferPtr);
     /* Add sample header size */
     m_RtdmXmlData.sample_size = m_RtdmXmlData.dataAllocationSize + SAMPLE_HEADER_SIZE;
 
-    // original code but now returning the amount of memory needed
+    /* original code but now returning the amount of memory needed */
     if (signalCount <= 0)
     {
         /* No signals found */
@@ -389,8 +385,7 @@ static int ReadXmlFile (void)
 static int OpenXMLConfigurationFile (char **configFileXMLBufferPtr)
 {
     FILE* filePtr = NULL;
-    long numBytes;
-
+    long numBytes = 0;
 
     /* open the existing configuration file for reading TEXT MODE */
     if (os_io_fopen (RTDM_XML_FILE, "r", &filePtr) != ERROR)
@@ -506,7 +501,7 @@ static UINT16 FindSignals (char* pStringLocation1)
     UINT16 signalCount = 0;
     UINT16 signalId = 0;
 
-    // count the number of signals so that memory can be allocated for the signal definition
+    /* count the number of signals so that memory can be allocated for the signal definition */
     while ((pStringLocation1 = strstr (pStringLocation1, xml_signal_id)) != NULL)
     {
         pStringLocation1 = pStringLocation1 + strlen (xml_signal_id) + 2;
@@ -516,7 +511,7 @@ static UINT16 FindSignals (char* pStringLocation1)
     m_RtdmXmlData.signal_count = signalCount;
     requiredMemorySize = sizeof(SignalDescription) * signalCount;
 
-    // allocate memory
+    /* allocate memory */
     m_RtdmXmlData.signalDesription = (SignalDescription *) calloc (requiredMemorySize,
                     sizeof(UINT8));
 
@@ -572,7 +567,7 @@ static UINT16 FindSignals (char* pStringLocation1)
         }
         else
         {
-            //TODO handle error - variable name not found in current index
+            /* TODO handle error - variable name not found in current index */
         }
 
         /* Get the data type */
@@ -630,82 +625,3 @@ static UINT16 FindSignals (char* pStringLocation1)
     /* End loop for finding signal ID's */
     return signalCount;
 }
-
-#if DAS
-void ReferenceOnly(void)
-{
-    FILE* p_file = NULL;
-    long numbytes;
-    char xml_RTDMCfg[] = "</RtdmCfg>";
-    char *pStringLocation = NULL;
-    char line[300];
-    UINT8 line_count = 0;
-
-    //DAS Saved for later; not needed but saved for reference since we're going to be using multiple files
-
-    /********************************************************************************************/
-    /* Write the above RTDMConfiguration_PCU.xml file to the data recorder file rtdm.dan */
-    /* This is the required header for the rtdm.dan file */
-    /* The header will be written for a new device or if device was formatted to clear data */
-    /********************************************************************************************/
-    /* open file to check if the header is present */
-    /* 'ab+' is append, open, or create binary file */
-    if (os_io_fopen (RTDM_DATA_FILE, "ab+", &p_file) != ERROR)
-    {
-        /* Get the number of bytes */
-        fseek (p_file, 0L, SEEK_END);
-        numbytes = ftell (p_file);
-
-        if (numbytes == 0)
-        {
-            /* file does not exist, so we need to write the .xml header */
-            /* write RTDMConfiguration_PCU.xml to rtdm.dan, this is the required header (text format, not binary) */
-            fprintf (p_file, "%s\n", m_ConfigXmlBufferPtr);
-
-            /* Get location of RTDM Header for future writes */
-            fseek (p_file, 0L, SEEK_END);
-            DataLog_Info_str.RTDM_Header_Location_Offset = ftell (p_file);
-            DataLog_Info_str.xml_header_is_present = TRUE;
-        }
-        else
-        {
-            /* Get location of RTDM Header for future writes */
-            /* Go to beginning of file */
-            fseek (p_file, 0L, SEEK_SET);
-
-            while (fgets (line, 300, p_file) != NULL)
-            {
-                /* Find "</RtdmCfg>" in .dan file, the next line is the start of the RTDM header */
-                pStringLocation = strstr (line, xml_RTDMCfg);
-
-                if (pStringLocation != NULL)
-                {
-                    /* Cursor is now at the position 'R' of RTDM, this will be the start of the "RTDM" header */
-                    fseek (p_file, 0, SEEK_CUR);
-
-                    /* Get location of RTDM Header for future writes */
-                    DataLog_Info_str.RTDM_Header_Location_Offset = ftell (
-                                    p_file);
-                    break;
-                }
-
-                line_count++;
-            }
-
-            /* .xml header is present so need to retrieve 1st timestamp and num streams from .dan */
-            /* still should check for </RtdmCfg> */
-            DataLog_Info_str.RTDMDataLogWriteState = RESTART;
-        }
-
-        os_io_fclose(p_file);
-    }
-    else
-    {
-        /* Do not return here - still need to get data from .xml config file and do the streaming */
-        error_code_dan = OPEN_FAIL;
-        /* Log fault if persists */
-    }
-
-}
-#endif
-

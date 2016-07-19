@@ -89,7 +89,6 @@
  *
  **********************************************************************************************************************/
 
-// Comment for commit
 #ifndef TEST_ON_PC
 #include "rts_api.h"
 #else
@@ -111,8 +110,12 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-//#define ONE_HOUR_UNITS_SECONDS        (60 * 60)
+#ifdef TEST_ON_PC
 #define ONE_HOUR_UNITS_SECONDS          (10)
+#else
+#define ONE_HOUR_UNITS_SECONDS          (60 * 60)
+#endif
+
 #define LOG_RATE_MSECS                  (50)
 
 /*******************************************************************
@@ -207,7 +210,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     if ((m_RTDMDataLogPingPtr == NULL) || (m_RTDMDataLogPongPtr == NULL))
     {
-        // TODO flag error
+        /* TODO flag error */
     }
 
     /* Set the pointer initially to the "ping" buffer. This pointer is toggled when
@@ -229,7 +232,7 @@ void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeade
     /* This is the first stream captured in the datalog buffer, capture the time stamp */
     if (m_RTDMDataLogIndex == 0)
     {
-        //TODO check for error on return value
+        /* TODO check for error on return value */
         GetEpochTime (&s_FirstEntryTime);
     }
 
@@ -241,7 +244,7 @@ void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeade
 
     m_RTDMDataLogIndex += dataAmount;
 
-    //TODO check for error on return value
+    /* TODO check for error on return value */
     GetEpochTime (&nowTime);
 
     printf("First time %lu; Now time %lu\n",s_FirstEntryTime.seconds, nowTime.seconds);
@@ -267,8 +270,8 @@ void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeade
     }
 }
 
-// Called when a request is made by the network to concatenate all dan files
-// into 1 file and send over network via FTP
+/* Called when a request is made by the network to concatenate all dan files
+   into 1 file and send over network via FTP */
 void FTPDataLog (void)
 {
     /* Close existing datalog file */
@@ -279,7 +282,8 @@ void FTPDataLog (void)
 
     /* Spawn new task to concatenate all the previous 24 hours worth of streams
      * to a single file and then FTP that file to the FTP server */
-    //TODO Will need info about FTP server
+
+    /* TODO Will need info about FTP server */
     SpawnFTPDatalog ();
 
 }

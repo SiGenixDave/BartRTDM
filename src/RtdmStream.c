@@ -89,7 +89,6 @@
  *
  **********************************************************************************************************************/
 
-// Comment for commit
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -165,18 +164,6 @@ static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signal
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
 
-/*******************************************************************************************
- *
- *
- *   Parameters : None
- *
- *   Returned :  None
- *
- *   History :       11/11/2015    RC  - Creation
- *   Revised :
- *
- ******************************************************************************************/
-
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
@@ -191,39 +178,11 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
 }
 
-/*******************************************************************************************
- *
- *   Procedure Name : RTDM_Stream
- *
- *   Functional Description : Main function
- *   Clear all arrays
- *	Wait for Network
- *	Read rtdm_config.xml file
- *	Populate Samples
- *	Determine when to send message
- *	Populate header
- *	Send message
- *	Check fault conditions
- *
- *	Calls:
- *	Get_Time()
- *	Populate_Samples()
- *	Populate_Stream_Header(samples_crc)
- *	Check_Fault(error_code)
- *
- *   Parameters : None
- *
- *   Returned :  None
- *
- *   History :       11/11/2015    RC  - Creation
- *   Revised :
- *
- ******************************************************************************************/
 void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
-    //DAS gets called every 50 msecs
-    UINT16 result = 0;
+    /* DAS FYI gets called every 50 msecs */
     UINT16 errorCode = 0;
+    UINT16 result = 0;
 
     RTDMTimeStr currentTime;
     BOOL networkAvailable = FALSE;
@@ -247,23 +206,6 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 }
 
-/*******************************************************************************************
- *
- *   Procedure Name : Get_Time()
- *
- *   Functional Description : Get current time in posix
- *
- *  Calls:
- *  Get_Time()
- *
- *   Parameters : current_time_Sec, current_time_nano
- *
- *   Returned :  error
- *
- *   History :       11/23/2015    RC  - Creation
- *   Revised :
- *
- ******************************************************************************************/
 int GetEpochTime (RTDMTimeStr* currentTime)
 {
     /* For system time */
@@ -341,11 +283,11 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 
         m_SampleCount++;
 
-        //DAS printf ("Sample Populated %d\n", interface->RTDMSampleCount);
+        printf ("Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 
-    // TODO determine if next data change entry might overflow buffer
+    /* determine if next data change entry might overflow buffer */
     if ((s_StreamBufferIndex + rtdmXmlData->dataAllocationSize + sizeof(RtdmSampleStr))
                     >= rtdmXmlData->bufferSize)
     {
@@ -419,14 +361,15 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
     int compareResult = 0;
-    static UINT32 previousSampleTimeSec = 0;
+    static UINT32 s_PreviousSampleTimeSec = 0;
     UINT32 timeDiffSec = 0;
     UINT16 signalChangeBufferSize = 0;
     UINT16 signalCount = 0;
 
+    /* FYI: compareResult = 0 if new signal data and previous signal data identical */
     compareResult = memcmp (m_OldSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
 
-    timeDiffSec = currentTime->seconds - previousSampleTimeSec;
+    timeDiffSec = currentTime->seconds - s_PreviousSampleTimeSec;
 
     /* If the previous sample of data is identical to the current sample and
      * compression is enabled do nothing.
@@ -437,7 +380,8 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime
         return (0);
     }
 
-    previousSampleTimeSec = currentTime->seconds;
+    /* Since data has changed from the previous sample, update the previous sample time */
+    s_PreviousSampleTimeSec = currentTime->seconds;
 
     /* Populate buffer with all signals because timer expired or compression is disabled */
     if ((timeDiffSec >= rtdmXmlData->MaxTimeBeforeSaveMs) || !rtdmXmlData->Compression_enabled)
@@ -471,7 +415,7 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime
 
     return (signalChangeBufferSize);
 
-} /* End PopulateSamples() */
+}
 
 static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
 {
@@ -556,7 +500,7 @@ static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signal
 
         if (compareResult != 0)
         {
-            /* Start copying the from the signal Id and copy Id and data */
+            /* Start copying the from the signal id and copy the id and data */
             memcpy (&m_ChangedSignalData[changedIndex], &m_NewSignalData[signalIndex],
                             sizeof(UINT16) + variableSize);
             changedIndex += sizeof(UINT16) + variableSize;
@@ -668,7 +612,7 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
 
     streamHeader->content.Header_Checksum = stream_header_crc;
 
-} /* End Populate_Stream_Header */
+}
 
 /*******************************************************************************************
  *
@@ -693,7 +637,6 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
     static UINT8 timer_started = 0;
     static UINT8 trig_fault = 0;
     UINT32 time_diff = 0;
-    UINT16 result = 0;
 
     /* No fault - return */
     if (error_code == NO_ERROR)
@@ -743,7 +686,7 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 
     return (0);
 
-} /* End Check_Fault */
+}
 
 static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
 {
@@ -758,7 +701,7 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
     actual_buffer_size = ((rtdmXmlData->max_main_buffer_count * rtdmXmlData->sample_size)
                     + sizeof(StreamHeaderStr) + 2);
 
-    // TODO Need to combine the former RTDM_Struct into buff, header, stream
+    /* TODO Need to combine the former RTDM_Struct into buff, header, stream */
 #if TODO
     /* Send message overriding of destination URI 800310000 - comId comes from .xml */
     ipt_result = MDComAPI_putMsgQ (rtdmXmlData->comId, /* ComId */
@@ -773,7 +716,7 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
     {
         /* The sending couldn't be started. */
         /* Error handling */
-        //TODO
+        /* TODO */
         errorCode = -1;
         /* free the memory we used for the buffer */
         free (m_RtdmStreamPtr);

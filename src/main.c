@@ -29,7 +29,6 @@ extern void CreateUIThread (void);
 
 
 
-// Comment for commit
 int main (void)
 {
 
@@ -53,6 +52,7 @@ int main (void)
 
     printf("Hello World\n");
     RTDMInitialize (&mStreamInfo, &m_RtdmXmlData);
+    //DAS can't single step debug when another thread is spawned
     //CreateUIThread();
 
     while (TRUE)

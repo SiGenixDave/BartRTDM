@@ -5,8 +5,6 @@
  *      Author: Dave
  */
 
-// Comment for commit
-
 #ifndef RTDMDATALOG_H_
 #define RTDMDATALOG_H_
 

@@ -27,7 +27,7 @@
 void RTDMInitialize (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
 
-    // Read XML file
+    /* Read XML file and update all XML and interface parameters */
     InitializeXML (interface, rtdmXmlData);
 
     InitializeRtdmStream (rtdmXmlData);
