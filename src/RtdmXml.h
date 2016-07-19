@@ -61,6 +61,7 @@ typedef struct tRtdmXmlStr
     UINT16 signal_count; /* number of signals */
 } RtdmXmlStr;
 
+/* Forward declaration required to avoid compiler error */
 struct dataBlock_RTDM_Stream;
 typedef struct dataBlock_RTDM_Stream TYPE_RTDM_STREAM_IF;
 

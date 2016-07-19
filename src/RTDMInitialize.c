@@ -17,10 +17,9 @@
 #include "fltinfo.h"
 #else
 #include "MyTypes.h"
-#include "mwt_types.h"
-#include "usertypes.h"
 #endif
 
+#include "usertypes.h"
 #include "RtdmUtils.h"
 #include "RtdmStream.h"
 #include "RtdmXml.h"

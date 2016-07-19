@@ -17,8 +17,9 @@
 #else
 #include "MyTypes.h"
 #include "MyFuncs.h"
-#include "usertypes.h"
 #endif
+
+#include "usertypes.h"
 
 #include "RtdmStream.h"
 #include "RtdmXml.h"
@@ -645,18 +646,19 @@ static UINT16 CountStreams (void)
 
 static void IncludeStreamFiles (FILE *ftpFilePtr)
 {
-    UINT16 parseCount = 0;
     UINT16 fileIndex = 0;
     FILE *streamFilePtr = NULL;
     UINT8 buffer[1024];
     UINT16 amountRead = 0;
 
-    while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF) && (parseCount < m_MaxNumberOfDanFiles))
+    while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF) && (fileIndex < m_MaxNumberOfDanFiles))
     {
         if (os_io_fopen (m_DanFilePtr[fileIndex], "rb", &streamFilePtr) == ERROR)
         {
             streamFilePtr = NULL;
         }
+
+        fileIndex++;
 
         /* TODO Handle File Error */
         if (streamFilePtr == NULL)
@@ -682,8 +684,6 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
 
             fwrite (&buffer[0], amountRead, 1, ftpFilePtr);
         }
-
-        parseCount++;
 
     }
 }

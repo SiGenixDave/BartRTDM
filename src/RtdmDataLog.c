@@ -97,9 +97,9 @@
 #else
 #include "MyTypes.h"
 #include "MyFuncs.h"
-#include "usertypes.h"
 #endif
 
+#include "usertypes.h"
 #include "RtdmUtils.h"
 #include "RtdmXml.h"
 #include "RtdmStream.h"

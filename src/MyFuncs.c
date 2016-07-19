@@ -16,7 +16,6 @@ void GetTimeDate (char *dateTime, UINT16 arraySize)
     struct tm *t = localtime(&now);
 
     strftime(dateTime, arraySize, "%y%m%d_%H%M%S", t);
-    //printf("Current Date: %s", dateTime);
 
 }
 
