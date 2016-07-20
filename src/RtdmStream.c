@@ -233,12 +233,12 @@ static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailable,
                 UINT16 *errorCode, RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
-    UINT32 timeDiffSec = 0;
+    INT32 timeDiff = 0;
     UINT32 samplesCRC = 0;
     UINT16 newChangedDataBytes = 0;
     BOOL streamBecauseBufferFull = FALSE;
     StreamHeaderStr streamHeader;
-    static UINT32 s_PreviousSendTimeSec = 0;
+    static RTDMTimeStr s_PreviousSendTime = {0, 0};
     static UINT32 s_StreamBufferIndex = 0;
 
     /* IS "networkAvailable" NEEDED ?????????????????? */
@@ -278,12 +278,12 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
     }
 
     /* Check if its time to stream the data */
-    timeDiffSec = currentTime->seconds - s_PreviousSendTimeSec;
+    timeDiff = TimeDiff(currentTime, &s_PreviousSendTime);
 
     /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
     if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count) || (streamBecauseBufferFull)
-                    || (timeDiffSec >= rtdmXmlData->maxTimeBeforeSendMs))
-                    && (s_PreviousSendTimeSec != 0))
+                    || (timeDiff >= rtdmXmlData->maxTimeBeforeSendMs))
+                    && (s_PreviousSendTime.seconds != 0))
     {
         memset (&streamHeader, 0, sizeof(streamHeader));
 
@@ -302,7 +302,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 
         WriteStreamToDataLog (rtdmXmlData, &streamHeader, m_StreamData, s_StreamBufferIndex);
 
-        s_PreviousSendTimeSec = currentTime->seconds;
+        s_PreviousSendTime = *currentTime;
 
         debugPrintf ("STREAM SENT %d\n", m_SampleCount);
 
@@ -313,9 +313,9 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
     }
 
     /* Save previousSendTimeSec always on the first call to this function */
-    if (s_PreviousSendTimeSec == 0)
+    if (s_PreviousSendTime.seconds == 0)
     {
-        s_PreviousSendTimeSec = currentTime->seconds;
+        s_PreviousSendTime = *currentTime;
     }
 
     interface->RTDMSampleCount = m_SampleCount;
@@ -344,30 +344,30 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
     INT16 compareResult = 0;
-    static UINT32 s_PreviousSampleTimeSec = 0;
-    UINT32 timeDiffSec = 0;
+    static RTDMTimeStr s_PreviousSampleTime = {0 ,0};
+    INT32 timeDiff = 0;
     UINT16 signalChangeBufferSize = 0;
     UINT16 signalCount = 0;
 
     /* FYI: compareResult = 0 if new signal data and previous signal data identical */
     compareResult = memcmp (m_OldSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
 
-    timeDiffSec = currentTime->seconds - s_PreviousSampleTimeSec;
+    timeDiff = TimeDiff(currentTime, &s_PreviousSampleTime);
 
     /* If the previous sample of data is identical to the current sample and
      * compression is enabled do nothing.
      */
     if ((!compareResult) && (rtdmXmlData->Compression_enabled)
-                    && (timeDiffSec < rtdmXmlData->MaxTimeBeforeSaveMs))
+                    && (timeDiff < rtdmXmlData->MaxTimeBeforeSaveMs))
     {
         return (0);
     }
 
     /* Since data has changed from the previous sample, update the previous sample time */
-    s_PreviousSampleTimeSec = currentTime->seconds;
+    s_PreviousSampleTime = *currentTime;
 
     /* Populate buffer with all signals because timer expired or compression is disabled */
-    if ((timeDiffSec >= rtdmXmlData->MaxTimeBeforeSaveMs) || !rtdmXmlData->Compression_enabled)
+    if ((timeDiff >= rtdmXmlData->MaxTimeBeforeSaveMs) || !rtdmXmlData->Compression_enabled)
     {
         memcpy (m_ChangedSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
         signalChangeBufferSize = rtdmXmlData->dataAllocationSize;
@@ -615,10 +615,10 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
  ******************************************************************************************/
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 {
-    static UINT32 start_time = 0;
-    static UINT8 timer_started = 0;
-    static UINT8 trig_fault = 0;
-    UINT32 time_diff = 0;
+    static RTDMTimeStr s_StartTime = {0, 0};
+    static BOOL s_TimerStarted = FALSE;
+    static BOOL s_TriggerFault = 0;
+    INT32 timeDiff = 0;
 
     /* No fault - return */
     if (error_code == NO_ERROR)
@@ -627,32 +627,33 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
     }
 
     /* error_code is not zero, so a fault condition, start timer */
-    if ((timer_started == FALSE) && (error_code != NO_ERROR))
+    if ((s_TimerStarted == FALSE) && (error_code != NO_ERROR))
     {
-        start_time = currentTime->seconds;
+        s_StartTime = *currentTime;
 
-        timer_started = TRUE;
+        s_TimerStarted = TRUE;
     }
 
-    time_diff = currentTime->seconds - start_time;
+    timeDiff = TimeDiff(currentTime, &s_StartTime);
 
     /* wait 10 seconds to log fault - not critical */
-    if ((time_diff >= 10) && (trig_fault == FALSE))
+    if ((timeDiff >= 10000) && (s_TriggerFault == FALSE))
     {
-        trig_fault = TRUE;
+        s_TriggerFault = TRUE;
     }
 
     /* clear timers and flags */
     if (error_code == NO_ERROR)
     {
-        start_time = 0;
-        timer_started = FALSE;
-        trig_fault = FALSE;
+        s_StartTime.seconds = 0;
+        s_StartTime.nanoseconds = 0;
+        s_TimerStarted = FALSE;
+        s_TriggerFault = FALSE;
     }
 
 #ifndef TEST_ON_PC
     /* If error_code > 5 seconds then Log RTDM Stream Error */
-    MWT.GLOBALS.PTU_Prop_Flt[EC_RTDM_STREAM].event_active = trig_fault;
+    MWT.GLOBALS.PTU_Prop_Flt[EC_RTDM_STREAM].event_active = s_TriggerFault;
 
     if((MWT.GLOBALS.PTU_Prop_Flt[EC_RTDM_STREAM].event_active == 1) && (MWT.GLOBALS.PTU_Prop_Flt[EC_RTDM_STREAM].confirm_flag == 0))
     {

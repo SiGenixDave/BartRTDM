@@ -69,5 +69,103 @@ INT16 GetEpochTime (RTDMTimeStr* currentTime)
 
     return (NO_ERROR);
 
-} /* End Get_Time */
+}
+
+INT32 TimeDiff (RTDMTimeStr *newTime, RTDMTimeStr *oldTime)
+{
+    INT32 milliSeconds = 0;
+    INT32 seconds = 0;
+    BOOL subtractFromSeconds = FALSE;
+
+    INT32 newNs = 0;
+    INT32 oldNs = 0;
+
+    oldNs = (INT32)oldTime->nanoseconds;
+    newNs = (INT32)newTime->nanoseconds;
+
+    if (oldNs > newNs)
+    {
+        newNs += 1000000000;
+        subtractFromSeconds = TRUE;
+    }
+
+    milliSeconds = (newNs - oldNs) / 1000000;
+    seconds = newTime->seconds - oldTime->seconds;
+
+    if (subtractFromSeconds)
+    {
+        milliSeconds++;
+        seconds--;
+    }
+
+    milliSeconds += (seconds * 1000);
+
+    return (milliSeconds);
+
+}
+
+#if FOR_UNIT_TEST_ONLY
+void test(void)
+{
+    RTDMTimeStr newTs, oldTs;
+    INT32 ms;
+
+    // both new >
+    oldTs.nanoseconds = 111111111;
+    newTs.nanoseconds = 999999999;
+    oldTs.seconds = 122;
+    newTs.seconds = 123;
+
+    ms = TimeDiff(&newTs, &oldTs);
+    printf("msec = %d\n", ms);
+    ms = TimeDiff(&oldTs, &newTs);
+    printf("msec = %d\n", ms);
+
+    // both old >
+    newTs.nanoseconds = 111111111;
+    oldTs.nanoseconds = 999999999;
+    newTs.seconds = 122;
+    oldTs.seconds = 123;
+
+    ms = TimeDiff(&newTs, &oldTs);
+    printf("msec = %d\n", ms);
+    ms = TimeDiff(&oldTs, &newTs);
+    printf("msec = %d\n", ms);
+
+    // new ns > old s >
+    oldTs.nanoseconds = 111111111;
+    newTs.nanoseconds = 999999999;
+    newTs.seconds = 122;
+    oldTs.seconds = 123;
+
+    ms = TimeDiff(&newTs, &oldTs);
+    printf("msec = %d\n", ms);
+    ms = TimeDiff(&oldTs, &newTs);
+    printf("msec = %d\n", ms);
+
+    // old ns > new s >
+    newTs.nanoseconds = 111111111;
+    oldTs.nanoseconds = 999999999;
+    oldTs.seconds = 122;
+    newTs.seconds = 123;
+
+    ms = TimeDiff(&newTs, &oldTs);
+    printf("msec = %d\n", ms);
+    ms = TimeDiff(&oldTs, &newTs);
+    printf("msec = %d\n", ms);
+
+    // old ns > new s =
+    newTs.nanoseconds = 111111111;
+    oldTs.nanoseconds = 999999999;
+    oldTs.seconds = 122;
+    newTs.seconds = 122;
+
+    ms = TimeDiff(&newTs, &oldTs);
+    printf("msec = %d\n", ms);
+    ms = TimeDiff(&oldTs, &newTs);
+    printf("msec = %d\n", ms);
+
+
+}
+#endif
 

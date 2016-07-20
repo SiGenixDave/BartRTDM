@@ -151,5 +151,6 @@ typedef struct RTDMTimeStr
  *
  *******************************************************************/
 INT16 GetEpochTime (RTDMTimeStr* currentTime);
+INT32 TimeDiff (RTDMTimeStr *newTime, RTDMTimeStr *oldTime);
 
 #endif /* RTDMUTILS_H_ */

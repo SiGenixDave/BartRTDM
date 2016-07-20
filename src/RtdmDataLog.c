@@ -191,8 +191,8 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     minStreamPeriodSecs =
                     ((1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS)
                                     / (streamDueToBufferSizeSeconds
-                                                    <= rtdmXmlData->maxTimeBeforeSendMs) ?
-                                    streamDueToBufferSizeSeconds : rtdmXmlData->maxTimeBeforeSendMs;
+                                                    <= (rtdmXmlData->maxTimeBeforeSendMs / 1000)) ?
+                                    streamDueToBufferSizeSeconds : (rtdmXmlData->maxTimeBeforeSendMs / 1000);
 
     streamHeaderAllocation = ONE_HOUR_UNITS_SECONDS * sizeof(StreamHeaderStr) / minStreamPeriodSecs;
 

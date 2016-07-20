@@ -279,28 +279,22 @@ static INT16 ReadXmlFile (void)
         /*************************************************************************
          *  POST PROCESS SOME OF THE XML DATA THAT IS NOT A DIRECT CONVERSION
          *************************************************************************/
-        /* Convert from msecs to seconds */
-        m_RtdmXmlData.MinRecordingRate /= 1000;
         /* Time must be a minimum of 1 second */
-        if (m_RtdmXmlData.MinRecordingRate < 1)
+        if (m_RtdmXmlData.MinRecordingRate < 1000)
         {
-            m_RtdmXmlData.MinRecordingRate = 1;
+            m_RtdmXmlData.MinRecordingRate = 1000;
         }
 
-        /* Convert from msecs to seconds */
-        m_RtdmXmlData.MaxTimeBeforeSaveMs /= 1000;
         /* Time must be a minimum of 1 second */
-        if (m_RtdmXmlData.MaxTimeBeforeSaveMs < 1)
+        if (m_RtdmXmlData.MaxTimeBeforeSaveMs < 1000)
         {
-            m_RtdmXmlData.MaxTimeBeforeSaveMs = 1;
+            m_RtdmXmlData.MaxTimeBeforeSaveMs = 1000;
         }
 
-        /* Convert from msecs to seconds */
-        m_RtdmXmlData.maxTimeBeforeSendMs /= 1000;
         /* Time must be a minimum of 2 seconds, do not want to overload the CPU */
-        if (m_RtdmXmlData.maxTimeBeforeSendMs < 2)
+        if (m_RtdmXmlData.maxTimeBeforeSendMs < 2000)
         {
-            m_RtdmXmlData.maxTimeBeforeSendMs = 2;
+            m_RtdmXmlData.maxTimeBeforeSendMs = 2000;
         }
 
         if (m_RtdmXmlData.bufferSize < 2000)
