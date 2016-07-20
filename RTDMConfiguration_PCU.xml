@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RtdmCfg xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" version="2">
-  <DataRecorderCfg id="13" version="1" deviceId="PCUX" name="PCU" description="RTDM PCU to MDS " type="CONTINUOUS" samplingRate="50" compressionEnabled="TRUE" minRecordingRate="10000" noChangeFailurePeriod="1">
+  <DataRecorderCfg id= " 13 " version = " 1 "deviceId="PCUX" name="PCU" description="RTDM PCU to MDS " type="CONTINUOUS" samplingRate="50" compressionEnabled=   "   TRUE" minRecordingRate="10000" noChangeFailurePeriod="1">
     <OnEventCfg preTrigSamples="0" postTrigSamples="0" trigMode="OFF" trigSignalId="0" />
     <DataLogFileCfg enabled="TRUE" filesCount="10" numberSamplesInFile="5000" filesFullPolicy="FIFO" numberSamplesBeforeSave="500" maxTimeBeforeSaveMs="10000" folderPath="" />
     <OutputStreamCfg enabled="TRUE" comId="800310000" bufferSize="10000" maxTimeBeforeSendMs="1200000" />

@@ -14,7 +14,6 @@
  *
  *******************************************************************/
 
-
 /****************************************************************************************/
 /* CANNOT BE CHANGED OR ADJUSTED WITHOUT CODE CHANGE */
 
@@ -40,8 +39,8 @@
 
 /* Error Codes for RTDM Streaming */
 #define NO_ERROR                    0
-#define  NO_NETWORK                 1
-#define  NO_XML_INPUT_FILE          2
+#define NO_NETWORK                  1
+#define NO_XML_INPUT_FILE           2
 #define BAD_READ_BUFFER             3
 #define NO_DATARECORDERCFG          4
 #define NO_CONFIG_ID                5
@@ -63,19 +62,20 @@
 #define NO_COMID                    12
 #define NO_BUFFERSIZE               13
 
+#define UNSUPPORTED_DATA_TYPE       50
+#define VARIABLE_NOT_FOUND          51
+
 /* Error Codes for RTDM Data Recorder */
 #define OPEN_FAIL                   20
 
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-
 #ifdef TEST_ON_PC
 #define debugPrintf(fmt, args...)    printf(fmt, ## args)
 #else
 #define debugPrintf(fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
 #endif
-
 
 /*******************************************************************
  *
@@ -122,7 +122,6 @@ typedef struct
     UINT16 Sample_Size_for_header __attribute__ ((packed));
     UINT32 Sample_Checksum __attribute__ ((packed));
     UINT16 Num_Samples __attribute__ ((packed));
-
 } StreamHeaderContent;
 
 /* Structure to contain variables in the Stream header of the message */
@@ -136,7 +135,6 @@ typedef struct RTDMTimeStr
 {
     UINT32 seconds;
     UINT32 nanoseconds;
-
 } RTDMTimeStr;
 
 /*******************************************************************
