@@ -128,20 +128,6 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 {
 
-#ifdef TODO
-    INT16 os_t_spawn(
-    const char appl_name[], /* IN : Application name connected to the task */
-    INT32 appl_type, /* IN : Type of application AS_TYPE_AP_C,
-    AS_TYPE_AP_TOOL */
-    char task_name[], /* IN : Name of the task */
-    UINT8 priority, /* IN : Priority of the task */
-    INT32 stack_size, /* IN : Size of the stack */
-    FUNCPTR entry_pt, /* IN : Start adress of the task */
-    INT32 argc, /* IN : No of arguments to the function (Max 10.) */
-    INT32 argv[], /* IN : The argument list */
-    UINT32* task_id) /* OUT: VxWorks task id */
-#endif
-
     FILE *p_file = NULL;
     UINT32 crc;
 
@@ -399,6 +385,11 @@ static INT16 GetOldestDanFileIndex (void)
 
 static void CreateFileName (FILE **ftpFilePtr)
 {
+#ifndef TEST_ON_PC
+    RTDMTimeStr rtdmTime;
+    OS_STR_TIME_ANSI ansiTime;
+#endif
+
     char consistId[17];
     char carId[17];
     char deviceId[17];
@@ -429,16 +420,16 @@ static void CreateFileName (FILE **ftpFilePtr)
 
 #ifdef TEST_ON_PC
     GetTimeDate (dateTime, sizeof(dateTime));
-#elif defined (TODO)
+#else
+#if TODO
     /* TODO need to test on VCU */
-    GetEpochTime();
+    GetEpochTime(&rtdmTime.seconds);
 
-    INT16 os_c_localtime(
-                    UINT32 sec, /* IN: System time */
-                    OS_STR_TIME_ANSI *p_ansi_time); /* OUT: Local time */
+    os_c_localtime(rtdmTime.seconds, ansiTime); /* OUT: Local time */
 
-    /* TODO Convert p_ansi_time members to YYMMDD-HHMMSS */
-
+    /* TODO Convert ansiTime members to YYMMDD-HHMMSS */
+#endif
+    strcat(dateTime,"160721-123456");
 #endif
 
     strcat (fileName, consistId);
