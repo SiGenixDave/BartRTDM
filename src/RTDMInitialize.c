@@ -13,6 +13,7 @@
 #include "ptu.h"
 #include "fltinfo.h"
 #else
+#include <stdio.h>
 #include "MyTypes.h"
 #include "usertypes.h"
 #endif
@@ -29,11 +30,11 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
 void RTDMInitialize (TYPE_RTDMSTREAM_IF *interface)
 {
 
-    RtdmXmlStr *rtdmXmlData;
+    RtdmXmlStr *rtdmXmlData = NULL;
 
     /* Read XML file and update all XML and interface parameters. This call must be
-     * performed first because other init functions use parameters read from the
-     * XML config file */
+     * performed first because other initialization functions use parameters read from the
+     * XML configuration file */
     InitializeXML (interface, &rtdmXmlData);
 
     InitializeRtdmStream (rtdmXmlData);
