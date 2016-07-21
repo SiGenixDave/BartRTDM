@@ -22,7 +22,7 @@
 #include "MySleep.h"
 
 
-TYPE_RTDM_STREAM_IF mStreamInfo;
+TYPE_RTDMSTREAM_IF mStreamInfo;
 
 
 

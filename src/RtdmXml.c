@@ -42,19 +42,24 @@
  * RC - 10/26/2015
  *
  *******************************************************************************/
+
+#ifndef TEST_ON_PC
+#include "global_mwt.h"
+#include "rts_api.h"
+#include "../include/iptcom.h"
+#else
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef TEST_ON_PC
 #include "MyTypes.h"
 #include "MyFuncs.h"
 #include "usertypes.h"
 #endif
 
-#include "RtdmUtils.h"
+
 #include "RtdmStream.h"
 #include "RtdmXml.h"
+#include "RtdmUtils.h"
 
 /*******************************************************************
  *
@@ -147,7 +152,7 @@ static const DataTypeMap dataTypeMap[] =
     {
         "INT32", INT32_XML_TYPE }, };
 
-extern TYPE_RTDM_STREAM_IF mStreamInfo;
+extern TYPE_RTDMSTREAM_IF mStreamInfo;
 
 /** @brief Stores all of the XML configuration data plus additional parameters that
  * are calculated from the configuration data */
@@ -272,8 +277,8 @@ static const XMLConfigReader m_XmlConfigReader[] =
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static INT16 ReadProcessXmlFile (void);
-static INT16 OpenXMLConfigurationFile (void);
+static UINT16 ReadProcessXmlFile (void);
+static UINT16 OpenXMLConfigurationFile (void);
 static UINT16 ProcessXmlFileParams (void);
 static UINT16 ProcessXMLSignals (UINT16 *numberofSignals);
 
@@ -296,7 +301,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals);
  * Description   : Original Release
  *
  *****************************************************************************/
-UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
+UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
 {
     UINT16 errorCode = NO_ERROR; /* error code from XML processing; return value */
 
@@ -311,7 +316,7 @@ UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
 
     /* Calculate MAX buffer size - subtract 2 to make room for Main Header - how many samples
      * will fit into buffer size from .xml ex: 60,000 */
-    m_RtdmXmlData.max_main_buffer_count = ((m_RtdmXmlData.bufferSize / m_RtdmXmlData.sample_size)
+    m_RtdmXmlData.max_main_buffer_count = (UINT16)((m_RtdmXmlData.bufferSize / m_RtdmXmlData.sample_size)
                     - 2);
 
     /* Set to interface so we can see in DCUTerm */
@@ -365,16 +370,16 @@ char *GetXMLConfigFileBuffer (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static INT16 ReadProcessXmlFile (void)
+static UINT16 ReadProcessXmlFile (void)
 {
     UINT16 signalCount = 0; /* Maintains the number of signals discovered */
-    INT16 returnValue = 0; /* Return value */
+    UINT16 returnValue = 0; /* Return value */
 
     /* Try to open XML configuration file */
     returnValue = OpenXMLConfigurationFile ();
     if (returnValue != NO_ERROR)
     {
-        return returnValue;
+        return (returnValue);
     }
 
     ProcessXmlFileParams ();
@@ -418,7 +423,7 @@ static INT16 ReadProcessXmlFile (void)
     /***************************************************************************/
 
     /* Add sample header size */
-    m_RtdmXmlData.sample_size = m_RtdmXmlData.dataAllocationSize + sizeof(DataSampleStr);
+    m_RtdmXmlData.sample_size = (UINT16)(m_RtdmXmlData.dataAllocationSize + sizeof(DataSampleStr));
 
     /* original code but now returning the amount of memory needed */
     if (signalCount <= 0)
@@ -451,7 +456,7 @@ static INT16 ReadProcessXmlFile (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static INT16 OpenXMLConfigurationFile (void)
+static UINT16 OpenXMLConfigurationFile (void)
 {
     FILE* filePtr = NULL; /* OS file pointer to XML configuration file */
     INT32 numBytes = 0; /* Number of bytes in the XML configuration file  */
@@ -468,7 +473,7 @@ static INT16 OpenXMLConfigurationFile (void)
 
         /* grab sufficient memory for the buffer to hold the text - clear all bytes. Add
          * an additional byte to ensure a NULL character (end of string) is encountered */
-        m_ConfigXmlBufferPtr = (char*) calloc (numBytes + 1, sizeof(char));
+        m_ConfigXmlBufferPtr = (char*) calloc ((size_t)(numBytes + 1), sizeof(char));
 
         /* memory error */
         if (m_ConfigXmlBufferPtr == NULL)
@@ -482,7 +487,7 @@ static INT16 OpenXMLConfigurationFile (void)
         }
 
         /* copy all the text into the buffer */
-        fread (m_ConfigXmlBufferPtr, sizeof(char), numBytes, filePtr);
+        fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t)numBytes, filePtr);
 
         /* Close the file, no longer needed */
         os_io_fclose(filePtr);
@@ -628,7 +633,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     char tempStr[255];
     UINT32 requiredMemorySize = 0;
     UINT16 i = 0;
-    UINT16 dataAllocationBytes = 0;
+    INT32 dataAllocationBytes = 0;
     UINT16 signalId = 0;
     UINT16 signalCount = 0;
 
@@ -753,7 +758,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         }
 
         /* Running calculation of the max amount of memory required if all signals change  */
-        dataAllocationBytes += sizeof(UINT16);
+        dataAllocationBytes += (INT32)sizeof(UINT16);
         switch (m_RtdmXmlData.signalDesription[signalCount].signalType)
         {
             case UINT8_XML_TYPE:
@@ -776,7 +781,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     /* This final total indicates the amount of memory needed to store all signal ids
      * an signals. Used for allocating memory later in the initialization process
      */
-    m_RtdmXmlData.dataAllocationSize = dataAllocationBytes;
+    m_RtdmXmlData.dataAllocationSize = (UINT16)dataAllocationBytes;
 
     /* Update the final signal count to the calling funtion */
     *numberofSignals = signalCount;

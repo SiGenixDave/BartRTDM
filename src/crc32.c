@@ -8,13 +8,12 @@
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
-#include <stdio.h>
-
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
 #include "../include/iptcom.h"
 #else
+#include <stdio.h>
 #include "MyTypes.h"
 #include "MyFuncs.h"
 #endif

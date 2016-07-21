@@ -39,8 +39,8 @@
  *******************************************************************/
 
 
-void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader, UINT8 *stream,
+void InitializeDataLog (RtdmXmlStr *rtdmXmlData);
+void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream,
                 UINT32 dataAmount);
 
 void Write_RTDM (void);

@@ -33,7 +33,7 @@ typedef enum
     /** */
     UINT32_XML_TYPE,
     /** */
-    INT32_XML_TYPE,
+    INT32_XML_TYPE
 } XmlSignalType;
 
 /*******************************************************************
@@ -56,9 +56,9 @@ typedef struct
 typedef struct tRtdmXmlStr
 {
     /** */
-    INT16 DataRecorderCfgID;
+    UINT16 DataRecorderCfgID;
     /** */
-    INT16 DataRecorderCfgVersion;
+    UINT16 DataRecorderCfgVersion;
     /** */
     UINT16 SamplingRate; /*Not currently used - fixed at 50mS */
     /** */
@@ -90,7 +90,7 @@ typedef struct tRtdmXmlStr
     /** */
     UINT16 dataAllocationSize;
     /** */
-    INT16 sample_size; /* calculated size of sample including the sample header */
+    UINT16 sample_size; /* calculated size of sample including the sample header */
     /** */
     UINT16 max_main_buffer_count; /* calculated size of main buffer (max number of samples) */
     /** */
@@ -98,9 +98,10 @@ typedef struct tRtdmXmlStr
 } RtdmXmlStr;
 
 /* Forward declaration required to avoid compiler error */
-struct dataBlock_RTDM_Stream;
-typedef struct dataBlock_RTDM_Stream TYPE_RTDM_STREAM_IF;
-
+#ifndef RTDMSTREAM_H
+struct dataBlock_RtdmStream;
+typedef struct dataBlock_RtdmStream TYPE_RTDMSTREAM_IF;
+#endif
 /*******************************************************************
  *
  *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
@@ -113,7 +114,7 @@ typedef struct dataBlock_RTDM_Stream TYPE_RTDM_STREAM_IF;
  *
  *******************************************************************/
 
-UINT16 InitializeXML (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr **rtdmXmlData);
+UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData);
 char *GetXMLConfigFileBuffer (void);
 
 #endif /* RTDMXML_H_ */

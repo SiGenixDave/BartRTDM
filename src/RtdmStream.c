@@ -83,9 +83,6 @@
  *
  *
  **********************************************************************************************************************/
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -94,6 +91,9 @@
 #include "ptu.h"
 #include "fltinfo.h"
 #else
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include "MyTypes.h"
 #include "MyFuncs.h"
 #include "usertypes.h"
@@ -130,7 +130,7 @@
  *
  *******************************************************************/
 /* global interface pointer */
-TYPE_RTDM_STREAM_IF *m_InterfacePtr = NULL;
+TYPE_RTDMSTREAM_IF *m_InterfacePtr = NULL;
 
 /* # samples */
 static UINT16 m_SampleCount = 0;
@@ -151,16 +151,16 @@ static RtdmXmlStr *m_RtdmXmlData;
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode);
-static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailable,
-                UINT16 *errorCode, RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
-static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
+static BOOL NetworkAvailable (TYPE_RTDMSTREAM_IF *interface, UINT16 *errorCode);
+static UINT32 OutputStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable, UINT16 *errorCode,
+                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
+static UINT32 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
 static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_crc,
                 RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime);
 
 static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData);
 
-static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signalCount);
+static UINT32 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signalCount);
 
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
@@ -181,7 +181,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
 }
 
-void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface)
+void RTDM_Stream (TYPE_RTDMSTREAM_IF *interface)
 {
     /* DAS FYI gets called every 50 msecs */
     UINT16 errorCode = 0;
@@ -209,8 +209,7 @@ void RTDM_Stream (TYPE_RTDM_STREAM_IF *interface)
 
 }
 
-
-static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
+static BOOL NetworkAvailable (TYPE_RTDMSTREAM_IF *interface, UINT16 *errorCode)
 {
     BOOL retVal = FALSE;
 
@@ -230,15 +229,17 @@ static BOOL NetworkAvailable (TYPE_RTDM_STREAM_IF *interface, UINT16 *errorCode)
 
 }
 
-static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailable,
-                UINT16 *errorCode, RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
+static UINT32 OutputStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable, UINT16 *errorCode,
+                RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
     INT32 timeDiff = 0;
     UINT32 samplesCRC = 0;
-    UINT16 newChangedDataBytes = 0;
+    UINT32 newChangedDataBytes = 0;
     BOOL streamBecauseBufferFull = FALSE;
     StreamHeaderStr streamHeader;
-    static RTDMTimeStr s_PreviousSendTime = {0, 0};
+    static RTDMTimeStr s_PreviousSendTime =
+    {
+        0, 0 };
     static UINT32 s_StreamBufferIndex = 0;
 
     /* IS "networkAvailable" NEEDED ?????????????????? */
@@ -266,7 +267,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
 
         m_SampleCount++;
 
-        debugPrintf ("Sample Populated %d\n", interface->RTDMSampleCount);
+        debugPrintf("Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 
@@ -278,7 +279,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
     }
 
     /* Check if its time to stream the data */
-    timeDiff = TimeDiff(currentTime, &s_PreviousSendTime);
+    timeDiff = TimeDiff (currentTime, &s_PreviousSendTime);
 
     /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
     if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count) || (streamBecauseBufferFull)
@@ -292,7 +293,7 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
         samplesCRC = 0;
         samplesCRC = crc32 (samplesCRC, (UINT8 *) &streamHeader.content.Num_Samples,
                         sizeof(streamHeader.content.Num_Samples));
-        samplesCRC = crc32 (samplesCRC, (UINT8 *) m_StreamData, (s_StreamBufferIndex));
+        samplesCRC = crc32 (samplesCRC, (UINT8 *) m_StreamData, (INT32) (s_StreamBufferIndex));
 
         /* Time to construct main header */
         PopulateStreamHeader (&streamHeader, samplesCRC, rtdmXmlData, currentTime);
@@ -300,11 +301,11 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
         /* Time to send message */
         *errorCode = SendStreamOverNetwork (rtdmXmlData);
 
-        WriteStreamToDataLog (rtdmXmlData, &streamHeader, m_StreamData, s_StreamBufferIndex);
+        WriteStreamToDataLog (&streamHeader, m_StreamData, s_StreamBufferIndex);
 
         s_PreviousSendTime = *currentTime;
 
-        debugPrintf ("STREAM SENT %d\n", m_SampleCount);
+        debugPrintf("STREAM SENT %d\n", m_SampleCount);
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;
@@ -341,18 +342,20 @@ static UINT16 OutputStream (TYPE_RTDM_STREAM_IF *interface, BOOL networkAvailabl
  *   Revised :
  *
  ******************************************************************************************/
-static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
+static UINT32 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime)
 {
-    INT16 compareResult = 0;
-    static RTDMTimeStr s_PreviousSampleTime = {0 ,0};
+    INT32 compareResult = 0;
+    static RTDMTimeStr s_PreviousSampleTime =
+    {
+        0, 0 };
     INT32 timeDiff = 0;
-    UINT16 signalChangeBufferSize = 0;
+    UINT32 signalChangeBufferSize = 0;
     UINT16 signalCount = 0;
 
     /* FYI: compareResult = 0 if new signal data and previous signal data identical */
     compareResult = memcmp (m_OldSignalData, m_NewSignalData, rtdmXmlData->dataAllocationSize);
 
-    timeDiff = TimeDiff(currentTime, &s_PreviousSampleTime);
+    timeDiff = TimeDiff (currentTime, &s_PreviousSampleTime);
 
     /* If the previous sample of data is identical to the current sample and
      * compression is enabled do nothing.
@@ -390,7 +393,7 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime
     m_RtdmSampleArray.TimeStamp.msecs = (UINT16) (currentTime->nanoseconds / 1000000);
 
     /* TimeStamp - Accuracy */
-    m_RtdmSampleArray.TimeStamp.accuracy = m_InterfacePtr->RTCTimeAccuracy;
+    m_RtdmSampleArray.TimeStamp.accuracy = (UINT8) m_InterfacePtr->RTCTimeAccuracy;
 
     /* Number of Signals in current sample*/
     m_RtdmSampleArray.Count = signalCount;
@@ -403,7 +406,7 @@ static UINT16 PopulateSamples (RtdmXmlStr *rtdmXmlData, RTDMTimeStr *currentTime
 static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
 {
     UINT16 i = 0;
-    UINT16 bufferIndex = 0;
+    UINT32 bufferIndex = 0;
     UINT16 variableSize = 0;
 
     memset (m_NewSignalData, 0, sizeof(rtdmXmlData->dataAllocationSize));
@@ -443,15 +446,15 @@ static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
 
 }
 
-static UINT16 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signalCount)
+static UINT32 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signalCount)
 {
     UINT16 i = 0;
-    UINT16 dataIndex = 0;
-    UINT16 signalIndex = 0;
-    UINT16 changedIndex = 0;
+    UINT32 dataIndex = 0;
+    UINT32 signalIndex = 0;
+    UINT32 changedIndex = 0;
 
     UINT16 variableSize = 0;
-    UINT16 compareResult = 0;
+    INT32 compareResult = 0;
 
     memset (m_ChangedSignalData, 0, sizeof(rtdmXmlData->dataAllocationSize));
 
@@ -568,7 +571,7 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
     streamHeader->content.TimeStamp_mS = (UINT16) (currentTime->nanoseconds / 1000000);
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
-    streamHeader->content.TimeStamp_accuracy = m_InterfacePtr->RTCTimeAccuracy;
+    streamHeader->content.TimeStamp_accuracy = (UINT8)m_InterfacePtr->RTCTimeAccuracy;
 
     /* MDS Receive Timestamp - ED is always 0 */
     streamHeader->content.MDS_Receive_S = 0;
@@ -578,7 +581,7 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
 
     /* Sample size - size of following content including this field */
     /* Add this field plus checksum and # samples to size */
-    streamHeader->content.Sample_Size_for_header = ((rtdmXmlData->max_main_buffer_count
+    streamHeader->content.Sample_Size_for_header = (UINT16)((rtdmXmlData->max_main_buffer_count
                     * rtdmXmlData->sample_size) + SAMPLE_SIZE_ADJUSTMENT);
 
     /* Sample Checksum - Checksum of the following content CRC-32 */
@@ -615,7 +618,9 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
  ******************************************************************************************/
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 {
-    static RTDMTimeStr s_StartTime = {0, 0};
+    static RTDMTimeStr s_StartTime =
+    {
+        0, 0 };
     static BOOL s_TimerStarted = FALSE;
     static BOOL s_TriggerFault = 0;
     INT32 timeDiff = 0;
@@ -634,7 +639,7 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
         s_TimerStarted = TRUE;
     }
 
-    timeDiff = TimeDiff(currentTime, &s_StartTime);
+    timeDiff = TimeDiff (currentTime, &s_StartTime);
 
     /* wait 10 seconds to log fault - not critical */
     if ((timeDiff >= 10000) && (s_TriggerFault == FALSE))
@@ -651,7 +656,8 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
         s_TriggerFault = FALSE;
     }
 
-#ifndef TEST_ON_PC
+#ifdef TODO
+    compiler cant find EC_RTDM_STREAM
     /* If error_code > 5 seconds then Log RTDM Stream Error */
     MWT.GLOBALS.PTU_Prop_Flt[EC_RTDM_STREAM].event_active = s_TriggerFault;
 

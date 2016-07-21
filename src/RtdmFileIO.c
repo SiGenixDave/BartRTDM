@@ -5,9 +5,6 @@
  *      Author: Dave
  */
 
-#include <stdio.h>
-#include <string.h>
-
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -15,11 +12,14 @@
 #include "ptu.h"
 #include "fltinfo.h"
 #else
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "MyTypes.h"
 #include "MyFuncs.h"
+#include "usertypes.h"
 #endif
 
-#include "usertypes.h"
 
 #include "RtdmStream.h"
 #include "RtdmXml.h"
@@ -76,7 +76,8 @@ static UINT16 m_DanFileIndex = 0;
 /* The contents of this file is a filename. The filename indicates the last data log file
  * that was written.
  */
-static TYPE_RTDM_STREAM_IF *m_Interface = NULL;
+static TYPE_RTDMSTREAM_IF *m_Interface = NULL;
+
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 
 /* Each file contains up to an hours worth of stream data */
@@ -109,26 +110,17 @@ static void CreateFileName (FILE **ptr);
 static void IncludeXMLFile (FILE *ftpFilePtr);
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
                 UINT16 numStreams);
-static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileIndex);
+static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex);
 static UINT16 CountStreams (void);
 static void IncludeStreamFiles (FILE *ftpFilePtr);
 static BOOL VerifyFileIntegrity (const char *filename);
 
-void InitializeFileIO (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
     m_Interface = interface;
     m_RtdmXmlData = rtdmXmlData;
 
     InitTrackerIndex ();
-
-    /* TODO REMOVE ALL OF THE FOLLOWING AFTER TEST */
-    PopulateValidDanFileList ();
-
-    PopulateValidFileTimeStamps ();
-
-    SortValidFileTimeStamps ();
-
-    SpawnFTPDatalog ();
 
 }
 
@@ -161,7 +153,7 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 
     /* Create a CRC for the file; used for file verification & integrity */
     crc = 0;
-    crc = crc32 (crc, oneHourStreamBuffer, dataBytesInBuffer);
+    crc = crc32 (crc, oneHourStreamBuffer, (INT32)dataBytesInBuffer);
 
     if (os_io_fopen (m_DanFilePtr[m_DanFileIndex], "wb+", &p_file) != ERROR)
     {
@@ -183,20 +175,6 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 /* TODO Need to be run in a task */
 void SpawnFTPDatalog (void)
 {
-
-#ifdef TODO
-    INT16 os_t_spawn(
-    const char appl_name[], /* IN : Application name connected to the task */
-    INT32 appl_type, /* IN : Type of application AS_TYPE_AP_C,
-    AS_TYPE_AP_TOOL */
-    char task_name[], /* IN : Name of the task */
-    UINT8 priority, /* IN : Priority of the task */
-    INT32 stack_size, /* IN : Size of the stack */
-    FUNCPTR entry_pt, /* IN : Start adress of the task */
-    INT32 argc, /* IN : No of arguments to the function (Max 10.) */
-    INT32 argv[], /* IN : The argument list */
-    UINT32* task_id) /* OUT: VxWorks task id */
-#endif
 
     INT16 newestDanFileIndex = -1;
     INT16 oldestDanFileIndex = -1;
@@ -223,7 +201,7 @@ void SpawnFTPDatalog (void)
     }
 
     /* Get the newest timestamp (last one) in the newest file; used for RTDM header */
-    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestDanFileIndex);
+    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, (UINT16)newestDanFileIndex);
 
     /* Determine the oldest file index */
     oldestDanFileIndex = GetOldestDanFileIndex ();
@@ -234,7 +212,7 @@ void SpawnFTPDatalog (void)
     }
 
     /* Get the oldest timestamp (first one) in the oldest file ; used for RTDM header */
-    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestDanFileIndex);
+    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, (UINT16)oldestDanFileIndex);
 
     /* Scan through all valid files and count the number of streams in each file; used for
      * RTDM header */
@@ -283,7 +261,9 @@ static void InitTrackerIndex (void)
     TimeStampStr timeStamp;
     UINT32 newestTimestampSeconds = 0;
     /* Make it the max possible file index in case no valid dan files are found */
-    UINT16 newestFileIndex = m_MaxNumberOfDanFiles - 1;
+    UINT16 newestFileIndex = 0;
+
+    newestFileIndex = (UINT16)(m_MaxNumberOfDanFiles - 1);
 
     memset (&timeStamp, 0, sizeof(timeStamp));
 
@@ -402,7 +382,7 @@ static INT16 GetNewestDanFileIndex (void)
 
     danIndex--;
 
-    return (m_ValidDanFileListIndexes[danIndex]);
+    return (INT16)(m_ValidDanFileListIndexes[danIndex]);
 
 }
 
@@ -413,7 +393,7 @@ static INT16 GetOldestDanFileIndex (void)
         return -1;
     }
 
-    return (m_ValidDanFileListIndexes[0]);
+    return (INT16)(m_ValidDanFileListIndexes[0]);
 
 }
 
@@ -439,9 +419,9 @@ static void CreateFileName (FILE **ftpFilePtr)
     carId[sizeof(carId) - 1] = 0;
     deviceId[sizeof(deviceId) - 1] = 0;
 
-    memcpy (consistId, m_Interface->VNC_CarData_X_ConsistID,
-                    strlen (m_Interface->VNC_CarData_X_ConsistID));
-    memcpy (carId, m_Interface->VNC_CarData_X_CarID, strlen (m_Interface->VNC_CarData_X_CarID));
+    
+    memcpy (consistId, m_Interface->VNC_CarData_X_ConsistID, strlen (m_Interface->VNC_CarData_X_ConsistID));
+	memcpy (carId, m_Interface->VNC_CarData_X_CarID, strlen (m_Interface->VNC_CarData_X_CarID));
     memcpy (deviceId, m_Interface->VNC_CarData_X_DeviceID,
                     strlen (m_Interface->VNC_CarData_X_DeviceID));
 
@@ -449,13 +429,13 @@ static void CreateFileName (FILE **ftpFilePtr)
 
 #ifdef TEST_ON_PC
     GetTimeDate (dateTime, sizeof(dateTime));
-#else
+#elif defined (TODO)
     /* TODO need to test on VCU */
     GetEpochTime();
 
     INT16 os_c_localtime(
                     UINT32 sec, /* IN: System time */
-                    OS_STR_TIME_ANSI *p_ansi_time) /* OUT: Local time */
+                    OS_STR_TIME_ANSI *p_ansi_time); /* OUT: Local time */
 
     /* TODO Convert p_ansi_time members to YYMMDD-HHMMSS */
 
@@ -545,7 +525,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 
 }
 
-static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, INT16 fileIndex)
+static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex)
 {
     FILE *p_file = NULL;
     const char *streamHeaderDelimiter = "STRM";
@@ -613,7 +593,7 @@ static UINT16 CountStreams (void)
     UINT16 fileIndex = 0;
     FILE *streamFilePtr = NULL;
     UINT8 buffer = 0;
-    UINT16 amountRead = 0;
+    UINT32 amountRead = 0;
     const char *streamHeaderDelimiter = "STRM";
     UINT16 sIndex = 0;
     UINT32 byteCount = 0;
@@ -678,7 +658,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     UINT16 fileIndex = 0;
     FILE *streamFilePtr = NULL;
     UINT8 buffer[1024];
-    UINT16 amountRead = 0;
+    UINT32 amountRead = 0;
 
     while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF) && (fileIndex < m_MaxNumberOfDanFiles))
     {
@@ -730,7 +710,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     if (os_io_fopen (filename, "rb", &p_file) != ERROR)
     {
         fseek (p_file, 0L, SEEK_END);
-        numBytes = ftell (p_file);
+        numBytes = (UINT32)ftell (p_file);
         fseek (p_file, 0L, SEEK_SET);
 
         while (1)
@@ -763,7 +743,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
                 amountRead -= sizeof(UINT32);
             }
 
-            calcCRC = crc32 (calcCRC, buffer, amountRead);
+            calcCRC = crc32 (calcCRC, buffer, (INT32)amountRead);
         }
     }
     else

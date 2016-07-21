@@ -38,6 +38,6 @@
  *
  *******************************************************************/
 
-void RTDMInitialize (TYPE_RTDM_STREAM_IF *interface);
+void RTDMInitialize (TYPE_RTDMSTREAM_IF *interface);
 
 #endif /* RTDMINITIALIZE_H_ */

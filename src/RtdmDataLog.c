@@ -88,18 +88,18 @@
  *
  *
  **********************************************************************************************************************/
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 #ifndef TEST_ON_PC
 #include "rts_api.h"
 #else
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "MyTypes.h"
 #include "MyFuncs.h"
+#include "usertypes.h"
 #endif
 
-#include "usertypes.h"
 #include "RtdmUtils.h"
 #include "RtdmXml.h"
 #include "RtdmStream.h"
@@ -167,7 +167,7 @@ static UINT32 m_RequiredMemorySize = 0;
  *******************************************************************/
 static void SwapBuffers (void);
 
-void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 {
 
     UINT32 minStreamPeriodSecs = 0;
@@ -192,7 +192,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
                     ((1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS)
                                     / (streamDueToBufferSizeSeconds
                                                     <= (rtdmXmlData->maxTimeBeforeSendMs / 1000)) ?
-                                    streamDueToBufferSizeSeconds : (rtdmXmlData->maxTimeBeforeSendMs / 1000);
+                                    streamDueToBufferSizeSeconds : (UINT32)((rtdmXmlData->maxTimeBeforeSendMs / 1000));
 
     streamHeaderAllocation = ONE_HOUR_UNITS_SECONDS * sizeof(StreamHeaderStr) / minStreamPeriodSecs;
 
@@ -222,7 +222,7 @@ void InitializeDataLog (TYPE_RTDM_STREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 }
 
-void WriteStreamToDataLog (RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader, UINT8 *stream,
+void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream,
                 UINT32 dataAmount)
 {
     static RTDMTimeStr s_FirstEntryTime;
