@@ -106,6 +106,10 @@
 
 #include "crc32.h"
 
+#ifndef TEST_ON_TARGET
+#include "RTDMInitialize.h"
+#endif
+
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -181,7 +185,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
 }
 
-void RTDM_Stream (TYPE_RTDMSTREAM_IF *interface)
+void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 {
     /* DAS FYI gets called every 50 msecs */
     UINT16 errorCode = 0;
@@ -189,6 +193,17 @@ void RTDM_Stream (TYPE_RTDMSTREAM_IF *interface)
 
     RTDMTimeStr currentTime;
     BOOL networkAvailable = FALSE;
+
+#ifndef TEST_ON_TARGET
+    static BOOL firstCall = TRUE;
+    if (firstCall)
+    {
+        RTDMInitialize (interface);
+        firstCall = FALSE;
+        return;
+    }
+    interface->oPCU_I1.Analog801.ICarSpeed++;
+#endif
 
     /* set global pointer to interface pointer */
     m_InterfacePtr = interface;
@@ -526,8 +541,10 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
 {
     const char *delimiter = "STRM";
     UINT32 stream_header_crc = 0;
+    UINT32 maxCopySize = 0;
 
     /*********************************** Populate *****************************************/
+    /* "Zero" the entire header */
     memset (streamHeader, 0, sizeof(StreamHeaderStr));
 
     /* Delimiter */
@@ -545,6 +562,20 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
 
     /* Header Version */
     streamHeader->content.Header_Version = STREAM_HEADER_VERSION;
+
+    maxCopySize = sizeof(streamHeader->content.Consist_ID) > strlen (m_InterfacePtr->VNC_CarData_X_ConsistID) ?
+                    strlen (m_InterfacePtr->VNC_CarData_X_ConsistID) : sizeof(streamHeader->content.Consist_ID);
+    memcpy (&streamHeader->content.Consist_ID[0], m_InterfacePtr->VNC_CarData_X_ConsistID, maxCopySize);
+
+
+    maxCopySize = sizeof(streamHeader->content.Car_ID) > strlen (m_InterfacePtr->VNC_CarData_X_ConsistID) ?
+                    strlen (m_InterfacePtr->VNC_CarData_X_CarID) : sizeof(streamHeader->content.Car_ID);
+    memcpy (&streamHeader->content.Car_ID[0], m_InterfacePtr->VNC_CarData_X_CarID, maxCopySize);
+
+
+    maxCopySize = sizeof(streamHeader->content.Device_ID) > strlen (m_InterfacePtr->VNC_CarData_X_DeviceID) ?
+                    strlen (m_InterfacePtr->VNC_CarData_X_DeviceID) : sizeof(streamHeader->content.Device_ID);
+    memcpy (&streamHeader->content.Device_ID[0], m_InterfacePtr->VNC_CarData_X_DeviceID, maxCopySize);
 
     /* Consist ID */
     memcpy (&streamHeader->content.Consist_ID[0], m_InterfacePtr->VNC_CarData_X_ConsistID,
@@ -571,7 +602,7 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
     streamHeader->content.TimeStamp_mS = (UINT16) (currentTime->nanoseconds / 1000000);
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
-    streamHeader->content.TimeStamp_accuracy = (UINT8)m_InterfacePtr->RTCTimeAccuracy;
+    streamHeader->content.TimeStamp_accuracy = (UINT8) m_InterfacePtr->RTCTimeAccuracy;
 
     /* MDS Receive Timestamp - ED is always 0 */
     streamHeader->content.MDS_Receive_S = 0;
@@ -581,7 +612,7 @@ static void PopulateStreamHeader (StreamHeaderStr *streamHeader, UINT32 samples_
 
     /* Sample size - size of following content including this field */
     /* Add this field plus checksum and # samples to size */
-    streamHeader->content.Sample_Size_for_header = (UINT16)((rtdmXmlData->max_main_buffer_count
+    streamHeader->content.Sample_Size_for_header = (UINT16) ((rtdmXmlData->max_main_buffer_count
                     * rtdmXmlData->sample_size) + SAMPLE_SIZE_ADJUSTMENT);
 
     /* Sample Checksum - Checksum of the following content CRC-32 */

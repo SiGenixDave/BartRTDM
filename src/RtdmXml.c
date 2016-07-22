@@ -159,6 +159,8 @@ extern TYPE_RTDMSTREAM_IF mStreamInfo;
 static RtdmXmlStr m_RtdmXmlData;
 
 /** @brief Maps all XML signal names to the memory location where the signal is read */
+#if 0
+
 static const VariableMap variableMap[] =
     {
         {
@@ -219,6 +221,68 @@ static const VariableMap variableMap[] =
             "oPCU_I1.PCU_I1.Analog801.ILineCurr", &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
 
     };
+#else
+static VariableMap variableMap[] =
+    {
+        {
+            "oPCU_I1.PCU_I1.Analog801.CTractEffortReq",
+            NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.ICarSpeed", NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr", NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage", NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.IDiffCurr", NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.ILineVoltage", NULL },
+
+        {
+            "oPCU_I1.PCU_I1.Analog801.IRate", NULL },
+
+        {
+            "oPCU_I1.PCU_I1.Analog801.IRateRequest", NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli",
+            NULL },
+        {
+            "oPCU_I1.PCU_I1.Counter801.IOdometer", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.CHscbCmd", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.CScContCmd", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut",
+            NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IPKOStatus", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet",
+            NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IPropCutout", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IPropSystMode",
+            NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
+            NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", NULL },
+        {
+            "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },
+        {
+            "oPCU_I1.PCU_I1.Analog801.ILineCurr", NULL }
+
+    };
+#endif
 
 /** @brief Maps all XML configuration parameter names to the data type, memory location,
  * and error code */
@@ -304,6 +368,32 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals);
 UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
 {
     UINT16 errorCode = NO_ERROR; /* error code from XML processing; return value */
+
+    variableMap[0].variableAddr = &interface->oPCU_I1.Analog801.CTractEffortReq;
+    variableMap[1].variableAddr = &interface->oPCU_I1.Analog801.ICarSpeed;
+    variableMap[2].variableAddr = &interface->oPCU_I1.Analog801.IDcLinkCurr;
+    variableMap[3].variableAddr = &interface->oPCU_I1.Analog801.IDcLinkVoltage;
+    variableMap[4].variableAddr = &interface->oPCU_I1.Analog801.IDiffCurr;
+    variableMap[5].variableAddr = &interface->oPCU_I1.Analog801.ILineVoltage;
+    variableMap[6].variableAddr = &interface->oPCU_I1.Analog801.IRate;
+    variableMap[7].variableAddr = &interface->oPCU_I1.Analog801.IRateRequest;
+    variableMap[8].variableAddr = &interface->oPCU_I1.Analog801.ITractEffortDeli;
+    variableMap[9].variableAddr = &interface->oPCU_I1.Counter801.IOdometer;
+    variableMap[10].variableAddr = &interface->oPCU_I1.Discrete801.CHscbCmd;
+    variableMap[11].variableAddr = &interface->oPCU_I1.Discrete801.CRunRelayCmd;
+    variableMap[12].variableAddr = &interface->oPCU_I1.Discrete801.CScContCmd;
+    variableMap[13].variableAddr = &interface->oPCU_I1.Discrete801.IDynBrkCutOut;
+    variableMap[14].variableAddr = &interface->oPCU_I1.Discrete801.IMCSSModeSel;
+    variableMap[15].variableAddr = &interface->oPCU_I1.Discrete801.IPKOStatus;
+    variableMap[16].variableAddr = &interface->oPCU_I1.Discrete801.IPKOStatusPKOnet;
+    variableMap[17].variableAddr = &interface->oPCU_I1.Discrete801.IPropCutout;
+    variableMap[18].variableAddr = &interface->oPCU_I1.Discrete801.IPropSystMode;
+    variableMap[19].variableAddr = &interface->oPCU_I1.Discrete801.IRegenCutOut;
+    variableMap[20].variableAddr = &interface->oPCU_I1.Discrete801.ITractionSafeSts;
+    variableMap[21].variableAddr = &interface->oPCU_I1.Discrete801.PRailGapDet;
+    variableMap[22].variableAddr = &interface->oPCU_I1.Discrete801.IDcuState;
+    variableMap[23].variableAddr = &interface->oPCU_I1.Analog801.ILineCurr;
+
 
     /* Read and process the XML file */
     errorCode = ReadProcessXmlFile ();

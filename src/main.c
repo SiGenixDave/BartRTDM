@@ -51,15 +51,15 @@ int main (void)
 #endif
 
     printf("Hello World\n");
-    RTDMInitialize (&mStreamInfo);
+    //RTDMInitialize (&mStreamInfo);
     //DAS can't single step debug when another thread is spawned
     //CreateUIThread();
 
     while (TRUE)
     {
-        RTDM_Stream (&mStreamInfo);
+        RtdmStream (&mStreamInfo);
         MySleep (50);
-        mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+        //mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
     }
 
     puts ("!!!Hello World!!!"); /* prints !!!Hello World!!! */
