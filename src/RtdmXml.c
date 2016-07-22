@@ -56,7 +56,6 @@
 #include "usertypes.h"
 #endif
 
-
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RtdmUtils.h"
@@ -104,7 +103,6 @@ typedef struct
 
 } DataTypeMap;
 
-
 /** @brief Maps the XML signal name to the variable's address in memory */
 typedef struct
 {
@@ -138,203 +136,79 @@ static char *m_ConfigXmlBufferPtr = NULL;
 
 /** @brief Maps the XML data type to the local storage data type */
 static const DataTypeMap dataTypeMap[] =
-{
     {
-        "UINT8", UINT8_XML_TYPE },
-    {
-        "INT8", INT8_XML_TYPE },
-    {
-        "UINT16", UINT16_XML_TYPE },
-    {
-        "INT16", INT16_XML_TYPE },
-    {
-        "UINT32", UINT32_XML_TYPE },
-    {
-        "INT32", INT32_XML_TYPE }, };
-
-extern TYPE_RTDMSTREAM_IF mStreamInfo;
+        { "UINT8", UINT8_XML_TYPE },
+        { "INT8", INT8_XML_TYPE },
+        { "UINT16", UINT16_XML_TYPE },
+        { "INT16", INT16_XML_TYPE },
+        { "UINT32", UINT32_XML_TYPE },
+        { "INT32", INT32_XML_TYPE }, };
 
 /** @brief Stores all of the XML configuration data plus additional parameters that
  * are calculated from the configuration data */
 static RtdmXmlStr m_RtdmXmlData;
 
-/** @brief Maps all XML signal names to the memory location where the signal is read */
-#if 0
-
-static const VariableMap variableMap[] =
+/** @brief Maps all XML signal names to the memory location where the signal is read. The variable
+ * addresses are populated at runTime since they are declared external to this module */
+static VariableMap m_VariableMap[] =
     {
-        {
-            "oPCU_I1.PCU_I1.Analog801.CTractEffortReq",
-            &mStreamInfo.oPCU_I1.Analog801.CTractEffortReq },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ICarSpeed", &mStreamInfo.oPCU_I1.Analog801.ICarSpeed },
-        {
-            "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr", &mStreamInfo.oPCU_I1.Analog801.IDcLinkCurr },
-        {
-            "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage", &mStreamInfo.oPCU_I1.Analog801.IDcLinkVoltage },
-        {
-            "oPCU_I1.PCU_I1.Analog801.IDiffCurr", &mStreamInfo.oPCU_I1.Analog801.IDiffCurr },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ILineVoltage", &mStreamInfo.oPCU_I1.Analog801.ILineVoltage },
-
-        {
-            "oPCU_I1.PCU_I1.Analog801.IRate", &mStreamInfo.oPCU_I1.Analog801.IRate },
-
-        {
-            "oPCU_I1.PCU_I1.Analog801.IRateRequest", &mStreamInfo.oPCU_I1.Analog801.IRateRequest },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli",
-            &mStreamInfo.oPCU_I1.Analog801.ITractEffortDeli },
-        {
-            "oPCU_I1.PCU_I1.Counter801.IOdometer", &mStreamInfo.oPCU_I1.Counter801.IOdometer },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.CHscbCmd", &mStreamInfo.oPCU_I1.Discrete801.CHscbCmd },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd", &mStreamInfo.oPCU_I1.Discrete801.CRunRelayCmd },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.CScContCmd", &mStreamInfo.oPCU_I1.Discrete801.CScContCmd },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut",
-            &mStreamInfo.oPCU_I1.Discrete801.IDynBrkCutOut },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel", &mStreamInfo.oPCU_I1.Discrete801.IMCSSModeSel },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPKOStatus", &mStreamInfo.oPCU_I1.Discrete801.IPKOStatus },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet",
-            &mStreamInfo.oPCU_I1.Discrete801.IPKOStatusPKOnet },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPropCutout", &mStreamInfo.oPCU_I1.Discrete801.IPropCutout },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPropSystMode",
-            &mStreamInfo.oPCU_I1.Discrete801.IPropSystMode },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", &mStreamInfo.oPCU_I1.Discrete801.IRegenCutOut },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
-            &mStreamInfo.oPCU_I1.Discrete801.ITractionSafeSts },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", &mStreamInfo.oPCU_I1.Discrete801.PRailGapDet },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IDcuState", &mStreamInfo.oPCU_I1.Discrete801.IDcuState },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ILineCurr", &mStreamInfo.oPCU_I1.Analog801.ILineCurr }
-
-    };
-#else
-static VariableMap variableMap[] =
-    {
-        {
-            "oPCU_I1.PCU_I1.Analog801.CTractEffortReq",
-            NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ICarSpeed", NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr", NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage", NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.IDiffCurr", NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ILineVoltage", NULL },
-
-        {
-            "oPCU_I1.PCU_I1.Analog801.IRate", NULL },
-
-        {
-            "oPCU_I1.PCU_I1.Analog801.IRateRequest", NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli",
-            NULL },
-        {
-            "oPCU_I1.PCU_I1.Counter801.IOdometer", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.CHscbCmd", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.CScContCmd", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut",
-            NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPKOStatus", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet",
-            NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPropCutout", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IPropSystMode",
-            NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts",
-            NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", NULL },
-        {
-            "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },
-        {
-            "oPCU_I1.PCU_I1.Analog801.ILineCurr", NULL }
-
-    };
-#endif
+        { "oPCU_I1.PCU_I1.Analog801.CTractEffortReq", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.IDiffCurr", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.ILineVoltage", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.IRate", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.IRateRequest", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli", NULL },
+        { "oPCU_I1.PCU_I1.Counter801.IOdometer", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.CHscbCmd", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.CScContCmd", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IPKOStatus", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IPropCutout", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IPropSystMode", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", NULL },
+        { "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },
+        { "oPCU_I1.PCU_I1.Analog801.ILineCurr", NULL } };
 
 /** @brief Maps all XML configuration parameter names to the data type, memory location,
  * and error code */
 static const XMLConfigReader m_XmlConfigReader[] =
-{
     {
-        "id", INTEGER_DTYPE, &m_RtdmXmlData.DataRecorderCfgID, NO_CONFIG_ID },
-    {
-        "version", INTEGER_DTYPE, &m_RtdmXmlData.DataRecorderCfgVersion,
+        { "id", INTEGER_DTYPE, &m_RtdmXmlData.DataRecorderCfgID, NO_CONFIG_ID },
+        { "version", INTEGER_DTYPE, &m_RtdmXmlData.DataRecorderCfgVersion,
         NO_VERSION },
-    {
-        "samplingRate", INTEGER_DTYPE, &m_RtdmXmlData.SamplingRate,
+        { "samplingRate", INTEGER_DTYPE, &m_RtdmXmlData.SamplingRate,
         NO_SAMPLING_RATE },
-    {
-        "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.Compression_enabled,
+        { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.Compression_enabled,
         NO_COMPRESSION_ENABLED },
-    {
-        "minRecordingRate", INTEGER_DTYPE, &m_RtdmXmlData.MinRecordingRate,
+        { "minRecordingRate", INTEGER_DTYPE, &m_RtdmXmlData.MinRecordingRate,
         NO_MIN_RECORD_RATE },
-    {
-        "DataLogFileCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.DataLogFileCfg_enabled,
+        { "DataLogFileCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.DataLogFileCfg_enabled,
         NO_DATALOG_CFG_ENABLED },
-    {
-        "filesCount", INTEGER_DTYPE, &m_RtdmXmlData.FilesCount, NO_FILES_COUNT },
-    {
-        "numberSamplesInFile", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesInFile,
+        { "filesCount", INTEGER_DTYPE, &m_RtdmXmlData.FilesCount, NO_FILES_COUNT },
+        { "numberSamplesInFile", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesInFile,
         NO_NUM_SAMPLES_IN_FILE },
-    {
-        "filesFullPolicy", FILESFULL_DTYPE, &m_RtdmXmlData.FilesFullPolicy,
+        { "filesFullPolicy", FILESFULL_DTYPE, &m_RtdmXmlData.FilesFullPolicy,
         NO_FILE_FULL_POLICY },
-    {
-        "numberSamplesBeforeSave", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesBeforeSave,
+        { "numberSamplesBeforeSave", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesBeforeSave,
         NO_NUM_SAMPLES_BEFORE_SAVE },
-    {
-        "maxTimeBeforeSaveMs", INTEGER_DTYPE, &m_RtdmXmlData.MaxTimeBeforeSaveMs,
+        { "maxTimeBeforeSaveMs", INTEGER_DTYPE, &m_RtdmXmlData.MaxTimeBeforeSaveMs,
         NO_MAX_TIME_BEFORE_SAVE },
-    {
-        "OutputStreamCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.OutputStream_enabled,
+        { "OutputStreamCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.OutputStream_enabled,
         NO_OUTPUT_STREAM_ENABLED },
-    {
-        "comId", U32_DTYPE, &m_RtdmXmlData.comId,
+        { "comId", U32_DTYPE, &m_RtdmXmlData.comId,
         NO_COMID },
-
-    {
-        "bufferSize", INTEGER_DTYPE, &m_RtdmXmlData.bufferSize,
+        { "bufferSize", INTEGER_DTYPE, &m_RtdmXmlData.streamDataBufferSize,
         NO_BUFFERSIZE },
-
-    {
-        "maxTimeBeforeSendMs", INTEGER_DTYPE, &m_RtdmXmlData.maxTimeBeforeSendMs,
-        NO_MAX_TIME_BEFORE_SEND },
-
-};
+        { "maxTimeBeforeSendMs", INTEGER_DTYPE, &m_RtdmXmlData.maxTimeBeforeSendMs,
+        NO_MAX_TIME_BEFORE_SEND }, };
 
 /*******************************************************************
  *
@@ -345,6 +219,7 @@ static UINT16 ReadProcessXmlFile (void);
 static UINT16 OpenXMLConfigurationFile (void);
 static UINT16 ProcessXmlFileParams (void);
 static UINT16 ProcessXMLSignals (UINT16 *numberofSignals);
+static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface);
 
 /*****************************************************************************/
 /**
@@ -369,31 +244,7 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
 {
     UINT16 errorCode = NO_ERROR; /* error code from XML processing; return value */
 
-    variableMap[0].variableAddr = &interface->oPCU_I1.Analog801.CTractEffortReq;
-    variableMap[1].variableAddr = &interface->oPCU_I1.Analog801.ICarSpeed;
-    variableMap[2].variableAddr = &interface->oPCU_I1.Analog801.IDcLinkCurr;
-    variableMap[3].variableAddr = &interface->oPCU_I1.Analog801.IDcLinkVoltage;
-    variableMap[4].variableAddr = &interface->oPCU_I1.Analog801.IDiffCurr;
-    variableMap[5].variableAddr = &interface->oPCU_I1.Analog801.ILineVoltage;
-    variableMap[6].variableAddr = &interface->oPCU_I1.Analog801.IRate;
-    variableMap[7].variableAddr = &interface->oPCU_I1.Analog801.IRateRequest;
-    variableMap[8].variableAddr = &interface->oPCU_I1.Analog801.ITractEffortDeli;
-    variableMap[9].variableAddr = &interface->oPCU_I1.Counter801.IOdometer;
-    variableMap[10].variableAddr = &interface->oPCU_I1.Discrete801.CHscbCmd;
-    variableMap[11].variableAddr = &interface->oPCU_I1.Discrete801.CRunRelayCmd;
-    variableMap[12].variableAddr = &interface->oPCU_I1.Discrete801.CScContCmd;
-    variableMap[13].variableAddr = &interface->oPCU_I1.Discrete801.IDynBrkCutOut;
-    variableMap[14].variableAddr = &interface->oPCU_I1.Discrete801.IMCSSModeSel;
-    variableMap[15].variableAddr = &interface->oPCU_I1.Discrete801.IPKOStatus;
-    variableMap[16].variableAddr = &interface->oPCU_I1.Discrete801.IPKOStatusPKOnet;
-    variableMap[17].variableAddr = &interface->oPCU_I1.Discrete801.IPropCutout;
-    variableMap[18].variableAddr = &interface->oPCU_I1.Discrete801.IPropSystMode;
-    variableMap[19].variableAddr = &interface->oPCU_I1.Discrete801.IRegenCutOut;
-    variableMap[20].variableAddr = &interface->oPCU_I1.Discrete801.ITractionSafeSts;
-    variableMap[21].variableAddr = &interface->oPCU_I1.Discrete801.PRailGapDet;
-    variableMap[22].variableAddr = &interface->oPCU_I1.Discrete801.IDcuState;
-    variableMap[23].variableAddr = &interface->oPCU_I1.Analog801.ILineCurr;
-
+    PopulateVariableAddressesInMap (interface);
 
     /* Read and process the XML file */
     errorCode = ReadProcessXmlFile ();
@@ -406,15 +257,15 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
 
     /* Calculate MAX buffer size - subtract 2 to make room for Main Header - how many samples
      * will fit into buffer size from .xml ex: 60,000 */
-    m_RtdmXmlData.max_main_buffer_count = (UINT16)((m_RtdmXmlData.bufferSize / m_RtdmXmlData.sample_size)
-                    - 2);
+    m_RtdmXmlData.max_main_buffer_count = (UINT16) ((m_RtdmXmlData.streamDataBufferSize
+                    / m_RtdmXmlData.maxHeaderAndStreamSize) - 2);
 
     /* Set to interface so we can see in DCUTerm */
     interface->RTDMMainBuffCount = m_RtdmXmlData.max_main_buffer_count;
     interface->RTDMSignalCount = m_RtdmXmlData.signal_count;
-    interface->RTDMSampleSize = m_RtdmXmlData.sample_size;
+    interface->RTDMSampleSize = m_RtdmXmlData.maxHeaderAndStreamSize;
     interface->RTDMSendTime = m_RtdmXmlData.maxTimeBeforeSendMs;
-    interface->RTDMMainBuffSize = m_RtdmXmlData.bufferSize;
+    interface->RTDMMainBuffSize = m_RtdmXmlData.streamDataBufferSize;
 
     /* Return the address of the XML configuration data so that other functions can use
      * it. */
@@ -495,7 +346,7 @@ static UINT16 ReadProcessXmlFile (void)
         m_RtdmXmlData.maxTimeBeforeSendMs = 2000;
     }
 
-    if (m_RtdmXmlData.bufferSize < 2000)
+    if (m_RtdmXmlData.streamDataBufferSize < 2000)
     {
         /* buffer size is not big enough, will overload the CPU */
         free (m_ConfigXmlBufferPtr);
@@ -513,7 +364,8 @@ static UINT16 ReadProcessXmlFile (void)
     /***************************************************************************/
 
     /* Add sample header size */
-    m_RtdmXmlData.sample_size = (UINT16)(m_RtdmXmlData.dataAllocationSize + sizeof(DataSampleStr));
+    m_RtdmXmlData.maxHeaderAndStreamSize = (UINT16) (m_RtdmXmlData.maxStreamDataSize
+                    + sizeof(DataSampleStr));
 
     /* original code but now returning the amount of memory needed */
     if (signalCount <= 0)
@@ -563,13 +415,14 @@ static UINT16 OpenXMLConfigurationFile (void)
 
         /* grab sufficient memory for the buffer to hold the text - clear all bytes. Add
          * an additional byte to ensure a NULL character (end of string) is encountered */
-        m_ConfigXmlBufferPtr = (char*) calloc ((size_t)(numBytes + 1), sizeof(char));
+        m_ConfigXmlBufferPtr = (char*) calloc ((size_t) (numBytes + 1), sizeof(char));
 
         /* memory error */
         if (m_ConfigXmlBufferPtr == NULL)
         {
             os_io_fclose(filePtr);
             debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+            /* TODO flag error */
 
             /* free the memory we used for the buffer */
             free (m_ConfigXmlBufferPtr);
@@ -577,7 +430,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         }
 
         /* copy all the text into the buffer */
-        fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t)numBytes, filePtr);
+        fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t) numBytes, filePtr);
 
         /* Close the file, no longer needed */
         os_io_fclose(filePtr);
@@ -614,8 +467,8 @@ static UINT16 ProcessXmlFileParams (void)
      parameters are stored */
     char *pStringLocation1 = NULL; /* Pointer used to find keyword "xml_DataRecorderCfg" in memory */
     char *pStringLocation2 = NULL; /* Pointer used to navigate around the file stored in memory */
-    UINT16 index = 0;       /* Used as a loop index */
-    char tempArray[10];     /* temporary storage for a non-integer attribute value */
+    UINT16 index = 0; /* Used as a loop index */
+    char tempArray[10]; /* temporary storage for a non-integer attribute value */
 
     while (index < sizeof(m_XmlConfigReader) / sizeof(XMLConfigReader))
     {
@@ -743,6 +596,12 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     m_RtdmXmlData.signalDesription = (SignalDescription *) calloc (requiredMemorySize,
                     sizeof(UINT8));
 
+    if (m_RtdmXmlData.signalDesription == NULL)
+    {
+        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        /* TODO flag error */
+    }
+
     /*********************************************************************************************/
     /* This section determines which PCU variable are included in the stream sample and
      * data recorder */
@@ -793,14 +652,14 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
         /* Map the variable name to the actual variable */
         i = 0;
-        while ((strcmp (tempStr, variableMap[i].signalName) != 0)
-                        && (i < sizeof(variableMap) / sizeof(VariableMap)))
+        while ((strcmp (tempStr, m_VariableMap[i].signalName) != 0)
+                        && (i < sizeof(m_VariableMap) / sizeof(VariableMap)))
         {
             i++;
         }
-        if (i < sizeof(variableMap) / sizeof(VariableMap))
+        if (i < sizeof(m_VariableMap) / sizeof(VariableMap))
         {
-            m_RtdmXmlData.signalDesription[signalCount].variableAddr = variableMap[i].variableAddr;
+            m_RtdmXmlData.signalDesription[signalCount].variableAddr = m_VariableMap[i].variableAddr;
         }
         else
         {
@@ -848,7 +707,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         }
 
         /* Running calculation of the max amount of memory required if all signals change  */
-        dataAllocationBytes += (INT32)sizeof(UINT16);
+        dataAllocationBytes += (INT32) sizeof(UINT16);
         switch (m_RtdmXmlData.signalDesription[signalCount].signalType)
         {
             case UINT8_XML_TYPE:
@@ -871,11 +730,56 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     /* This final total indicates the amount of memory needed to store all signal ids
      * an signals. Used for allocating memory later in the initialization process
      */
-    m_RtdmXmlData.dataAllocationSize = (UINT16)dataAllocationBytes;
+    m_RtdmXmlData.maxStreamDataSize = (UINT16) dataAllocationBytes;
 
     /* Update the final signal count to the calling funtion */
     *numberofSignals = signalCount;
 
     /* End loop for finding signal ID's */
     return (NO_ERROR);
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Updates the variable map with the memory addresses
+ *
+ *              The variable addresses of the signals to be read is not known
+ *              until runtime. Therefore, the addresses can't be populated
+ *              at compile time and this must be populated here. The addresses
+ *
+ *  @param interface - pointer to the signals that are read
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface)
+{
+    m_VariableMap[0].variableAddr = &interface->oPCU_I1.Analog801.CTractEffortReq;
+    m_VariableMap[1].variableAddr = &interface->oPCU_I1.Analog801.ICarSpeed;
+    m_VariableMap[2].variableAddr = &interface->oPCU_I1.Analog801.IDcLinkCurr;
+    m_VariableMap[3].variableAddr = &interface->oPCU_I1.Analog801.IDcLinkVoltage;
+    m_VariableMap[4].variableAddr = &interface->oPCU_I1.Analog801.IDiffCurr;
+    m_VariableMap[5].variableAddr = &interface->oPCU_I1.Analog801.ILineVoltage;
+    m_VariableMap[6].variableAddr = &interface->oPCU_I1.Analog801.IRate;
+    m_VariableMap[7].variableAddr = &interface->oPCU_I1.Analog801.IRateRequest;
+    m_VariableMap[8].variableAddr = &interface->oPCU_I1.Analog801.ITractEffortDeli;
+    m_VariableMap[9].variableAddr = &interface->oPCU_I1.Counter801.IOdometer;
+    m_VariableMap[10].variableAddr = &interface->oPCU_I1.Discrete801.CHscbCmd;
+    m_VariableMap[11].variableAddr = &interface->oPCU_I1.Discrete801.CRunRelayCmd;
+    m_VariableMap[12].variableAddr = &interface->oPCU_I1.Discrete801.CScContCmd;
+    m_VariableMap[13].variableAddr = &interface->oPCU_I1.Discrete801.IDynBrkCutOut;
+    m_VariableMap[14].variableAddr = &interface->oPCU_I1.Discrete801.IMCSSModeSel;
+    m_VariableMap[15].variableAddr = &interface->oPCU_I1.Discrete801.IPKOStatus;
+    m_VariableMap[16].variableAddr = &interface->oPCU_I1.Discrete801.IPKOStatusPKOnet;
+    m_VariableMap[17].variableAddr = &interface->oPCU_I1.Discrete801.IPropCutout;
+    m_VariableMap[18].variableAddr = &interface->oPCU_I1.Discrete801.IPropSystMode;
+    m_VariableMap[19].variableAddr = &interface->oPCU_I1.Discrete801.IRegenCutOut;
+    m_VariableMap[20].variableAddr = &interface->oPCU_I1.Discrete801.ITractionSafeSts;
+    m_VariableMap[21].variableAddr = &interface->oPCU_I1.Discrete801.PRailGapDet;
+    m_VariableMap[22].variableAddr = &interface->oPCU_I1.Discrete801.IDcuState;
+    m_VariableMap[23].variableAddr = &interface->oPCU_I1.Analog801.ILineCurr;
 }

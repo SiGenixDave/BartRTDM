@@ -82,15 +82,16 @@ typedef struct tRtdmXmlStr
     /** */
     UINT32 comId;
     /** */
-    UINT16 bufferSize;
+    UINT16 streamDataBufferSize;
     /** */
     UINT16 maxTimeBeforeSendMs;
+    /** allocated at runtime based on the number of signals discovered in the configuration file */
+    SignalDescription *signalDesription;
+    /** This is the amount of memory required to store 1 sample of stream data assuming all data has changed
+     * and compression is enabled or if compression is disabled (does not include memory needed for stream header */
+    UINT16 maxStreamDataSize;
     /** */
-    SignalDescription *signalDesription; /* allocated at runtime based on the number of signals discovered */
-    /** */
-    UINT16 dataAllocationSize;
-    /** */
-    UINT16 sample_size; /* calculated size of sample including the sample header */
+    UINT16 maxHeaderAndStreamSize; /* calculated size of sample including the sample header */
     /** */
     UINT16 max_main_buffer_count; /* calculated size of main buffer (max number of samples) */
     /** */

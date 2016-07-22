@@ -111,12 +111,13 @@
  *
  *******************************************************************/
 #ifdef TEST_ON_PC
-#define ONE_HOUR_UNITS_SECONDS          (10)
+#define CAPTURE_STREAMS_BEFORE_FILING_MINUTES           (10.0 / 60.0)
 #else
-#define ONE_HOUR_UNITS_SECONDS          (60 * 60)
+#define CAPTURE_STREAMS_BEFORE_FILING_MINUTES           15
 #endif
 
-#define LOG_RATE_MSECS                  (50)
+#define CAPTURE_STREAMS_BEFORE_FILING_SECONDS           (CAPTURE_STREAMS_BEFORE_FILING_MINUTES * 60)
+#define CAPTURE_RATE_SECONDS                                    (0.050)
 
 /*******************************************************************
  *
@@ -177,39 +178,53 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 
     /* first determine the amount of memory required to hold 1 hours worth of data only
      * sizeof(RtdmXmlStr) * 1000 msecs / 50 msec sample rate * 60 seconds * 60 minutes */
-    dataAllocation = (1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS
-                    * (sizeof(DataSampleStr) + rtdmXmlData->dataAllocationSize);
+    dataAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS
+                    * rtdmXmlData->maxHeaderAndStreamSize/ CAPTURE_RATE_SECONDS;
+    PrintIntegerContents(dataAllocation);
 
     /* now determine the amount of memory required to handle the worst case stream headers
      * NOTE: the datalog buffer is updated every time a stream is sent
      */
-    streamDueToBufferSizeSeconds = rtdmXmlData->max_main_buffer_count / (1000 / LOG_RATE_MSECS);
+    streamDueToBufferSizeSeconds = rtdmXmlData->max_main_buffer_count * CAPTURE_RATE_SECONDS;
+    PrintIntegerContents(streamDueToBufferSizeSeconds);
 
     /* Want the smaller period of the two so that the max rate can be used to determine the amount
      * of memory needed for the stream header
      */
     minStreamPeriodSecs =
-                    ((1000 / LOG_RATE_MSECS) * ONE_HOUR_UNITS_SECONDS)
+                    (CAPTURE_RATE_SECONDS * CAPTURE_STREAMS_BEFORE_FILING_SECONDS)
                                     / (streamDueToBufferSizeSeconds
                                                     <= (rtdmXmlData->maxTimeBeforeSendMs / 1000)) ?
-                                    streamDueToBufferSizeSeconds : (UINT32)((rtdmXmlData->maxTimeBeforeSendMs / 1000));
+                                    streamDueToBufferSizeSeconds :
+                                    (UINT32) ((rtdmXmlData->maxTimeBeforeSendMs / 1000));
+    PrintIntegerContents(minStreamPeriodSecs);
 
-    streamHeaderAllocation = ONE_HOUR_UNITS_SECONDS * sizeof(StreamHeaderStr) / minStreamPeriodSecs;
+    streamHeaderAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS * sizeof(StreamHeaderStr)
+                    / minStreamPeriodSecs;
+    PrintIntegerContents(streamHeaderAllocation);
 
     m_RequiredMemorySize = dataAllocation + streamHeaderAllocation;
+    PrintIntegerContents(m_RequiredMemorySize);
 
-    m_MaxDataPerStreamBytes = (sizeof(DataSampleStr) + rtdmXmlData->dataAllocationSize)
-                    * ((1000 / LOG_RATE_MSECS) * minStreamPeriodSecs);
+    m_MaxDataPerStreamBytes = (sizeof(DataSampleStr) + rtdmXmlData->maxStreamDataSize)
+                    * CAPTURE_RATE_SECONDS * minStreamPeriodSecs;
+    PrintIntegerContents(m_MaxDataPerStreamBytes);
 
     /* Two "callocs" and therefore two memory buffers are required just in case the task
      * that writes data to a disk file takes longer than the next update to the
      * data log memory.
      */
     m_RTDMDataLogPingPtr = (UINT8 *) calloc (m_RequiredMemorySize, sizeof(UINT8));
-    m_RTDMDataLogPongPtr = (UINT8 *) calloc (m_RequiredMemorySize, sizeof(UINT8));
-
-    if ((m_RTDMDataLogPingPtr == NULL) || (m_RTDMDataLogPongPtr == NULL))
+    if (m_RTDMDataLogPingPtr == NULL)
     {
+        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        /* TODO flag error */
+    }
+
+    m_RTDMDataLogPongPtr = (UINT8 *) calloc (m_RequiredMemorySize, sizeof(UINT8));
+    if (m_RTDMDataLogPongPtr == NULL)
+    {
+        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -222,8 +237,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 
 }
 
-void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream,
-                UINT32 dataAmount)
+void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream, UINT32 dataAmount)
 {
     static RTDMTimeStr s_FirstEntryTime;
 
@@ -247,13 +261,14 @@ void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream,
     /* TODO check for error on return value */
     GetEpochTime (&nowTime);
 
-    debugPrintf ("First time %u; Now time %u\n", s_FirstEntryTime.seconds, nowTime.seconds);
+    debugPrintf("First time %u; Now time %u\n", s_FirstEntryTime.seconds, nowTime.seconds);
 
     /* Determine if the next sample might overflow the buffer or if 1 hour has expired since the first write,
      * if so save the file now and open new file for writing */
     if (((m_RTDMDataLogIndex + m_MaxDataPerStreamBytes + sizeof(StreamHeaderStr))
                     > m_RequiredMemorySize)
-                    || ((nowTime.seconds - s_FirstEntryTime.seconds) >= ONE_HOUR_UNITS_SECONDS))
+                    || ((nowTime.seconds - s_FirstEntryTime.seconds)
+                                    >= CAPTURE_STREAMS_BEFORE_FILING_SECONDS))
     {
 
         /* Write the data in the current buffer to the dan file. The file write

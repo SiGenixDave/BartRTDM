@@ -71,12 +71,16 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-#ifdef TEST_ON_PC
+/* NOTE: Comment out the following line to "turn off" printfs() */
+#define DEBUG_STATEMENTS_ON
+
+#ifdef DEBUG_STATEMENTS_ON
 #define debugPrintf(fmt, args...)    printf(fmt, ## args)
 #else
 #define debugPrintf(fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
 #endif
 
+#define  PrintIntegerContents(a)   debugPrintf(#a " = %d\n", (INT32)a)
 /*******************************************************************
  *
  *     E  N  U  M  S
