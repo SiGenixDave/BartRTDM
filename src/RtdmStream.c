@@ -174,10 +174,10 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
     memset (&m_RtdmSampleArray, 0, sizeof(DataSampleStr));
 
-    PrintIntegerContents(rtdmXmlData->streamDataBufferSize);
+    PrintIntegerContents(rtdmXmlData->outputStreamCfg.bufferSize);
 
     /* Allocate memory to store data according to buffer size from .xml file */
-    m_StreamData = (UINT8 *) calloc (rtdmXmlData->streamDataBufferSize, sizeof(UINT8));
+    m_StreamData = (UINT8 *) calloc (rtdmXmlData->outputStreamCfg.bufferSize, sizeof(UINT8));
 
     if (m_StreamData == NULL)
     {
@@ -185,23 +185,23 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
         /* TODO flag error */
     }
 
-    PrintIntegerContents(rtdmXmlData->maxStreamDataSize);
+    PrintIntegerContents(rtdmXmlData->metaData.maxStreamDataSize);
 
-    m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->maxStreamDataSize, sizeof(UINT8));
+    m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_NewSignalData == NULL)
     {
         debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
-    m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->maxStreamDataSize, sizeof(UINT8));
+    m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_OldSignalData == NULL)
     {
         debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
-    m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->maxStreamDataSize, sizeof(UINT8));
+    m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_ChangedSignalData == NULL)
     {
         debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
@@ -227,7 +227,7 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
         return;
     }
 
-/* TODO REMOVE AFTER TEST */
+    /* TODO REMOVE AFTER TEST */
 #ifndef TEST_ON_TARGET
     interface->oPCU_I1.Analog801.ICarSpeed++;
 #endif
@@ -277,12 +277,11 @@ static UINT32 OutputStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable
     BOOL streamBecauseBufferFull = FALSE;
     StreamHeaderStr streamHeader;
     static RTDMTimeStr s_PreviousSendTime =
-    {
-        0, 0 };
+        { 0, 0 };
     static UINT32 s_StreamBufferIndex = 0;
 
     /* IS "networkAvailable" NEEDED ?????????????????? */
-    if (!networkAvailable || !rtdmXmlData->outputStreamEnabled || (*errorCode != NO_ERROR))
+    if (!networkAvailable || !rtdmXmlData->outputStreamCfg.enabled || (*errorCode != NO_ERROR))
     {
         return (0);
     }
@@ -311,8 +310,8 @@ static UINT32 OutputStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable
     }
 
     /* determine if next data change entry might overflow buffer */
-    if ((s_StreamBufferIndex + rtdmXmlData->maxStreamDataSize + sizeof(DataSampleStr))
-                    >= rtdmXmlData->streamDataBufferSize)
+    if ((s_StreamBufferIndex + rtdmXmlData->metaData.maxStreamHeaderDataSize)
+                    >= rtdmXmlData->outputStreamCfg.bufferSize)
     {
         streamBecauseBufferFull = TRUE;
     }
@@ -321,9 +320,9 @@ static UINT32 OutputStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable
     timeDiff = TimeDiff (currentTime, &s_PreviousSendTime);
 
     /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
-    if (((m_SampleCount >= rtdmXmlData->max_main_buffer_count) || (streamBecauseBufferFull)
-                    || (timeDiff >= rtdmXmlData->maxTimeBeforeSendMs))
-                    && (s_PreviousSendTime.seconds != 0))
+    if ((streamBecauseBufferFull) ||
+                    ((timeDiff >= (INT32)rtdmXmlData->outputStreamCfg.maxTimeBeforeSendMs)
+                    && (s_PreviousSendTime.seconds != 0)))
     {
         memset (&streamHeader, 0, sizeof(streamHeader));
 
@@ -386,22 +385,21 @@ static UINT32 PopulateSamples (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXm
 {
     INT32 compareResult = 0;
     static RTDMTimeStr s_PreviousSampleTime =
-    {
-        0, 0 };
+        { 0, 0 };
     INT32 timeDiff = 0;
     UINT32 signalChangeBufferSize = 0;
     UINT16 signalCount = 0;
 
     /* FYI: compareResult = 0 if new signal data and previous signal data identical */
-    compareResult = memcmp (m_OldSignalData, m_NewSignalData, rtdmXmlData->maxStreamDataSize);
+    compareResult = memcmp (m_OldSignalData, m_NewSignalData, rtdmXmlData->metaData.maxStreamDataSize);
 
     timeDiff = TimeDiff (currentTime, &s_PreviousSampleTime);
 
     /* If the previous sample of data is identical to the current sample and
      * compression is enabled do nothing.
      */
-    if ((!compareResult) && (rtdmXmlData->compressionEnabled)
-                    && (timeDiff < rtdmXmlData->maxTimeBeforeSaveMs))
+    if ((!compareResult) && (rtdmXmlData->dataRecorderCfg.compressionEnabled)
+                    && (timeDiff < rtdmXmlData->outputStreamCfg.maxTimeBeforeSendMs))
     {
         return (0);
     }
@@ -410,11 +408,11 @@ static UINT32 PopulateSamples (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXm
     s_PreviousSampleTime = *currentTime;
 
     /* Populate buffer with all signals because timer expired or compression is disabled */
-    if ((timeDiff >= rtdmXmlData->maxTimeBeforeSaveMs) || !rtdmXmlData->compressionEnabled)
+    if ((timeDiff >= rtdmXmlData->outputStreamCfg.maxTimeBeforeSendMs) || !rtdmXmlData->dataRecorderCfg.compressionEnabled)
     {
-        memcpy (m_ChangedSignalData, m_NewSignalData, rtdmXmlData->maxStreamDataSize);
-        signalChangeBufferSize = rtdmXmlData->maxStreamDataSize;
-        signalCount = rtdmXmlData->signal_count;
+        memcpy (m_ChangedSignalData, m_NewSignalData, rtdmXmlData->metaData.maxStreamDataSize);
+        signalChangeBufferSize = rtdmXmlData->metaData.maxStreamDataSize;
+        signalCount = rtdmXmlData->metaData.signalCount;
     }
     else
     {
@@ -423,7 +421,7 @@ static UINT32 PopulateSamples (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXm
     }
 
     /* Always copy the new signals for the next comparison */
-    memcpy (m_OldSignalData, m_NewSignalData, rtdmXmlData->maxStreamDataSize);
+    memcpy (m_OldSignalData, m_NewSignalData, rtdmXmlData->metaData.maxStreamDataSize);
 
     /*********************************** HEADER ****************************************************************/
     /* TimeStamp - Seconds */
@@ -449,9 +447,9 @@ static void PopulateSignalsWithNewSamples (RtdmXmlStr *rtdmXmlData)
     UINT32 bufferIndex = 0;
     UINT16 variableSize = 0;
 
-    memset (m_NewSignalData, 0, sizeof(rtdmXmlData->maxStreamDataSize));
+    memset (m_NewSignalData, 0, sizeof(rtdmXmlData->metaData.maxStreamDataSize));
 
-    for (i = 0; i < rtdmXmlData->signal_count; i++)
+    for (i = 0; i < rtdmXmlData->metaData.signalCount; i++)
     {
         /* Copy the signal Id */
         memcpy (&m_NewSignalData[bufferIndex], &rtdmXmlData->signalDesription[i].id,
@@ -496,9 +494,9 @@ static UINT32 PopulateBufferWithChanges (RtdmXmlStr *rtdmXmlData, UINT16 *signal
     UINT16 variableSize = 0;
     INT32 compareResult = 0;
 
-    memset (m_ChangedSignalData, 0, sizeof(rtdmXmlData->maxStreamDataSize));
+    memset (m_ChangedSignalData, 0, sizeof(rtdmXmlData->metaData.maxStreamDataSize));
 
-    for (i = 0; i < rtdmXmlData->signal_count; i++)
+    for (i = 0; i < rtdmXmlData->metaData.signalCount; i++)
     {
         switch (rtdmXmlData->signalDesription[i].signalType)
         {
@@ -606,10 +604,10 @@ static void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, StreamHeaderStr
     memcpy (&streamHeader->content.Device_ID[0], interface->VNC_CarData_X_DeviceID, maxCopySize);
 
     /* Data Recorder ID - from .xml file */
-    streamHeader->content.Data_Record_ID = rtdmXmlData->dataRecorderCfgId;
+    streamHeader->content.Data_Record_ID = (UINT16)rtdmXmlData->dataRecorderCfg.id;
 
     /* Data Recorder Version - from .xml file */
-    streamHeader->content.Data_Record_Version = rtdmXmlData->dataRecorderCfgVersion;
+    streamHeader->content.Data_Record_Version = (UINT16)rtdmXmlData->dataRecorderCfg.version;
 
     /* TimeStamp - Current time in Seconds */
     streamHeader->content.TimeStamp_S = currentTime->seconds;
@@ -626,10 +624,12 @@ static void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, StreamHeaderStr
     /* MDS Receive Timestamp - ED is always 0 */
     streamHeader->content.MDS_Receive_mS = 0;
 
+#if TODO
     /* Sample size - size of following content including this field */
     /* Add this field plus checksum and # samples to size */
     streamHeader->content.Sample_Size_for_header = (UINT16) ((rtdmXmlData->max_main_buffer_count
                     * rtdmXmlData->maxHeaderAndStreamSize) + SAMPLE_SIZE_ADJUSTMENT);
+#endif
 
     /* Sample Checksum - Checksum of the following content CRC-32 */
     streamHeader->content.Sample_Checksum = samples_crc;
@@ -666,8 +666,7 @@ static void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, StreamHeaderStr
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 {
     static RTDMTimeStr s_StartTime =
-    {
-        0, 0 };
+        { 0, 0 };
     static BOOL s_TimerStarted = FALSE;
     static BOOL s_TriggerFault = 0;
     INT32 timeDiff = 0;
@@ -733,12 +732,13 @@ static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
     /* Number of streams sent out as Message Data */
     static UINT32 MD_Send_Counter = 0;
 
+#if TODO
     /* This is the actual buffer size as calculated below */
     actual_buffer_size = ((rtdmXmlData->max_main_buffer_count * rtdmXmlData->maxHeaderAndStreamSize)
                     + sizeof(StreamHeaderStr) + 2);
 
     /* TODO Need to combine the former RTDM_Struct into buff, header, stream */
-#if TODO
+
     /* Send message overriding of destination URI 800310000 - comId comes from .xml */
     ipt_result = MDComAPI_putMsgQ (rtdmXmlData->comId, /* ComId */
                     (const char*) m_RtdmStreamPtr, /* Data buffer */

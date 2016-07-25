@@ -79,10 +79,12 @@ typedef enum
 {
     /** Attribute value is either "TRUE" or "FALSE" */
     BOOLEAN_DTYPE,
-    /** Attribute value is an signed integer */
-    INTEGER_DTYPE,
-    /** Attribute value is a large unsigned integer */
+    /** Attribute value is a signed integer */
+    I32_DTYPE,
+    /** Attribute value is an unsigned integer */
     U32_DTYPE,
+    /** Attribute value is a string */
+    STRING_DTYPE,
     /** TODO */
     FILESFULL_DTYPE
 } XmlDataType;
@@ -101,7 +103,7 @@ typedef struct
     /** Handles storing the data value for the signal */
     XmlSignalType signalType;
 
-} DataTypeMap;
+} DataTypeMapStr;
 
 /** @brief Maps the XML signal name to the variable's address in memory */
 typedef struct
@@ -110,21 +112,32 @@ typedef struct
     const char *signalName;
     /** Variable's address */
     void *variableAddr;
-} VariableMap;
+} VariableMapStr;
 
 /** @brief Describes in full the XML configuration parameter */
 typedef struct
 {
     /** The name of the attribute */
-    char *subString;
+    const char *name;
     /** The data type of the attribute */
-    XmlDataType dataType;
-    /** The location memory where the attribute value is stored */
+    const XmlDataType dataType;
+    /** The location in memory where the attribute value is stored */
     void *xmlData;
     /** The error code returned if any errors were encountered while processing the
      *  configuration parameter */
-    UINT16 errorCode;
-} XMLConfigReader;
+    const UINT16 errorCode;
+} XmlAttributeDataStr;
+
+typedef struct
+{
+    /** The name of the element */
+    const char *elementName;
+    /** Pointer to all attribute related data */
+    XmlAttributeDataStr *xmlAttibuteData;
+    /** */
+    const UINT16 numAttributes;
+
+} XmlElementDataStr;
 
 /*******************************************************************
  *
@@ -135,7 +148,7 @@ typedef struct
 static char *m_ConfigXmlBufferPtr = NULL;
 
 /** @brief Maps the XML data type to the local storage data type */
-static const DataTypeMap dataTypeMap[] =
+static const DataTypeMapStr dataTypeMap[] =
     {
         { "UINT8", UINT8_XML_TYPE },
         { "INT8", INT8_XML_TYPE },
@@ -144,13 +157,12 @@ static const DataTypeMap dataTypeMap[] =
         { "UINT32", UINT32_XML_TYPE },
         { "INT32", INT32_XML_TYPE }, };
 
-/** @brief Stores all of the XML configuration data plus additional parameters that
- * are calculated from the configuration data */
+/** @brief Stores all of the XML configuration data */
 static RtdmXmlStr m_RtdmXmlData;
 
 /** @brief Maps all XML signal names to the memory location where the signal is read. The variable
  * addresses are populated at runTime since they are declared external to this module */
-static VariableMap m_VariableMap[] =
+static VariableMapStr m_VariableMap[] =
     {
         { "oPCU_I1.PCU_I1.Analog801.CTractEffortReq", NULL },
         { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", NULL },
@@ -179,39 +191,60 @@ static VariableMap m_VariableMap[] =
 
 /** @brief Maps all XML configuration parameter names to the data type, memory location,
  * and error code */
-static const XMLConfigReader m_XmlConfigReader[] =
+static const XmlAttributeDataStr m_DataRecorderCfgAttributes[] =
     {
-        { "id", INTEGER_DTYPE, &m_RtdmXmlData.dataRecorderCfgId, NO_CONFIG_ID },
-        { "version", INTEGER_DTYPE, &m_RtdmXmlData.dataRecorderCfgVersion,
+        { "id", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.id, NO_CONFIG_ID },
+        { "version", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.version,
         NO_VERSION },
-        { "samplingRate", INTEGER_DTYPE, &m_RtdmXmlData.samplingRate,
+        { "deviceId", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.deviceId, NO_NEED_DEFINE },
+        { "name", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.name,
+        NO_NEED_DEFINE },
+        { "description", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.description,
+        NO_NEED_DEFINE },
+        { "type", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.type,
+        NO_NEED_DEFINE },
+        { "samplingRate", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.samplingRate,
         NO_SAMPLING_RATE },
-        { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.compressionEnabled,
+        { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataRecorderCfg.compressionEnabled,
         NO_COMPRESSION_ENABLED },
-        { "minRecordingRate", INTEGER_DTYPE, &m_RtdmXmlData.minRecordingRate,
+        { "minRecordingRate", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.minRecordingRate,
         NO_MIN_RECORD_RATE },
-        { "DataLogFileCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataLogFileCfgEnabled,
-        NO_DATALOG_CFG_ENABLED },
-        { "filesCount", INTEGER_DTYPE, &m_RtdmXmlData.filesCount, NO_FILES_COUNT },
-        { "numberSamplesInFile", INTEGER_DTYPE, &m_RtdmXmlData.numberSamplesInFile,
-        NO_NUM_SAMPLES_IN_FILE },
-        { "filesFullPolicy", FILESFULL_DTYPE, &m_RtdmXmlData.filesFullPolicy,
+        { "noChangeFailurePeriod", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.noChangeFailurePeriod,
+        NO_NO_CHANGE_FAILURE_PERIOD } };
+
+static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
+    {
+        { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataLogFileCfg.enabled, NO_DATALOG_CFG_ENABLED },
+        { "filesCount", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesCount,
+        NO_FILES_COUNT },
+        { "numberSamplesInFile", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.numberSamplesInFile, NO_NUM_SAMPLES_IN_FILE },
+        { "filesFullPolicy", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesFullPolicy,
         NO_FILE_FULL_POLICY },
-        { "numberSamplesBeforeSave", INTEGER_DTYPE, &m_RtdmXmlData.numberSamplesBeforeSave,
+        { "numberSamplesBeforeSave", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.numberSamplesBeforeSave,
         NO_NUM_SAMPLES_BEFORE_SAVE },
-        { "maxTimeBeforeSaveMs", INTEGER_DTYPE, &m_RtdmXmlData.maxTimeBeforeSaveMs,
+        { "maxTimeBeforeSaveMs", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.maxTimeBeforeSaveMs,
         NO_MAX_TIME_BEFORE_SAVE },
-        { "OutputStreamCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.outputStreamEnabled,
-        NO_OUTPUT_STREAM_ENABLED },
-        { "comId", U32_DTYPE, &m_RtdmXmlData.comId,
+        { "folderPath", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.folderPath,
+        NO_NEED_DEFINE }, };
+
+static const XmlAttributeDataStr m_OutputStreamCfgAttributes[] =
+    {
+        { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.outputStreamCfg.enabled, NO_DATALOG_CFG_ENABLED },
+        { "comId", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.comId,
         NO_COMID },
-        { "bufferSize", INTEGER_DTYPE, &m_RtdmXmlData.streamDataBufferSize,
-        NO_BUFFERSIZE },
-        { "maxTimeBeforeSendMs", INTEGER_DTYPE, &m_RtdmXmlData.maxTimeBeforeSendMs,
-        NO_MAX_TIME_BEFORE_SEND },
-        {"noChangeFailurePeriod", INTEGER_DTYPE, &m_RtdmXmlData.noChangeFailurePeriod,
-        NO_NO_CHANGE_FAILURE_PERIOD}
-        };
+        { "bufferSize", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.bufferSize, NO_BUFFERSIZE },
+        { "maxTimeBeforeSendMs", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs,
+        NO_MAX_TIME_BEFORE_SEND }, };
+
+static XmlElementDataStr m_DataRecorderCfg =
+    { "DataRecorderCfg", m_DataRecorderCfgAttributes, sizeof(m_DataRecorderCfgAttributes)
+                      / sizeof(XmlAttributeDataStr) };
+static XmlElementDataStr m_DataLogFileCfg =
+    { "DataLogFileCfg", m_DataLogFileCfgAttributes, sizeof(m_DataLogFileCfgAttributes)
+                      / sizeof(XmlAttributeDataStr) };
+static XmlElementDataStr m_OutputStreamCfg =
+    { "OutputStreamCfg", m_OutputStreamCfgAttributes, sizeof(m_OutputStreamCfgAttributes)
+                      / sizeof(XmlAttributeDataStr) };
 
 /*******************************************************************
  *
@@ -220,7 +253,7 @@ static const XMLConfigReader m_XmlConfigReader[] =
  *******************************************************************/
 static UINT16 ReadProcessXmlFile (void);
 static UINT16 OpenXMLConfigurationFile (void);
-static UINT16 ProcessXmlFileParams (void);
+static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr);
 static UINT16 ProcessXMLSignals (UINT16 *numberofSignals);
 static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface);
 
@@ -258,17 +291,20 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
         return (errorCode);
     }
 
+#if TODO
     /* Calculate MAX buffer size - subtract 2 to make room for Main Header - how many samples
      * will fit into buffer size from .xml ex: 60,000 */
     m_RtdmXmlData.max_main_buffer_count = (UINT16) ((m_RtdmXmlData.streamDataBufferSize
-                    / m_RtdmXmlData.maxHeaderAndStreamSize) - 2);
+                                    / m_RtdmXmlData.maxHeaderAndStreamSize) - 2);
 
     /* Set to interface so we can see in DCUTerm */
-    interface->RTDMMainBuffCount = m_RtdmXmlData.max_main_buffer_count;
-    interface->RTDMSignalCount = m_RtdmXmlData.signal_count;
-    interface->RTDMSampleSize = m_RtdmXmlData.maxHeaderAndStreamSize;
-    interface->RTDMSendTime = m_RtdmXmlData.maxTimeBeforeSendMs;
-    interface->RTDMMainBuffSize = m_RtdmXmlData.streamDataBufferSize;
+    interface->RTDMMainBuffCount = (UINT16) ((m_RtdmXmlData.streamDataBufferSize
+                                    / m_RtdmXmlData.maxHeaderAndStreamSize) - 2);;
+#endif
+    interface->RTDMSignalCount = (UINT16)m_RtdmXmlData.metaData.signalCount;
+    interface->RTDMSampleSize = (UINT16)m_RtdmXmlData.metaData.maxStreamHeaderDataSize;
+    interface->RTDMSendTime = (UINT16)m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs;
+    interface->RTDMMainBuffSize = (UINT16)m_RtdmXmlData.outputStreamCfg.bufferSize;
 
     /* Return the address of the XML configuration data so that other functions can use
      * it. */
@@ -326,30 +362,32 @@ static UINT16 ReadProcessXmlFile (void)
         return (returnValue);
     }
 
-    ProcessXmlFileParams ();
+    ProcessXmlFileParams (&m_DataRecorderCfg);
+    ProcessXmlFileParams (&m_DataLogFileCfg);
+    ProcessXmlFileParams (&m_OutputStreamCfg);
 
     /*************************************************************************
      *  POST PROCESS SOME OF THE XML DATA THAT IS NOT A DIRECT CONVERSION
      *************************************************************************/
     /* Time must be a minimum of 1 second */
-    if (m_RtdmXmlData.minRecordingRate < 1000)
+    if (m_RtdmXmlData.dataRecorderCfg.minRecordingRate < 1000)
     {
-        m_RtdmXmlData.minRecordingRate = 1000;
+        m_RtdmXmlData.dataRecorderCfg.minRecordingRate = 1000;
     }
 
     /* Time must be a minimum of 1 second */
-    if (m_RtdmXmlData.maxTimeBeforeSaveMs < 1000)
+    if (m_RtdmXmlData.dataLogFileCfg.maxTimeBeforeSaveMs < 1000)
     {
-        m_RtdmXmlData.maxTimeBeforeSaveMs = 1000;
+        m_RtdmXmlData.dataLogFileCfg.maxTimeBeforeSaveMs = 1000;
     }
 
     /* Time must be a minimum of 2 seconds, do not want to overload the CPU */
-    if (m_RtdmXmlData.maxTimeBeforeSendMs < 2000)
+    if (m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs < 2000)
     {
-        m_RtdmXmlData.maxTimeBeforeSendMs = 2000;
+        m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs = 2000;
     }
 
-    if (m_RtdmXmlData.streamDataBufferSize < 2000)
+    if (m_RtdmXmlData.outputStreamCfg.bufferSize < 2000)
     {
         /* buffer size is not big enough, will overload the CPU */
         free (m_ConfigXmlBufferPtr);
@@ -367,7 +405,7 @@ static UINT16 ReadProcessXmlFile (void)
     /***************************************************************************/
 
     /* Add sample header size */
-    m_RtdmXmlData.maxHeaderAndStreamSize = (UINT16) (m_RtdmXmlData.maxStreamDataSize
+    m_RtdmXmlData.metaData.maxStreamHeaderDataSize = (UINT16) (m_RtdmXmlData.metaData.maxStreamDataSize
                     + sizeof(DataSampleStr));
 
     /* original code but now returning the amount of memory needed */
@@ -464,19 +502,19 @@ static UINT16 OpenXMLConfigurationFile (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static UINT16 ProcessXmlFileParams (void)
+static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
 {
-    const char *xml_DataRecorderCfg = "DataRecorderCfg"; /* Keyword where configuration
-     parameters are stored */
     char *pStringLocation1 = NULL; /* Pointer used to find keyword "xml_DataRecorderCfg" in memory */
     char *pStringLocation2 = NULL; /* Pointer used to navigate around the file stored in memory */
     UINT16 index = 0; /* Used as a loop index */
     char tempArray[10]; /* temporary storage for a non-integer attribute value */
+    UINT32 charCount = 0;
+    char *stringPtr = NULL;
 
-    while (index < sizeof(m_XmlConfigReader) / sizeof(XMLConfigReader))
+    while (index < xmlElementPtr->numAttributes)
     {
         /* Always search for the keyword where configuration parameters are found */
-        pStringLocation1 = strstr (m_ConfigXmlBufferPtr, xml_DataRecorderCfg);
+        pStringLocation1 = strstr (m_ConfigXmlBufferPtr, xmlElementPtr->elementName);
         if (pStringLocation1 == NULL)
         {
             /* DataRecorderCfg string not found */
@@ -485,14 +523,14 @@ static UINT16 ProcessXmlFileParams (void)
             return (NO_DATARECORDERCFG);
         }
         /* Search for the next XML attribute (configuration parameter name) */
-        pStringLocation2 = strstr (pStringLocation1, m_XmlConfigReader[index].subString);
+        pStringLocation2 = strstr (pStringLocation1, xmlElementPtr->xmlAttibuteData[index].name);
         if (pStringLocation2 != NULL)
         {
             /* Move pointer to attribute value... first double quote (") past the equals (=) */
             pStringLocation2 = strstr (pStringLocation2, "\"");
 
             /* NOTE: Always assume the attribute value is after the first double quote ("). White spaces and tabs are
-             * supported for integer values */
+             * supported for unsigned and integer values */
             pStringLocation2++;
 
             /* Skip any spaces */
@@ -502,37 +540,52 @@ static UINT16 ProcessXmlFileParams (void)
             }
 
             /* Extract the data value based on the data type associated with the XML attribute */
-            switch (m_XmlConfigReader[index].dataType)
+            switch (xmlElementPtr->xmlAttibuteData[index].dataType)
             {
-                case INTEGER_DTYPE:
-                    sscanf (pStringLocation2, "%d", (INT32 *) m_XmlConfigReader[index].xmlData);
+                case I32_DTYPE:
+                    sscanf (pStringLocation2, "%d",
+                                    (INT32 *) xmlElementPtr->xmlAttibuteData[index].xmlData);
                     break;
 
                 case U32_DTYPE:
-                    sscanf (pStringLocation2, "%u", (UINT32 *) m_XmlConfigReader[index].xmlData);
+                    sscanf (pStringLocation2, "%u",
+                                    (UINT32 *) xmlElementPtr->xmlAttibuteData[index].xmlData);
                     break;
 
                 case BOOLEAN_DTYPE:
+                    memset (tempArray, 0, sizeof (tempArray));
                     strncpy (tempArray, pStringLocation2, 5);
                     if (strncmp (tempArray, "TRUE", 4) == 0)
                     {
-                        *(UINT8 *) m_XmlConfigReader[index].xmlData = TRUE;
+                        *(BOOL *) xmlElementPtr->xmlAttibuteData[index].xmlData = TRUE;
                     }
                     else
                     {
-                        *(UINT8 *) m_XmlConfigReader[index].xmlData = FALSE;
+                        *(BOOL *) xmlElementPtr->xmlAttibuteData[index].xmlData = FALSE;
                     }
+                    break;
+
+                case STRING_DTYPE:
+                    charCount = 0;
+                    while (pStringLocation2[charCount] != '\"')
+                    {
+                        charCount++;
+                    }
+                    stringPtr = (char *)calloc (charCount + 1, sizeof(UINT8));
+                    /* NOTE Assume a 32 bit native address architecture */
+                    *(UINT32 *)(xmlElementPtr->xmlAttibuteData[index].xmlData) = (UINT32)stringPtr;
+                    strncpy((char *)xmlElementPtr->xmlAttibuteData[index].xmlData, pStringLocation2, charCount);
                     break;
 
                 case FILESFULL_DTYPE:
                     strncpy (tempArray, pStringLocation2, 5);
                     if (strncmp (tempArray, "FIFO", 4) == 0)
                     {
-                        *(UINT8 *) m_XmlConfigReader[index].xmlData = FIFO_POLICY;
+                        *(UINT8 *) xmlElementPtr->xmlAttibuteData[index].xmlData = FIFO_POLICY;
                     }
                     else
                     {
-                        *(UINT8 *) m_XmlConfigReader[index].xmlData = STOP_POLICY;
+                        *(UINT8 *) xmlElementPtr->xmlAttibuteData[index].xmlData = STOP_POLICY;
                     }
                     break;
                 default:
@@ -541,7 +594,7 @@ static UINT16 ProcessXmlFileParams (void)
         }
         else
         {
-            return (m_XmlConfigReader[index].errorCode);
+            return (xmlElementPtr->xmlAttibuteData[index].errorCode);
         }
 
         /* Move to next attribute */
@@ -592,11 +645,11 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         signalCount++;
     }
 
-    m_RtdmXmlData.signal_count = signalCount;
-    requiredMemorySize = sizeof(SignalDescription) * signalCount;
+    m_RtdmXmlData.metaData.signalCount = signalCount;
+    requiredMemorySize = sizeof(SignalDescriptionStr) * signalCount;
 
     /* allocate memory */
-    m_RtdmXmlData.signalDesription = (SignalDescription *) calloc (requiredMemorySize,
+    m_RtdmXmlData.signalDesription = (SignalDescriptionStr *) calloc (requiredMemorySize,
                     sizeof(UINT8));
 
     if (m_RtdmXmlData.signalDesription == NULL)
@@ -656,11 +709,11 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         /* Map the variable name to the actual variable */
         i = 0;
         while ((strcmp (tempStr, m_VariableMap[i].signalName) != 0)
-                        && (i < sizeof(m_VariableMap) / sizeof(VariableMap)))
+                        && (i < sizeof(m_VariableMap) / sizeof(VariableMapStr)))
         {
             i++;
         }
-        if (i < sizeof(m_VariableMap) / sizeof(VariableMap))
+        if (i < sizeof(m_VariableMap) / sizeof(VariableMapStr))
         {
             m_RtdmXmlData.signalDesription[signalCount].variableAddr = m_VariableMap[i].variableAddr;
         }
@@ -694,12 +747,12 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
         i = 0;
         while ((strcmp (tempStr, dataTypeMap[i].dataType) != 0)
-                        && (i < sizeof(dataTypeMap) / sizeof(DataTypeMap)))
+                        && (i < sizeof(dataTypeMap) / sizeof(DataTypeMapStr)))
         {
             i++;
         }
 
-        if (i < sizeof(dataTypeMap) / sizeof(DataTypeMap))
+        if (i < sizeof(dataTypeMap) / sizeof(DataTypeMapStr))
         {
             m_RtdmXmlData.signalDesription[signalCount].signalType = dataTypeMap[i].signalType;
         }
@@ -733,7 +786,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     /* This final total indicates the amount of memory needed to store all signal ids
      * an signals. Used for allocating memory later in the initialization process
      */
-    m_RtdmXmlData.maxStreamDataSize = (UINT16) dataAllocationBytes;
+    m_RtdmXmlData.metaData.maxStreamDataSize = (UINT16) dataAllocationBytes;
 
     /* Update the final signal count to the calling funtion */
     *numberofSignals = signalCount;

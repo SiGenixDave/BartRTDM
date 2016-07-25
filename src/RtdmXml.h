@@ -50,10 +50,69 @@ typedef struct
     void *variableAddr;
     /** */
     XmlSignalType signalType;
-} SignalDescription;
+} SignalDescriptionStr;
 
+typedef struct
+{
+    UINT32 id;
+    UINT32 version;
+    char *deviceId;
+    char *name;
+    char *description;
+    char *type;
+    UINT32 samplingRate;
+    BOOL compressionEnabled;
+    UINT32 minRecordingRate;
+    UINT32 noChangeFailurePeriod;
+
+} XmlDataRecorderCfgStr;
+
+typedef struct
+{
+    BOOL enabled;
+    UINT32 filesCount;
+    UINT32 numberSamplesInFile;
+    char *filesFullPolicy;
+    UINT32 numberSamplesBeforeSave;
+    UINT32 maxTimeBeforeSaveMs;
+    char *folderPath;
+
+} XmlDataLogFileCfgStr;
+
+typedef struct
+{
+    BOOL enabled;
+    UINT32 comId;
+    UINT32 bufferSize;
+    UINT32 maxTimeBeforeSendMs;
+} XmlOutputStreamCfgStr;
+
+typedef struct
+{
+    UINT32 maxStreamHeaderDataSize;
+    UINT32 maxStreamDataSize;
+    UINT32 signalCount;
+
+} XmlMetaDataStr;
+
+typedef struct
+{
+    /** */
+    XmlDataRecorderCfgStr dataRecorderCfg;
+    /** */
+    XmlDataLogFileCfgStr dataLogFileCfg;
+    /** */
+    XmlOutputStreamCfgStr outputStreamCfg;
+    /** */
+    XmlMetaDataStr metaData;
+    /** allocated at runtime based on the number of signals discovered in the configuration file */
+    SignalDescriptionStr *signalDesription;
+
+} RtdmXmlStr;
+
+#if REMOVE
 /** @brief Contains all variables read from RTDM_config.xml file as well as calculated values */
-typedef struct tRtdmXmlStr
+typedef struct
 {
     /** */
     UINT16 dataRecorderCfgId;
@@ -91,14 +150,15 @@ typedef struct tRtdmXmlStr
      * and compression is enabled or if compression is disabled (does not include memory needed for stream header */
     UINT16 maxStreamDataSize;
     /** */
-    UINT16 maxHeaderAndStreamSize; /* calculated size of sample including the sample header */
+    UINT16 maxStreamHeaderDataSize; /* calculated size of sample including the sample header */
     /** */
     UINT16 max_main_buffer_count; /* calculated size of main buffer (max number of samples) */
     /** */
     UINT16 signal_count; /* number of signals */
     /** */
     UINT16 noChangeFailurePeriod;
-} RtdmXmlStr;
+}RtdmXmlStr;
+#endif
 
 /* Forward declaration required to avoid compiler error */
 #ifndef RTDMSTREAM_H

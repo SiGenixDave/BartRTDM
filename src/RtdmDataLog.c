@@ -179,9 +179,12 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     /* first determine the amount of memory (bytes) required to hold X minutes amount of stream data
      * This includes each stream's header and data only */
     rawStreamDataAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS
-                    * rtdmXmlData->maxHeaderAndStreamSize/ CAPTURE_RATE_SECONDS;
+                    * rtdmXmlData->metaData.maxStreamHeaderDataSize/ CAPTURE_RATE_SECONDS;
     PrintIntegerContents(rawStreamDataAllocation);
 
+
+
+#if TODO
     /* now determine the amount of memory required to handle the worst case scenario stream headers
      * NOTE: the datalog buffer is updated every time a stream is sent
      */
@@ -206,7 +209,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RequiredMemorySize = rawStreamDataAllocation + streamHeaderAllocation;
     PrintIntegerContents(m_RequiredMemorySize);
 
-    m_MaxDataPerStreamBytes = rtdmXmlData->maxHeaderAndStreamSize
+    m_MaxDataPerStreamBytes = rtdmXmlData->maxStreamHeaderDataSize
                     * CAPTURE_RATE_SECONDS * minStreamPeriodSecs;
     PrintIntegerContents(m_MaxDataPerStreamBytes);
 
@@ -227,6 +230,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
         debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
+#endif
 
     /* Set the pointer initially to the "ping" buffer. This pointer is toggled when
      * between ping and pong when a file write is about to occur

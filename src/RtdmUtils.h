@@ -63,6 +63,9 @@
 #define NO_COMID                    12
 #define NO_BUFFERSIZE               13
 
+/* TODO */
+#define NO_NEED_DEFINE              111
+
 #define UNSUPPORTED_DATA_TYPE       50
 #define VARIABLE_NOT_FOUND          51
 
