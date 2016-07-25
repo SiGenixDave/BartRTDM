@@ -56,29 +56,29 @@ typedef struct
 typedef struct tRtdmXmlStr
 {
     /** */
-    UINT16 DataRecorderCfgID;
+    UINT16 dataRecorderCfgId;
     /** */
-    UINT16 DataRecorderCfgVersion;
+    UINT16 dataRecorderCfgVersion;
     /** */
-    UINT16 SamplingRate; /*Not currently used - fixed at 50mS */
+    UINT16 samplingRate; /*Not currently used - fixed at 50mS */
     /** */
-    UINT8 Compression_enabled;
+    BOOL compressionEnabled;
     /** */
-    UINT16 MinRecordingRate;
+    UINT16 minRecordingRate;
     /** */
-    UINT8 DataLogFileCfg_enabled;
+    BOOL dataLogFileCfgEnabled;
     /** */
-    UINT16 FilesCount;
+    UINT16 filesCount;
     /** */
-    UINT16 NumberSamplesInFile;
+    UINT16 numberSamplesInFile;
     /** */
-    UINT8 FilesFullPolicy;
+    UINT8 filesFullPolicy;
     /** */
-    UINT16 NumberSamplesBeforeSave;
+    UINT16 numberSamplesBeforeSave;
     /** */
-    UINT16 MaxTimeBeforeSaveMs; /* max time between stream samples if data hasn't changed */
+    UINT16 maxTimeBeforeSaveMs; /* max time between stream samples if data hasn't changed */
     /** */
-    UINT8 OutputStream_enabled;
+    BOOL outputStreamEnabled;
     /** */
     UINT32 comId;
     /** */
@@ -96,6 +96,8 @@ typedef struct tRtdmXmlStr
     UINT16 max_main_buffer_count; /* calculated size of main buffer (max number of samples) */
     /** */
     UINT16 signal_count; /* number of signals */
+    /** */
+    UINT16 noChangeFailurePeriod;
 } RtdmXmlStr;
 
 /* Forward declaration required to avoid compiler error */

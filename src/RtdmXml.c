@@ -181,34 +181,37 @@ static VariableMap m_VariableMap[] =
  * and error code */
 static const XMLConfigReader m_XmlConfigReader[] =
     {
-        { "id", INTEGER_DTYPE, &m_RtdmXmlData.DataRecorderCfgID, NO_CONFIG_ID },
-        { "version", INTEGER_DTYPE, &m_RtdmXmlData.DataRecorderCfgVersion,
+        { "id", INTEGER_DTYPE, &m_RtdmXmlData.dataRecorderCfgId, NO_CONFIG_ID },
+        { "version", INTEGER_DTYPE, &m_RtdmXmlData.dataRecorderCfgVersion,
         NO_VERSION },
-        { "samplingRate", INTEGER_DTYPE, &m_RtdmXmlData.SamplingRate,
+        { "samplingRate", INTEGER_DTYPE, &m_RtdmXmlData.samplingRate,
         NO_SAMPLING_RATE },
-        { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.Compression_enabled,
+        { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.compressionEnabled,
         NO_COMPRESSION_ENABLED },
-        { "minRecordingRate", INTEGER_DTYPE, &m_RtdmXmlData.MinRecordingRate,
+        { "minRecordingRate", INTEGER_DTYPE, &m_RtdmXmlData.minRecordingRate,
         NO_MIN_RECORD_RATE },
-        { "DataLogFileCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.DataLogFileCfg_enabled,
+        { "DataLogFileCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataLogFileCfgEnabled,
         NO_DATALOG_CFG_ENABLED },
-        { "filesCount", INTEGER_DTYPE, &m_RtdmXmlData.FilesCount, NO_FILES_COUNT },
-        { "numberSamplesInFile", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesInFile,
+        { "filesCount", INTEGER_DTYPE, &m_RtdmXmlData.filesCount, NO_FILES_COUNT },
+        { "numberSamplesInFile", INTEGER_DTYPE, &m_RtdmXmlData.numberSamplesInFile,
         NO_NUM_SAMPLES_IN_FILE },
-        { "filesFullPolicy", FILESFULL_DTYPE, &m_RtdmXmlData.FilesFullPolicy,
+        { "filesFullPolicy", FILESFULL_DTYPE, &m_RtdmXmlData.filesFullPolicy,
         NO_FILE_FULL_POLICY },
-        { "numberSamplesBeforeSave", INTEGER_DTYPE, &m_RtdmXmlData.NumberSamplesBeforeSave,
+        { "numberSamplesBeforeSave", INTEGER_DTYPE, &m_RtdmXmlData.numberSamplesBeforeSave,
         NO_NUM_SAMPLES_BEFORE_SAVE },
-        { "maxTimeBeforeSaveMs", INTEGER_DTYPE, &m_RtdmXmlData.MaxTimeBeforeSaveMs,
+        { "maxTimeBeforeSaveMs", INTEGER_DTYPE, &m_RtdmXmlData.maxTimeBeforeSaveMs,
         NO_MAX_TIME_BEFORE_SAVE },
-        { "OutputStreamCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.OutputStream_enabled,
+        { "OutputStreamCfg enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.outputStreamEnabled,
         NO_OUTPUT_STREAM_ENABLED },
         { "comId", U32_DTYPE, &m_RtdmXmlData.comId,
         NO_COMID },
         { "bufferSize", INTEGER_DTYPE, &m_RtdmXmlData.streamDataBufferSize,
         NO_BUFFERSIZE },
         { "maxTimeBeforeSendMs", INTEGER_DTYPE, &m_RtdmXmlData.maxTimeBeforeSendMs,
-        NO_MAX_TIME_BEFORE_SEND }, };
+        NO_MAX_TIME_BEFORE_SEND },
+        {"noChangeFailurePeriod", INTEGER_DTYPE, &m_RtdmXmlData.noChangeFailurePeriod,
+        NO_NO_CHANGE_FAILURE_PERIOD}
+        };
 
 /*******************************************************************
  *
@@ -329,15 +332,15 @@ static UINT16 ReadProcessXmlFile (void)
      *  POST PROCESS SOME OF THE XML DATA THAT IS NOT A DIRECT CONVERSION
      *************************************************************************/
     /* Time must be a minimum of 1 second */
-    if (m_RtdmXmlData.MinRecordingRate < 1000)
+    if (m_RtdmXmlData.minRecordingRate < 1000)
     {
-        m_RtdmXmlData.MinRecordingRate = 1000;
+        m_RtdmXmlData.minRecordingRate = 1000;
     }
 
     /* Time must be a minimum of 1 second */
-    if (m_RtdmXmlData.MaxTimeBeforeSaveMs < 1000)
+    if (m_RtdmXmlData.maxTimeBeforeSaveMs < 1000)
     {
-        m_RtdmXmlData.MaxTimeBeforeSaveMs = 1000;
+        m_RtdmXmlData.maxTimeBeforeSaveMs = 1000;
     }
 
     /* Time must be a minimum of 2 seconds, do not want to overload the CPU */

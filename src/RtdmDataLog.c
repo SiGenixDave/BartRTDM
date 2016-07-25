@@ -113,7 +113,7 @@
 #ifdef TEST_ON_PC
 #define CAPTURE_STREAMS_BEFORE_FILING_MINUTES           (10.0 / 60.0)
 #else
-#define CAPTURE_STREAMS_BEFORE_FILING_MINUTES           15
+#define CAPTURE_STREAMS_BEFORE_FILING_MINUTES           (15 * 60)
 #endif
 
 #define CAPTURE_STREAMS_BEFORE_FILING_SECONDS           (CAPTURE_STREAMS_BEFORE_FILING_MINUTES * 60)
@@ -174,15 +174,15 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     UINT32 minStreamPeriodSecs = 0;
     UINT32 streamHeaderAllocation = 0;
     UINT32 streamDueToBufferSizeSeconds = 0;
-    UINT32 dataAllocation = 0;
+    UINT32 rawStreamDataAllocation = 0;
 
-    /* first determine the amount of memory required to hold 1 hours worth of data only
-     * sizeof(RtdmXmlStr) * 1000 msecs / 50 msec sample rate * 60 seconds * 60 minutes */
-    dataAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS
+    /* first determine the amount of memory (bytes) required to hold X minutes amount of stream data
+     * This includes each stream's header and data only */
+    rawStreamDataAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS
                     * rtdmXmlData->maxHeaderAndStreamSize/ CAPTURE_RATE_SECONDS;
-    PrintIntegerContents(dataAllocation);
+    PrintIntegerContents(rawStreamDataAllocation);
 
-    /* now determine the amount of memory required to handle the worst case stream headers
+    /* now determine the amount of memory required to handle the worst case scenario stream headers
      * NOTE: the datalog buffer is updated every time a stream is sent
      */
     streamDueToBufferSizeSeconds = rtdmXmlData->max_main_buffer_count * CAPTURE_RATE_SECONDS;
@@ -203,10 +203,10 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
                     / minStreamPeriodSecs;
     PrintIntegerContents(streamHeaderAllocation);
 
-    m_RequiredMemorySize = dataAllocation + streamHeaderAllocation;
+    m_RequiredMemorySize = rawStreamDataAllocation + streamHeaderAllocation;
     PrintIntegerContents(m_RequiredMemorySize);
 
-    m_MaxDataPerStreamBytes = (sizeof(DataSampleStr) + rtdmXmlData->maxStreamDataSize)
+    m_MaxDataPerStreamBytes = rtdmXmlData->maxHeaderAndStreamSize
                     * CAPTURE_RATE_SECONDS * minStreamPeriodSecs;
     PrintIntegerContents(m_MaxDataPerStreamBytes);
 

@@ -488,10 +488,10 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     strcpy (&rtdmHeader.Device_ID[0], m_Interface->VNC_CarData_X_DeviceID);
 
     /* Data Recorder ID - from .xml file */
-    rtdmHeader.Data_Record_ID = m_RtdmXmlData->DataRecorderCfgID;
+    rtdmHeader.Data_Record_ID = m_RtdmXmlData->dataRecorderCfgId;
 
     /* Data Recorder Version - from .xml file */
-    rtdmHeader.Data_Record_Version = m_RtdmXmlData->DataRecorderCfgVersion;
+    rtdmHeader.Data_Record_Version = m_RtdmXmlData->dataRecorderCfgVersion;
 
     /* First TimeStamp -  time in Seconds */
     rtdmHeader.FirstTimeStamp_S = oldest->seconds;

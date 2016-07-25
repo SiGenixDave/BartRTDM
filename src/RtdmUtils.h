@@ -54,6 +54,7 @@
 #define NO_FILE_FULL_POLICY         28
 #define NO_NUM_SAMPLES_BEFORE_SAVE  29
 #define NO_MAX_TIME_BEFORE_SAVE     30
+#define NO_NO_CHANGE_FAILURE_PERIOD 31
 #define NO_OUTPUT_STREAM_ENABLED    7
 #define NO_MAX_TIME_BEFORE_SEND     8
 #define NO_SIGNALS                  9

@@ -282,7 +282,7 @@ static UINT32 OutputStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable
     static UINT32 s_StreamBufferIndex = 0;
 
     /* IS "networkAvailable" NEEDED ?????????????????? */
-    if (!networkAvailable || !rtdmXmlData->OutputStream_enabled || (*errorCode != NO_ERROR))
+    if (!networkAvailable || !rtdmXmlData->outputStreamEnabled || (*errorCode != NO_ERROR))
     {
         return (0);
     }
@@ -400,8 +400,8 @@ static UINT32 PopulateSamples (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXm
     /* If the previous sample of data is identical to the current sample and
      * compression is enabled do nothing.
      */
-    if ((!compareResult) && (rtdmXmlData->Compression_enabled)
-                    && (timeDiff < rtdmXmlData->MaxTimeBeforeSaveMs))
+    if ((!compareResult) && (rtdmXmlData->compressionEnabled)
+                    && (timeDiff < rtdmXmlData->maxTimeBeforeSaveMs))
     {
         return (0);
     }
@@ -410,7 +410,7 @@ static UINT32 PopulateSamples (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXm
     s_PreviousSampleTime = *currentTime;
 
     /* Populate buffer with all signals because timer expired or compression is disabled */
-    if ((timeDiff >= rtdmXmlData->MaxTimeBeforeSaveMs) || !rtdmXmlData->Compression_enabled)
+    if ((timeDiff >= rtdmXmlData->maxTimeBeforeSaveMs) || !rtdmXmlData->compressionEnabled)
     {
         memcpy (m_ChangedSignalData, m_NewSignalData, rtdmXmlData->maxStreamDataSize);
         signalChangeBufferSize = rtdmXmlData->maxStreamDataSize;
@@ -606,10 +606,10 @@ static void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, StreamHeaderStr
     memcpy (&streamHeader->content.Device_ID[0], interface->VNC_CarData_X_DeviceID, maxCopySize);
 
     /* Data Recorder ID - from .xml file */
-    streamHeader->content.Data_Record_ID = rtdmXmlData->DataRecorderCfgID;
+    streamHeader->content.Data_Record_ID = rtdmXmlData->dataRecorderCfgId;
 
     /* Data Recorder Version - from .xml file */
-    streamHeader->content.Data_Record_Version = rtdmXmlData->DataRecorderCfgVersion;
+    streamHeader->content.Data_Record_Version = rtdmXmlData->dataRecorderCfgVersion;
 
     /* TimeStamp - Current time in Seconds */
     streamHeader->content.TimeStamp_S = currentTime->seconds;
