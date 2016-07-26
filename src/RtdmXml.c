@@ -310,7 +310,7 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
      * it. */
     *rtdmXmlData = &m_RtdmXmlData;
 
-    return (NO_ERROR);
+    return (errorCode);
 }
 
 /*****************************************************************************/

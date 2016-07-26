@@ -13,24 +13,25 @@ void MySleep (int time)
     Sleep (time);
 }
 
-
-extern void FTPDataLog();
-static void UserInterfaceMain()
+extern void FTPDataLog ();
+static void UserInterfaceMain ()
 {
     int ch;
+
     printf ("UI Thread\n");
-    ch = getchar();
+    ch = getchar ();
     if (ch == '0')
     {
-        FTPDataLog();
+        FTPDataLog ();
     }
-    fflush(stdin);
+    fflush (stdin);
 }
 
-static DWORD WINAPI myUIThread(void* threadParams)
+static DWORD WINAPI myUIThread (void* threadParams)
 {
-    while(1){
-        UserInterfaceMain();
+    while (1)
+    {
+        UserInterfaceMain ();
     }
 
     return 0;
@@ -40,11 +41,11 @@ void CreateUIThread (void)
 {
     DWORD threadDescriptor;
 
-    CreateThread(
-        NULL,                   /* default security attributes.   */
-        0,                      /* use default stack size.        */
-        myUIThread,          /* thread function name.          */
-        (void*)NULL,        /* argument to thread function.   */
-        0,                      /* use default creation flags.    */
-        &threadDescriptor);     /* returns the thread identifier. */
+    CreateThread (
+    NULL, /* default security attributes.   */
+    0, /* use default stack size.        */
+    myUIThread, /* thread function name.          */
+    (void*) NULL, /* argument to thread function.   */
+    0, /* use default creation flags.    */
+    &threadDescriptor); /* returns the thread identifier. */
 }

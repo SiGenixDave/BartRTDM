@@ -145,6 +145,11 @@ typedef struct RTDMTimeStr
     UINT32 nanoseconds;
 } RTDMTimeStr;
 
+#ifndef RTDMSTREAM_H
+struct dataBlock_RtdmStream;
+typedef struct dataBlock_RtdmStream TYPE_RTDMSTREAM_IF;
+#endif
+
 /*******************************************************************
  *
  *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
@@ -157,6 +162,9 @@ typedef struct RTDMTimeStr
  *
  *******************************************************************/
 UINT16 GetEpochTime (RTDMTimeStr* currentTime);
-INT32 TimeDiff (RTDMTimeStr *newTime, RTDMTimeStr *oldTime);
+INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
+void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
+                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT32 samples_crc,
+                RTDMTimeStr *currentTime);
 
 #endif /* RTDMUTILS_H_ */

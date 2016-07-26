@@ -18,9 +18,9 @@
 #include "usertypes.h"
 #endif
 
-#include "RtdmUtils.h"
 #include "RtdmStream.h"
 #include "RtdmXml.h"
+#include "RtdmUtils.h"
 #include "RtdmDataLog.h"
 #include "RtdmFileIO.h"
 

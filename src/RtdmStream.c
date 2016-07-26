@@ -99,9 +99,9 @@
 #include "usertypes.h"
 #endif
 
+#include "Rtdmxml.h"
 #include "RtdmUtils.h"
 #include "RtdmStream.h"
-#include "Rtdmxml.h"
 #include "RtdmDataLog.h"
 
 #include "crc32.h"
@@ -159,9 +159,6 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
 static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime);
 
-
-static void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, StreamHeaderStr *streamHeader,
-                UINT32 samples_crc, RTDMTimeStr *currentTime);
 
 static void PopulateSignalsWithNewSamples (void);
 
@@ -343,7 +340,7 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
         samplesCRC = crc32 (samplesCRC, (UINT8 *) m_StreamData, (INT32) (s_StreamBufferIndex));
 
         /* Time to construct main header */
-        PopulateStreamHeader (interface, &streamHeader, samplesCRC, currentTime);
+        PopulateStreamHeader (interface, m_RtdmXmlData, &streamHeader, m_SampleCount, samplesCRC, currentTime);
 
         /* Time to send message */
         /* TODO Check return value for error */
@@ -525,109 +522,6 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount)
 
 }
 
-/*******************************************************************************************
- *
- *   Procedure Name : Populate_Stream_Header
- *
- *   Functional Description : Fill header array with data
- *
- *	Calls:
- *	Get_Time()
- *
- *   Parameters : samples_crc
- *
- *   Returned :  None
- *
- *   History :       11/11/2015    RC  - Creation
- *   Revised :
- *
- ******************************************************************************************/
-static void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, StreamHeaderStr *streamHeader,
-                UINT32 samples_crc, RTDMTimeStr *currentTime)
-{
-    const char *delimiter = "STRM";
-    UINT32 stream_header_crc = 0;
-    UINT32 maxCopySize = 0;
-
-    /*********************************** Populate *****************************************/
-    /* "Zero" the entire header */
-    memset (streamHeader, 0, sizeof(StreamHeaderStr));
-
-    /* Delimiter */
-    memcpy (&streamHeader->Delimiter[0], delimiter, strlen (delimiter));
-
-    /* Endianness - Always BIG - no support in DAN viewer for Little Endian */
-    streamHeader->content.Endiannes = BIG_ENDIAN;
-
-    /* Header size */
-    streamHeader->content.Header_Size = sizeof(StreamHeaderStr);
-
-    /* Header Checksum - CRC-32 */
-    /* Checksum of the following content of the header */
-    /* Below - need to calculate after filling array */
-
-    /* Header Version */
-    streamHeader->content.Header_Version = STREAM_HEADER_VERSION;
-
-    maxCopySize = sizeof(streamHeader->content.Consist_ID)
-                    > strlen (interface->VNC_CarData_X_ConsistID) ?
-                    strlen (interface->VNC_CarData_X_ConsistID) :
-                    sizeof(streamHeader->content.Consist_ID);
-    memcpy (&streamHeader->content.Consist_ID[0], interface->VNC_CarData_X_ConsistID, maxCopySize);
-
-    maxCopySize = sizeof(streamHeader->content.Car_ID)
-                    > strlen (interface->VNC_CarData_X_ConsistID) ?
-                    strlen (interface->VNC_CarData_X_CarID) : sizeof(streamHeader->content.Car_ID);
-    memcpy (&streamHeader->content.Car_ID[0], interface->VNC_CarData_X_CarID, maxCopySize);
-
-    maxCopySize = sizeof(streamHeader->content.Device_ID)
-                    > strlen (interface->VNC_CarData_X_DeviceID) ?
-                    strlen (interface->VNC_CarData_X_DeviceID) :
-                    sizeof(streamHeader->content.Device_ID);
-    memcpy (&streamHeader->content.Device_ID[0], interface->VNC_CarData_X_DeviceID, maxCopySize);
-
-    /* Data Recorder ID - from .xml file */
-    streamHeader->content.Data_Record_ID = (UINT16) m_RtdmXmlData->dataRecorderCfg.id;
-
-    /* Data Recorder Version - from .xml file */
-    streamHeader->content.Data_Record_Version = (UINT16) m_RtdmXmlData->dataRecorderCfg.version;
-
-    /* timeStamp - Current time in Seconds */
-    streamHeader->content.TimeStamp_S = currentTime->seconds;
-
-    /* TimeStamp - mS */
-    streamHeader->content.TimeStamp_mS = (UINT16) (currentTime->nanoseconds / 1000000);
-
-    /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
-    streamHeader->content.TimeStamp_accuracy = (UINT8) interface->RTCTimeAccuracy;
-
-    /* MDS Receive Timestamp - ED is always 0 */
-    streamHeader->content.MDS_Receive_S = 0;
-
-    /* MDS Receive Timestamp - ED is always 0 */
-    streamHeader->content.MDS_Receive_mS = 0;
-
-#if TODO
-    /* Sample size - size of following content including this field */
-    /* Add this field plus checksum and # samples to size */
-    streamHeader->content.Sample_Size_for_header = (UINT16) ((rtdmXmlData->max_main_buffer_count
-                                    * rtdmXmlData->maxHeaderAndStreamSize) + SAMPLE_SIZE_ADJUSTMENT);
-#endif
-
-    /* Sample Checksum - Checksum of the following content CRC-32 */
-    streamHeader->content.Sample_Checksum = samples_crc;
-
-    /* Number of Samples in current stream */
-    streamHeader->content.Num_Samples = m_SampleCount;
-
-    /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
-    stream_header_crc = 0;
-    stream_header_crc = crc32 (stream_header_crc, ((UINT8 *) &streamHeader->content.Header_Version),
-                    (sizeof(StreamHeaderContent) - STREAM_HEADER_CHECKSUM_ADJUST));
-
-    streamHeader->content.Header_Checksum = stream_header_crc;
-
-}
 
 /*******************************************************************************************
  *

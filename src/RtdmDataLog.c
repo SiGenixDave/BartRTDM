@@ -100,8 +100,8 @@
 #include "usertypes.h"
 #endif
 
-#include "RtdmUtils.h"
 #include "RtdmXml.h"
+#include "RtdmUtils.h"
 #include "RtdmStream.h"
 #include "RtdmFileIO.h"
 
@@ -205,54 +205,6 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 
     m_RtdmXmlData = rtdmXmlData;
 
-#if TODO
-    /* now determine the amount of memory required to handle the worst case scenario stream headers
-     * NOTE: the datalog buffer is updated every time a stream is sent
-     */
-    streamDueToBufferSizeSeconds = rtdmXmlData->max_main_buffer_count * CAPTURE_RATE_SECONDS;
-    PrintIntegerContents(streamDueToBufferSizeSeconds);
-
-    /* Want the smaller period of the two so that the max rate can be used to determine the amount
-     * of memory needed for the stream header
-     */
-    minStreamPeriodSecs =
-    (CAPTURE_RATE_SECONDS * CAPTURE_STREAMS_BEFORE_FILING_SECONDS)
-    / (streamDueToBufferSizeSeconds
-                    <= (rtdmXmlData->maxTimeBeforeSendMs / 1000)) ?
-    streamDueToBufferSizeSeconds :
-    (UINT32) ((rtdmXmlData->maxTimeBeforeSendMs / 1000));
-    PrintIntegerContents(minStreamPeriodSecs);
-
-    streamHeaderAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS * sizeof(StreamHeaderStr)
-    / minStreamPeriodSecs;
-    PrintIntegerContents(streamHeaderAllocation);
-
-    m_RequiredMemorySize = rawStreamDataAllocation + streamHeaderAllocation;
-    PrintIntegerContents(m_RequiredMemorySize);
-
-    m_MaxDataPerStreamBytes = rtdmXmlData->maxStreamHeaderDataSize
-    * CAPTURE_RATE_SECONDS * minStreamPeriodSecs;
-    PrintIntegerContents(m_MaxDataPerStreamBytes);
-
-    /* Two "callocs" and therefore two memory buffers are required just in case the task
-     * that writes data to a disk file takes longer than the next update to the
-     * data log memory.
-     */
-    m_RTDMDataLogPingPtr = (UINT8 *) calloc (m_RequiredMemorySize, sizeof(UINT8));
-    if (m_RTDMDataLogPingPtr == NULL)
-    {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
-        /* TODO flag error */
-    }
-
-    m_RTDMDataLogPongPtr = (UINT8 *) calloc (m_RequiredMemorySize, sizeof(UINT8));
-    if (m_RTDMDataLogPongPtr == NULL)
-    {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
-        /* TODO flag error */
-    }
-#endif
-
 }
 
 void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr *dataSample,
@@ -302,7 +254,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
          * is performed in another task to prevent task overruns due to the amount
          * of time required to perform file writes
          */
-        SpawnRtdmFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex);
+        SpawnRtdmFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, currentTime);
 
         /* Exchange buffers so the next hours worth of data won't conflict with the
          * previous hours data
@@ -318,8 +270,12 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
  into 1 file and send over network via FTP */
 void FTPDataLog (void)
 {
+    RTDMTimeStr currentTime;
+
+    GetEpochTime(&currentTime);
+
     /* Close existing datalog file */
-    SpawnRtdmFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex);
+    SpawnRtdmFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
 
     /* Swap data stream memory buffers */
     SwapBuffers ();

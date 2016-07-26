@@ -29,13 +29,23 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-#define MAX_NUMBER_OF_DAN_FILES    (UINT16)(100)
+
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
+#define SINGLE_FILE_TIMESPAN_HOURS          0.25
+#define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
+
+#define MAX_NUMBER_OF_DAN_FILES             (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
 
 /*******************************************************************
  *
  *     E  N  U  M  S
  *
  *******************************************************************/
+typedef enum
+{
+    CREATE_NEW, APPEND_TO_EXISTING,
+} DanFileState;
+
 typedef enum
 {
     OLDEST_TIMESTAMP, NEWEST_TIMESTAMP
@@ -83,6 +93,8 @@ static RtdmXmlStr *m_RtdmXmlData = NULL;
 static UINT16 m_ValidDanFileListIndexes[MAX_NUMBER_OF_DAN_FILES ];
 static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_DAN_FILES ];
 
+static DanFileState m_DanFileState;
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
@@ -114,11 +126,16 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 }
 
 /* TODO Need to be run in a task */
-void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer)
+void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
+                RTDMTimeStr *currentTime)
 {
 
     FILE *p_file = NULL;
-    UINT32 crc;
+    static RTDMTimeStr s_StartTime =
+        { 0, 0 };
+    INT32 timeDiff = 0;
+    StreamHeaderStr streamHeader;
+    UINT32 samplesCRC = 0;
 
     /* Verify there is stream data in the buffer; if not abort */
     if (dataBytesInBuffer == 0)
@@ -126,28 +143,76 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer)
         return;
     }
 
-    /* Create a CRC for the file; used for file verification & integrity */
-    crc = 0;
-    crc = crc32 (crc, logBuffer, (INT32) dataBytesInBuffer);
 
-    if (os_io_fopen (CreateFileName(m_DanFileIndex), "wb+", &p_file) != ERROR)
+    memset (&streamHeader, 0, sizeof(streamHeader));
+
+    /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
+    streamHeader.content.Num_Samples = sampleCount;
+    samplesCRC = 0;
+    samplesCRC = crc32 (samplesCRC, (UINT8 *) &streamHeader.content.Num_Samples,
+                    sizeof(streamHeader.content.Num_Samples));
+    samplesCRC = crc32 (samplesCRC, logBuffer, (INT32)dataBytesInBuffer);
+    PopulateStreamHeader(m_Interface, m_RtdmXmlData, &streamHeader, sampleCount, samplesCRC, currentTime);
+
+    switch (m_DanFileState)
     {
-        fseek (p_file, 0L, SEEK_SET);
-        /* Write the stream */
-        fwrite (logBuffer, 1, dataBytesInBuffer, p_file);
-        /* Append the CRC */
-        fwrite (&crc, 1, sizeof(UINT32), p_file);
-        os_io_fclose(p_file);
+        /* TODO Look at not closing file after opeing it to speed things along */
+
+        default:
+        case CREATE_NEW:
+            /* TODO handle file open error */
+            if (os_io_fopen (CreateFileName (m_DanFileIndex), "w+b", &p_file) != ERROR)
+            {
+                fseek (p_file, 0L, SEEK_SET);
+                /* Write the header */
+                fwrite (&streamHeader, 1, sizeof(streamHeader), p_file);
+
+                /* Write the stream */
+                fwrite (logBuffer, 1, dataBytesInBuffer, p_file);
+
+                os_io_fclose(p_file);
+            }
+
+            s_StartTime = *currentTime;
+            m_DanFileState = APPEND_TO_EXISTING;
+
+            debugPrintf("FILEIO - CreateNew to Append Existing\n");
+
+            break;
+
+        case APPEND_TO_EXISTING:
+            /* Open the file for appending */
+            /* TODO handle file open error */
+            if (os_io_fopen (CreateFileName (m_DanFileIndex), "a+b", &p_file) != ERROR)
+            {
+                /* Write the header */
+                fwrite (&streamHeader, 1, sizeof(streamHeader), p_file);
+                /* Write the stream */
+                fwrite (logBuffer, 1, dataBytesInBuffer, p_file);
+
+                os_io_fclose(p_file);
+
+            }
+            debugPrintf("FILEIO - Append Existing\n");
+
+            /* determine if 15 minutes of data have been saved */
+            timeDiff = TimeDiff (currentTime, &s_StartTime);
+
+            if (timeDiff >= (INT32)SINGLE_FILE_TIMESPAN_MSECS)
+            {
+                m_DanFileState = CREATE_NEW;
+
+                m_DanFileIndex++;
+                if (m_DanFileIndex >= MAX_NUMBER_OF_DAN_FILES)
+                {
+                    m_DanFileIndex = 0;
+                }
+            }
+
+            break;
+
     }
 
-    m_DanFileIndex++;
-    if (m_DanFileIndex >= MAX_NUMBER_OF_DAN_FILES)
-    {
-        m_DanFileIndex = 0;
-#ifndef TEST_ON_TARGET
-        SpawnFTPDatalog ();
-#endif
-    }
 }
 
 /* TODO Need to be run in a task */
@@ -248,7 +313,7 @@ static void InitTrackerIndex (void)
     /* Find the most recent valid file and point to the next file for writing */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
     {
-        fileOK = VerifyFileIntegrity (CreateFileName(fileIndex));
+        fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
         if (fileOK == TRUE)
         {
             GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, fileIndex);
@@ -284,7 +349,7 @@ static void PopulateValidDanFileList (void)
     /* Scan all files to determine what files are valid */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
     {
-        fileOK = VerifyFileIntegrity (CreateFileName(fileIndex));
+        fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
         if (fileOK)
         {
             m_ValidDanFileListIndexes[arrayIndex] = fileIndex;
@@ -488,10 +553,10 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     strcpy (&rtdmHeader.Device_ID[0], m_Interface->VNC_CarData_X_DeviceID);
 
     /* Data Recorder ID - from .xml file */
-    rtdmHeader.Data_Record_ID = (UINT16)m_RtdmXmlData->dataRecorderCfg.id;
+    rtdmHeader.Data_Record_ID = (UINT16) m_RtdmXmlData->dataRecorderCfg.id;
 
     /* Data Recorder Version - from .xml file */
-    rtdmHeader.Data_Record_Version = (UINT16)m_RtdmXmlData->dataRecorderCfg.version;
+    rtdmHeader.Data_Record_Version = (UINT16) m_RtdmXmlData->dataRecorderCfg.version;
 
     /* First TimeStamp -  time in Seconds */
     rtdmHeader.FirstTimeStamp_S = oldest->seconds;
@@ -529,7 +594,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     /* Calling function should check for 0 to determine if any streams were detected */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    if (os_io_fopen (CreateFileName(fileIndex), "rb", &p_file) == ERROR)
+    if (os_io_fopen (CreateFileName (fileIndex), "rb", &p_file) == ERROR)
     {
         return;
     }
@@ -594,7 +659,7 @@ static UINT16 CountStreams (void)
     while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
-        if (os_io_fopen (CreateFileName (fileIndex), "rb", &streamFilePtr) == ERROR)
+        if (os_io_fopen (CreateFileName (fileIndex), "rb+", &streamFilePtr) == ERROR)
         {
             streamFilePtr = NULL;
         }
@@ -655,7 +720,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
-        if (os_io_fopen (CreateFileName(fileIndex), "rb", &streamFilePtr) == ERROR)
+        if (os_io_fopen (CreateFileName (fileIndex), "r+", &streamFilePtr) == ERROR)
         {
             streamFilePtr = NULL;
         }
@@ -713,7 +778,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     UINT32 calcCRC = 0;
     UINT32 fileCRC = 0;
 
-    if (os_io_fopen (filename, "rb", &p_file) != ERROR)
+    if (os_io_fopen (filename, "rb+", &p_file) != ERROR)
     {
         fseek (p_file, 0L, SEEK_END);
         numBytes = (UINT32) ftell (p_file);
@@ -721,7 +786,6 @@ static BOOL VerifyFileIntegrity (const char *filename)
 
         while (1)
         {
-            /* Search for delimiter */
             amountRead = fread (&buffer[0], 1, sizeof(buffer), p_file);
 
             byteCount += amountRead;
