@@ -114,7 +114,7 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 }
 
 /* TODO Need to be run in a task */
-void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
+void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer)
 {
 
     FILE *p_file = NULL;
@@ -128,13 +128,13 @@ void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer)
 
     /* Create a CRC for the file; used for file verification & integrity */
     crc = 0;
-    crc = crc32 (crc, oneHourStreamBuffer, (INT32) dataBytesInBuffer);
+    crc = crc32 (crc, logBuffer, (INT32) dataBytesInBuffer);
 
     if (os_io_fopen (CreateFileName(m_DanFileIndex), "wb+", &p_file) != ERROR)
     {
         fseek (p_file, 0L, SEEK_SET);
         /* Write the stream */
-        fwrite (oneHourStreamBuffer, 1, dataBytesInBuffer, p_file);
+        fwrite (logBuffer, 1, dataBytesInBuffer, p_file);
         /* Append the CRC */
         fwrite (&crc, 1, sizeof(UINT32), p_file);
         os_io_fclose(p_file);

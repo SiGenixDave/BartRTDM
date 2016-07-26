@@ -40,9 +40,7 @@
 
 
 void InitializeDataLog (RtdmXmlStr *rtdmXmlData);
-void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream,
-                UINT32 dataAmount);
-
-void Write_RTDM (void);
+void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr *dataSample,
+                RTDMTimeStr *currentTime);
 
 #endif /* RTDMDATALOG_H_ */

@@ -107,8 +107,8 @@ typedef struct
 /* Structure to contain header for stream data */
 typedef struct
 {
-    TimeStampStr TimeStamp;
-    UINT16 Count __attribute__ ((packed));
+    TimeStampStr timeStamp;
+    UINT16 count __attribute__ ((packed));
 } DataSampleStr;
 
 typedef struct

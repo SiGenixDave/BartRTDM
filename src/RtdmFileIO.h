@@ -39,7 +39,7 @@
  *******************************************************************/
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void SpawnRtdmFileWrite (UINT8 *oneHourStreamBuffer, UINT32 dataBytesInBuffer);
+void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer);
 void SpawnFTPDatalog (void);
 
 #endif /* RTDMFILEIO_H_ */

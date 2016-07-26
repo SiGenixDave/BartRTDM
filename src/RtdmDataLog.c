@@ -152,6 +152,8 @@ static UINT8 *m_RTDMDataLogPongPtr = NULL;
  * and writes to compact FLASH.. */
 static UINT8 *m_RTDMDataLogPingPongPtr = NULL;
 
+static RtdmXmlStr *m_RtdmXmlData = NULL;
+
 /* Calculated at initialization. Value represents the max amount of bytes
  * in 1 hours worth of stream. Assumes worst case of no data compression */
 static UINT32 m_MaxDataPerStreamBytes = 0;
@@ -160,6 +162,8 @@ static UINT32 m_MaxDataPerStreamBytes = 0;
 static UINT32 m_RTDMDataLogIndex = 0;
 
 static UINT32 m_RequiredMemorySize = 0;
+
+static UINT32 m_SampleCount = 0;
 
 /*******************************************************************
  *
@@ -171,18 +175,35 @@ static void SwapBuffers (void);
 void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 {
 
-    UINT32 minStreamPeriodSecs = 0;
-    UINT32 streamHeaderAllocation = 0;
-    UINT32 streamDueToBufferSizeSeconds = 0;
-    UINT32 rawStreamDataAllocation = 0;
+    UINT32 rawDataLogAllocation = 0;
 
-    /* first determine the amount of memory (bytes) required to hold X minutes amount of stream data
-     * This includes each stream's header and data only */
-    rawStreamDataAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS
-                    * rtdmXmlData->metaData.maxStreamHeaderDataSize/ CAPTURE_RATE_SECONDS;
-    PrintIntegerContents(rawStreamDataAllocation);
+    rawDataLogAllocation = rtdmXmlData->dataLogFileCfg.numberSamplesBeforeSave
+                    * rtdmXmlData->metaData.maxStreamHeaderDataSize;
 
+    /* Allocate memory to store log data according to buffer size from .xml file */
+    m_RTDMDataLogPingPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
+    if (m_RTDMDataLogPingPtr == NULL)
+    {
+        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        /* TODO flag error */
+    }
 
+    /* Allocate memory to store log data according to buffer size from .xml file */
+    m_RTDMDataLogPongPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
+    if (m_RTDMDataLogPongPtr == NULL)
+    {
+        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        /* TODO flag error */
+    }
+
+    /* Set the pointer initially to the "ping" buffer. This pointer is toggled when
+     * between ping and pong when a file write is about to occur
+     */
+    m_RTDMDataLogPingPongPtr = m_RTDMDataLogPingPtr;
+
+    m_RTDMDataLogIndex = 0;
+
+    m_RtdmXmlData = rtdmXmlData;
 
 #if TODO
     /* now determine the amount of memory required to handle the worst case scenario stream headers
@@ -195,22 +216,22 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
      * of memory needed for the stream header
      */
     minStreamPeriodSecs =
-                    (CAPTURE_RATE_SECONDS * CAPTURE_STREAMS_BEFORE_FILING_SECONDS)
-                                    / (streamDueToBufferSizeSeconds
-                                                    <= (rtdmXmlData->maxTimeBeforeSendMs / 1000)) ?
-                                    streamDueToBufferSizeSeconds :
-                                    (UINT32) ((rtdmXmlData->maxTimeBeforeSendMs / 1000));
+    (CAPTURE_RATE_SECONDS * CAPTURE_STREAMS_BEFORE_FILING_SECONDS)
+    / (streamDueToBufferSizeSeconds
+                    <= (rtdmXmlData->maxTimeBeforeSendMs / 1000)) ?
+    streamDueToBufferSizeSeconds :
+    (UINT32) ((rtdmXmlData->maxTimeBeforeSendMs / 1000));
     PrintIntegerContents(minStreamPeriodSecs);
 
     streamHeaderAllocation = CAPTURE_STREAMS_BEFORE_FILING_SECONDS * sizeof(StreamHeaderStr)
-                    / minStreamPeriodSecs;
+    / minStreamPeriodSecs;
     PrintIntegerContents(streamHeaderAllocation);
 
     m_RequiredMemorySize = rawStreamDataAllocation + streamHeaderAllocation;
     PrintIntegerContents(m_RequiredMemorySize);
 
     m_MaxDataPerStreamBytes = rtdmXmlData->maxStreamHeaderDataSize
-                    * CAPTURE_RATE_SECONDS * minStreamPeriodSecs;
+    * CAPTURE_RATE_SECONDS * minStreamPeriodSecs;
     PrintIntegerContents(m_MaxDataPerStreamBytes);
 
     /* Two "callocs" and therefore two memory buffers are required just in case the task
@@ -232,48 +253,50 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     }
 #endif
 
-    /* Set the pointer initially to the "ping" buffer. This pointer is toggled when
-     * between ping and pong when a file write is about to occur
-     */
-    m_RTDMDataLogPingPongPtr = m_RTDMDataLogPingPtr;
-
-    m_RTDMDataLogIndex = 0;
-
 }
 
-void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream, UINT32 dataAmount)
+void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr *dataSample,
+                RTDMTimeStr *currentTime)
 {
-    static RTDMTimeStr s_FirstEntryTime;
+    static RTDMTimeStr s_SaveFileTime =
+        { 0, 0 };
 
-    RTDMTimeStr nowTime;
+    INT32 timeDiff = 0;
 
-    /* This is the first stream captured in the datalog buffer, capture the time stamp */
-    if (m_RTDMDataLogIndex == 0)
+    if ((s_SaveFileTime.seconds == 0) && (s_SaveFileTime.nanoseconds == 0))
     {
-        /* TODO check for error on return value */
-        GetEpochTime (&s_FirstEntryTime);
+        s_SaveFileTime = *currentTime;
     }
 
-    memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], streamHeader, sizeof(StreamHeaderStr));
-
-    m_RTDMDataLogIndex += sizeof(StreamHeaderStr);
-
-    memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], stream, dataAmount);
-
-    m_RTDMDataLogIndex += dataAmount;
-
-    /* TODO check for error on return value */
-    GetEpochTime (&nowTime);
-
-    debugPrintf("First time %u; Now time %u\n", s_FirstEntryTime.seconds, nowTime.seconds);
-
-    /* Determine if the next sample might overflow the buffer or if 1 hour has expired since the first write,
-     * if so save the file now and open new file for writing */
-    if (((m_RTDMDataLogIndex + m_MaxDataPerStreamBytes + sizeof(StreamHeaderStr))
-                    > m_RequiredMemorySize)
-                    || ((nowTime.seconds - s_FirstEntryTime.seconds)
-                                    >= CAPTURE_STREAMS_BEFORE_FILING_SECONDS))
+    /* Fill m_RtdmSampleArray with samples of data if data changed or the amount of time
+     * between captures exceeds the allowed amount */
+    if (dataAmount != 0)
     {
+
+        /* Copy the time stamp and signal count into main buffer */
+        memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], dataSample, sizeof(DataSampleStr));
+
+        m_RTDMDataLogIndex += sizeof(DataSampleStr);
+
+        /* Copy the changed data into main buffer */
+        memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], changedSignalData, dataAmount);
+
+        m_RTDMDataLogIndex += dataAmount;
+
+        m_SampleCount++;
+
+        debugPrintf("Data Log Sample Populated %d\n", m_SampleCount);
+
+    }
+
+    timeDiff = TimeDiff (currentTime, &s_SaveFileTime);
+
+    /*  */
+    if ((m_SampleCount >= m_RtdmXmlData->dataLogFileCfg.numberSamplesBeforeSave)
+                    || (timeDiff >= (INT32)m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
+    {
+
+        debugPrintf("Data Log Saved %d\n", m_SampleCount);
 
         /* Write the data in the current buffer to the dan file. The file write
          * is performed in another task to prevent task overruns due to the amount
@@ -285,6 +308,8 @@ void WriteStreamToDataLog (StreamHeaderStr *streamHeader, UINT8 *stream, UINT32 
          * previous hours data
          */
         SwapBuffers ();
+
+        s_SaveFileTime = *currentTime;
 
     }
 }
@@ -324,5 +349,7 @@ static void SwapBuffers (void)
     }
 
     m_RTDMDataLogIndex = 0;
+    m_SampleCount = 0;
+
 }
 
