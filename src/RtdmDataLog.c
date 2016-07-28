@@ -183,7 +183,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RTDMDataLogPingPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
     if (m_RTDMDataLogPingPtr == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -191,7 +191,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RTDMDataLogPongPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
     if (m_RTDMDataLogPongPtr == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -236,7 +236,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
 
         m_SampleCount++;
 
-        debugPrintf(0, "Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(DBG_LOG, "Data Log Sample Populated %d\n", m_SampleCount);
 
     }
 
@@ -247,7 +247,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
                     || (timeDiff >= (INT32)m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
     {
 
-        debugPrintf(0, "Data Log Saved %d\n", m_SampleCount);
+        debugPrintf(DBG_LOG, "Data Log Saved %d\n", m_SampleCount);
 
         /* Write the data in the current buffer to the dan file. The file write
          * is performed in another task to prevent task overruns due to the amount

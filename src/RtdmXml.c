@@ -462,7 +462,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         if (m_ConfigXmlBufferPtr == NULL)
         {
             os_io_fclose(filePtr);
-            debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+            debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
             /* TODO flag error */
 
             /* free the memory we used for the buffer */
@@ -479,7 +479,7 @@ static UINT16 OpenXMLConfigurationFile (void)
     /* File does not exist or internal error */
     else
     {
-        debugPrintf(3, "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
+        debugPrintf(DBG_ERROR, "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
 
@@ -656,7 +656,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
     if (m_RtdmXmlData.signalDesription == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
