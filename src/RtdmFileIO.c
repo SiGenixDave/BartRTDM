@@ -209,7 +209,8 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 os_io_fclose(p_file);
 
             }
-            debugPrintf(DBG_INFO, "FILEIO - Append Existing\n");
+            debugPrintf(DBG_INFO, "FILEIO - Append Existing\n")
+            ;
 
             /* determine if 15 minutes of data have been saved */
             timeDiff = TimeDiff (currentTime, &s_StartTime);
@@ -478,7 +479,7 @@ static void CreateFTPFileName (FILE **ftpFilePtr)
     const char *extension = ".dan";
     const char *rtdmFill = "rtdm____________";
 
-    char fileName[128];
+    char fileName[256];
     char dateTime[64];
 
     memset (fileName, 0, sizeof(fileName));
@@ -509,15 +510,25 @@ static void CreateFTPFileName (FILE **ftpFilePtr)
 #ifdef TEST_ON_PC
     GetTimeDate (dateTime, sizeof(dateTime));
 #else
-#if TODO
-    /* TODO need to test on VCU */
-    GetEpochTime(&rtdmTime.seconds);
+    GetEpochTime (&rtdmTime);
 
-    os_c_localtime(rtdmTime.seconds, ansiTime); /* OUT: Local time */
+    os_c_localtime (rtdmTime.seconds, &ansiTime); /* OUT: Local time */
 
-    /* TODO Convert ansiTime members to YYMMDD-HHMMSS */
+    sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
+                    ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
+
+
 #endif
-    strcat(dateTime,"160721-123456");
+
+    debugPrintf(DBG_INFO, "ANSI Date time = %s", dateTime);
+
+    strcat (fileName, DRIVE_NAME);
+    strcat (fileName, DIRECTORY_NAME);
+
+#ifndef TEST_ON_PC
+    strcat (fileName, "/");
+#else
+    strcat (fileName, "\\");
 #endif
 
     strcat (fileName, consistId);

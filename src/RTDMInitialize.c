@@ -27,6 +27,27 @@
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
 
 
+void TestDateTime(void)
+{
+#ifndef TEST_ON_PC
+    RTDMTimeStr rtdmTime;
+    OS_STR_TIME_ANSI ansiTime;
+char dateTime[200];
+
+    GetEpochTime (&rtdmTime);
+
+    os_c_localtime (rtdmTime.seconds, &ansiTime); /* OUT: Local time */
+
+    sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
+                    ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
+
+
+    debugPrintf(DBG_INFO, "ANSI Date time = %s", dateTime);
+
+#endif
+
+}
+
 void RTDMInitialize (TYPE_RTDMSTREAM_IF *interface)
 {
 
