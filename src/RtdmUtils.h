@@ -75,17 +75,47 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-/* NOTE: Comment out the following line to "turn off" printfs() */
+/* NOTE: Comment out the following line to "turn off" all printfs() */
 #define DEBUG_STATEMENTS_ON
-#define DEBUG_LEVEL   1
 
+/*****************************************************************/
 #ifdef DEBUG_STATEMENTS_ON
-#define debugPrintf(debugLevel, fmt, args...)  if (debugLevel >= DEBUG_LEVEL) printf(fmt, ## args)
+#define DBG_LOG             1
+#define DBG_INFO            2
+#define DBG_WARNING         3
+#define DBG_ERROR           4
+
+/* NOTE: If the developer only wants to see printfs set at one level, enable this #define (DEBUG_EXCLUSIVE_LEVEL) and
+ * set it to the desired debug level. Otherwise all printfs equal or above DEBUG_ABOVE_EQUAL_LEVEL will be enabled
+ */
+/* #define DEBUG_EXCLUSIVE_LEVEL       DBG_INFO */
+
+#define DEBUG_ABOVE_EQUAL_LEVEL     DBG_INFO
+
+#ifdef DEBUG_EXCLUSIVE_LEVEL
+#define debugPrintf(debugLevel, fmt, args...)  \
+        if (debugLevel == DEBUG_EXCLUSIVE_LEVEL) \
+        {   \
+            printf("%s: ",#debugLevel); \
+            printf(fmt, ## args); \
+        }
 #else
-#define debugPrintf(debugLevel, fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
+#define debugPrintf(debugLevel, fmt, args...)  \
+        if (debugLevel >= DEBUG_ABOVE_EQUAL_LEVEL) \
+        {   \
+            printf("%s: ",#debugLevel); \
+            printf(fmt, ## args); \
+        }
 #endif
 
-#define  PrintIntegerContents(a)   debugPrintf(1, #a " = %d\n", (INT32)a)
+/*****************************************************************/
+#else
+
+#define debugPrintf(debugLevel, fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
+#endif
+/*****************************************************************/
+
+#define  PrintIntegerContents(a)   debugPrintf(DBG_INFO, #a " = %d\n", (INT32)a)
 /*******************************************************************
  *
  *     E  N  U  M  S
@@ -171,6 +201,6 @@ typedef struct RTDMTimeStr
 UINT16 GetEpochTime (RTDMTimeStr* currentTime);
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
-                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer, UINT32 dataSize,
-                RTDMTimeStr *currentTime);
+                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
+                UINT32 dataSize, RTDMTimeStr *currentTime);
 #endif /* RTDMUTILS_H_ */

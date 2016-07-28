@@ -20,6 +20,7 @@
 #include "usertypes.h"
 #endif
 
+#include <io.h>
 #include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RtdmUtils.h"
@@ -29,6 +30,12 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
+#ifdef TEST_ON_PC
+#define DRIVE_NAME                          "D:\\"
+#else
+#define DRIVE_NAME                          "/ata0/"
+#endif
+#define DIRECTORY_NAME                      "rtdm"
 
 /* TODO required for release
  #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
@@ -49,7 +56,7 @@
  *******************************************************************/
 typedef enum
 {
-    CREATE_NEW, APPEND_TO_EXISTING,
+    CREATE_NEW, APPEND_TO_EXISTING
 } DanFileState;
 
 typedef enum
@@ -121,11 +128,16 @@ static UINT16 CountStreams (void);
 static void IncludeStreamFiles (FILE *ftpFilePtr);
 static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
+static void CreateVerifyStorageDirectory (void);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
+    int d;
+
     m_Interface = interface;
     m_RtdmXmlData = rtdmXmlData;
+
+    CreateVerifyStorageDirectory ();
 
     InitTrackerIndex ();
 
@@ -141,6 +153,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         { 0, 0 };
     INT32 timeDiff = 0;
     StreamHeaderStr streamHeader;
+    char *fileName = NULL;
 
     /* Verify there is stream data in the buffer; if not abort */
     if (dataBytesInBuffer == 0)
@@ -158,7 +171,8 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         default:
         case CREATE_NEW:
             /* TODO handle file open error */
-            if (os_io_fopen (CreateFileName (m_DanFileIndex), "w+b", &p_file) != ERROR)
+            fileName = CreateFileName (m_DanFileIndex);
+            if (os_io_fopen (fileName, "w+b", &p_file) != ERROR)
             {
                 fseek (p_file, 0L, SEEK_SET);
                 /* Write the header */
@@ -169,11 +183,16 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
 
                 os_io_fclose(p_file);
             }
+            else
+            {
+                debugPrintf(DBG_ERROR, "FILE IO ERROR: Couldn't open %s\n", fileName);
+            }
 
             s_StartTime = *currentTime;
             m_DanFileState = APPEND_TO_EXISTING;
 
-            debugPrintf(1, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex));
+            debugPrintf(DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex))
+            ;
 
             break;
 
@@ -190,7 +209,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 os_io_fclose(p_file);
 
             }
-            debugPrintf(1, "FILEIO - Append Existing\n");
+            debugPrintf(DBG_INFO, "FILEIO - Append Existing\n");
 
             /* determine if 15 minutes of data have been saved */
             timeDiff = TimeDiff (currentTime, &s_StartTime);
@@ -756,15 +775,23 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
 
 static char *CreateFileName (UINT16 fileIndex)
 {
-    static char fileName[10];
+    static char s_FileName[100];
     const char *extension = ".dan";
 
-    memset (fileName, 0, sizeof(fileName));
+    memset (s_FileName, 0, sizeof(s_FileName));
 
-    sprintf (fileName, "%u", fileIndex);
-    strcat (fileName, extension);
+    strcat (s_FileName, DRIVE_NAME);
+    strcat (s_FileName, DIRECTORY_NAME);
+#ifndef TEST_ON_PC
+    strcat (s_FileName, "/");
+#else
+    strcat (s_FileName, "\\");
+#endif
 
-    return fileName;
+    sprintf (&s_FileName[strlen (s_FileName)], "%u", fileIndex);
+    strcat (s_FileName, extension);
+
+    return s_FileName;
 }
 
 static BOOL VerifyFileIntegrity (const char *filename)
@@ -841,6 +868,27 @@ static BOOL VerifyFileIntegrity (const char *filename)
         return (FALSE);
     }
 #endif
+
+}
+static void CreateVerifyStorageDirectory (void)
+{
+    const char *dirDriveName = DRIVE_NAME DIRECTORY_NAME;
+    INT32 errorCode = 0;
+
+    errorCode = mkdir (dirDriveName);
+
+    if (errorCode == 0)
+    {
+        debugPrintf(DBG_INFO, "Drive/Directory %s %s created\n", DRIVE_NAME, DIRECTORY_NAME);
+    }
+    else if ((errorCode == -1) && (errno == 17))
+    {
+        debugPrintf(DBG_INFO, "Drive/Directory %s %s exists\n", DRIVE_NAME, DIRECTORY_NAME);
+    }
+    else
+    {
+        debugPrintf(DBG_ERROR, "Can't create storage directory %s %s\n", DRIVE_NAME, DIRECTORY_NAME);
+    }
 
 }
 

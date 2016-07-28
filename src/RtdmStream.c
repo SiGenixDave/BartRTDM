@@ -103,6 +103,7 @@
 #include "RtdmXml.h"
 #include "RtdmUtils.h"
 #include "RtdmDataLog.h"
+#include "RTDMInitialize.h"
 
 #include "crc32.h"
 
@@ -178,7 +179,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
     if (m_StreamData == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -187,21 +188,21 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_NewSignalData == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
     m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_OldSignalData == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
     m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_ChangedSignalData == NULL)
     {
-        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -224,11 +225,6 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
         firstCall = FALSE;
         return;
     }
-
-    /* TODO REMOVE AFTER TEST */
-#ifndef TEST_ON_TARGET
-    interface->oPCU_I1.Analog801.ICarSpeed++;
-#endif
 
     result = GetEpochTime (&currentTime);
     /* TODO check result for valid time read */
@@ -277,7 +273,6 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime)
 {
     INT32 timeDiff = 0;
-    UINT32 samplesCRC = 0;
     BOOL streamBecauseBufferFull = FALSE;
     StreamHeaderStr streamHeader;
     static RTDMTimeStr s_PreviousSendTime =
@@ -307,7 +302,7 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         m_SampleCount++;
 
-        debugPrintf(0, "Stream Sample Populated %d\n", interface->RTDMSampleCount);
+        debugPrintf(DBG_LOG, "Stream Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 
@@ -336,7 +331,7 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         s_PreviousSendTime = *currentTime;
 
-        debugPrintf(1, "STREAM SENT %d\n", m_SampleCount);
+        debugPrintf(DBG_LOG, "STREAM SENT %d\n", m_SampleCount);
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;
