@@ -17,8 +17,8 @@
 #include "usertypes.h"
 #endif
 
-#include "RtdmXml.h"
 #include "RtdmStream.h"
+#include "RtdmXml.h"
 #include "RtdmUtils.h"
 #include "crc32.h"
 
@@ -160,90 +160,101 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
  *
  ******************************************************************************************/
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
-                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT32 samples_crc,
-                RTDMTimeStr *currentTime)
+                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
+                UINT32 dataSize, RTDMTimeStr *currentTime)
 {
     const char *delimiter = "STRM";
-    UINT32 streamHeaderCrc = 0;
+    UINT32 crc = 0;
     UINT32 maxCopySize = 0;
 
-    /*********************************** Populate *****************************************/
-    /* "Zero" the entire header */
+    /* Zero the stream entire header */
     memset (streamHeader, 0, sizeof(StreamHeaderStr));
+
+    /* Calculate CRC for all samples, this needs done prior to populating and calculating the
+     * stream header CRC. */
+    streamHeader->content.postamble.numberOfSamples = sampleCount;
+    crc = 0;
+    crc = crc32 (crc, (UINT8 *) &streamHeader->content.postamble.numberOfSamples,
+                    sizeof(streamHeader->content.postamble.numberOfSamples));
+    crc = crc32 (crc, dataBuffer, (INT32) (dataSize));
+
+    /* Store the CRC */
+    streamHeader->content.postamble.samplesChecksum = crc;
+
+    /* Populate the stream header */
 
     /* Delimiter */
     memcpy (&streamHeader->Delimiter[0], delimiter, strlen (delimiter));
 
     /* Endianness - Always BIG - no support in DAN viewer for Little Endian */
-    streamHeader->content.Endiannes = BIG_ENDIAN;
+    streamHeader->content.preamble.endianness = BIG_ENDIAN;
 
     /* Header size */
-    streamHeader->content.Header_Size = sizeof(StreamHeaderStr);
+    streamHeader->content.preamble.headerSize = sizeof(StreamHeaderStr);
 
     /* Header Checksum - CRC-32 */
     /* Checksum of the following content of the header */
     /* Below - need to calculate after filling array */
 
     /* Header Version */
-    streamHeader->content.Header_Version = STREAM_HEADER_VERSION;
+    streamHeader->content.postamble.version = STREAM_HEADER_VERSION;
 
-    maxCopySize = sizeof(streamHeader->content.Consist_ID)
+    maxCopySize = sizeof(streamHeader->content.postamble.consistId)
                     > strlen (interface->VNC_CarData_X_ConsistID) ?
                     strlen (interface->VNC_CarData_X_ConsistID) :
-                    sizeof(streamHeader->content.Consist_ID);
-    memcpy (&streamHeader->content.Consist_ID[0], interface->VNC_CarData_X_ConsistID, maxCopySize);
+                    sizeof(streamHeader->content.postamble.consistId);
+    memcpy (&streamHeader->content.postamble.consistId[0], interface->VNC_CarData_X_ConsistID,
+                    maxCopySize);
 
-    maxCopySize = sizeof(streamHeader->content.Car_ID)
+    maxCopySize = sizeof(streamHeader->content.postamble.carId)
                     > strlen (interface->VNC_CarData_X_ConsistID) ?
-                    strlen (interface->VNC_CarData_X_CarID) : sizeof(streamHeader->content.Car_ID);
-    memcpy (&streamHeader->content.Car_ID[0], interface->VNC_CarData_X_CarID, maxCopySize);
+                    strlen (interface->VNC_CarData_X_CarID) :
+                    sizeof(streamHeader->content.postamble.carId);
+    memcpy (&streamHeader->content.postamble.carId[0], interface->VNC_CarData_X_CarID, maxCopySize);
 
-    maxCopySize = sizeof(streamHeader->content.Device_ID)
+    maxCopySize = sizeof(streamHeader->content.postamble.deviceId)
                     > strlen (interface->VNC_CarData_X_DeviceID) ?
                     strlen (interface->VNC_CarData_X_DeviceID) :
-                    sizeof(streamHeader->content.Device_ID);
-    memcpy (&streamHeader->content.Device_ID[0], interface->VNC_CarData_X_DeviceID, maxCopySize);
+                    sizeof(streamHeader->content.postamble.deviceId);
+    memcpy (&streamHeader->content.postamble.deviceId[0], interface->VNC_CarData_X_DeviceID,
+                    maxCopySize);
 
     /* Data Recorder ID - from .xml file */
-    streamHeader->content.Data_Record_ID = (UINT16) rtdmXmlData->dataRecorderCfg.id;
+    streamHeader->content.postamble.dataRecorderId = (UINT16) rtdmXmlData->dataRecorderCfg.id;
 
     /* Data Recorder Version - from .xml file */
-    streamHeader->content.Data_Record_Version = (UINT16) rtdmXmlData->dataRecorderCfg.version;
+    streamHeader->content.postamble.dataRecorderVersion = (UINT16) rtdmXmlData->dataRecorderCfg.version;
 
     /* timeStamp - Current time in Seconds */
-    streamHeader->content.TimeStamp_S = currentTime->seconds;
+    streamHeader->content.postamble.timeStampUtcSecs = currentTime->seconds;
 
     /* TimeStamp - mS */
-    streamHeader->content.TimeStamp_mS = (UINT16) (currentTime->nanoseconds / 1000000);
+    streamHeader->content.postamble.timeStampUtcMsecs = (UINT16) (currentTime->nanoseconds / 1000000);
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
-    streamHeader->content.TimeStamp_accuracy = (UINT8) interface->RTCTimeAccuracy;
+    streamHeader->content.postamble.timeStampUtcAccuracy = (UINT8) interface->RTCTimeAccuracy;
 
     /* MDS Receive Timestamp - ED is always 0 */
-    streamHeader->content.MDS_Receive_S = 0;
+    streamHeader->content.postamble.mdsStreamReceiveSecs = 0;
 
     /* MDS Receive Timestamp - ED is always 0 */
-    streamHeader->content.MDS_Receive_mS = 0;
+    streamHeader->content.postamble.mdsStreamReceiveMsecs = 0;
 
-#if TODO
     /* Sample size - size of following content including this field */
     /* Add this field plus checksum and # samples to size */
-    streamHeader->content.Sample_Size_for_header = (UINT16) ((rtdmXmlData->max_main_buffer_count
-                                    * rtdmXmlData->maxHeaderAndStreamSize) + SAMPLE_SIZE_ADJUSTMENT);
-#endif
-
-    /* Sample Checksum - Checksum of the following content CRC-32 */
-    streamHeader->content.Sample_Checksum = samples_crc;
+    streamHeader->content.postamble.sampleSize = (UINT16)(sizeof(streamHeader->content.postamble.sampleSize)
+                    + sizeof(streamHeader->content.postamble.samplesChecksum)
+                    + sizeof(streamHeader->content.postamble.numberOfSamples) + dataSize);
 
     /* Number of Samples in current stream */
-    streamHeader->content.Num_Samples = sampleCount;
+    /* DO NOTHING: Populated above in order to create samples CRC */
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
-    streamHeaderCrc = 0;
-    streamHeaderCrc = crc32 (streamHeaderCrc, ((UINT8 *) &streamHeader->content.Header_Version),
-                    (INT32)(sizeof(StreamHeaderContent) - STREAM_HEADER_CHECKSUM_ADJUST));
+    crc = 0;
+    crc = crc32 (crc, ((UINT8 *) &streamHeader->content.postamble),
+                    (INT32) (sizeof(StreamHeaderPostambleStr)));
 
-    streamHeader->content.Header_Checksum = streamHeaderCrc;
+    streamHeader->content.preamble.headerChecksum = crc;
 
 }
 

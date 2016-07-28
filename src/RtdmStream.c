@@ -99,16 +99,12 @@
 #include "usertypes.h"
 #endif
 
-#include "Rtdmxml.h"
-#include "RtdmUtils.h"
 #include "RtdmStream.h"
+#include "RtdmXml.h"
+#include "RtdmUtils.h"
 #include "RtdmDataLog.h"
 
 #include "crc32.h"
-
-#ifndef TEST_ON_TARGET
-#include "RTDMInitialize.h"
-#endif
 
 /*******************************************************************
  *
@@ -182,7 +178,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
     if (m_StreamData == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -191,21 +187,21 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_NewSignalData == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
     m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_OldSignalData == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
     m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_ChangedSignalData == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -311,7 +307,7 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         m_SampleCount++;
 
-        debugPrintf("Stream Sample Populated %d\n", interface->RTDMSampleCount);
+        debugPrintf(0, "Stream Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 
@@ -330,17 +326,9 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
                     || ((timeDiff >= (INT32) m_RtdmXmlData->outputStreamCfg.maxTimeBeforeSendMs)
                                     && (s_PreviousSendTime.seconds != 0)))
     {
-        memset (&streamHeader, 0, sizeof(streamHeader));
-
-        /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
-        streamHeader.content.Num_Samples = m_SampleCount;
-        samplesCRC = 0;
-        samplesCRC = crc32 (samplesCRC, (UINT8 *) &streamHeader.content.Num_Samples,
-                        sizeof(streamHeader.content.Num_Samples));
-        samplesCRC = crc32 (samplesCRC, (UINT8 *) m_StreamData, (INT32) (s_StreamBufferIndex));
 
         /* Time to construct main header */
-        PopulateStreamHeader (interface, m_RtdmXmlData, &streamHeader, m_SampleCount, samplesCRC, currentTime);
+        PopulateStreamHeader (interface, m_RtdmXmlData, &streamHeader, m_SampleCount, m_StreamData, s_StreamBufferIndex, currentTime);
 
         /* Time to send message */
         /* TODO Check return value for error */
@@ -348,7 +336,7 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         s_PreviousSendTime = *currentTime;
 
-        debugPrintf("STREAM SENT %d\n", m_SampleCount);
+        debugPrintf(1, "STREAM SENT %d\n", m_SampleCount);
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;

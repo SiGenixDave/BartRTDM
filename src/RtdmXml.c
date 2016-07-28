@@ -462,7 +462,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         if (m_ConfigXmlBufferPtr == NULL)
         {
             os_io_fclose(filePtr);
-            debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+            debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
             /* TODO flag error */
 
             /* free the memory we used for the buffer */
@@ -479,7 +479,7 @@ static UINT16 OpenXMLConfigurationFile (void)
     /* File does not exist or internal error */
     else
     {
-        debugPrintf("Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
+        debugPrintf(3, "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
 
@@ -625,23 +625,25 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
  *****************************************************************************/
 static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 {
-    const char *xmlSignalId = "Signal id";
-    const char *xmlDataType = "dataType";
-    const char *xmlName = "name";
+    const char *xmlSignalElement = "<Signal";
+    const char *xmlIdAttr = "id";
+    const char *xmlDataTypeAttr = "dataType";
+    const char *xmlNameAttr = "name";
     char *pStringLocation1 = NULL;
+    char *pStringLocationSignal = NULL;
     char tempStr[255];
     UINT32 requiredMemorySize = 0;
     UINT16 i = 0;
     INT32 dataAllocationBytes = 0;
-    UINT16 signalId = 0;
+    UINT32 signalId = 0;
     UINT16 signalCount = 0;
 
     pStringLocation1 = m_ConfigXmlBufferPtr;
 
     /* count the number of signals so that memory can be allocated for the signal definition */
-    while ((pStringLocation1 = strstr (pStringLocation1, xmlSignalId)) != NULL)
+    while ((pStringLocation1 = strstr (pStringLocation1, xmlSignalElement)) != NULL)
     {
-        pStringLocation1 = pStringLocation1 + strlen (xmlSignalId) + 2;
+        pStringLocation1 = pStringLocation1 + strlen (xmlSignalElement) + 2;
         signalCount++;
     }
 
@@ -654,7 +656,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
     if (m_RtdmXmlData.signalDesription == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -662,11 +664,13 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     /* This section determines which PCU variable are included in the stream sample and
      * data recorder */
     signalCount = 0;
-    pStringLocation1 = strstr (m_ConfigXmlBufferPtr, xmlSignalId);
-    while ((pStringLocation1 = strstr (pStringLocation1, xmlSignalId)) != NULL)
+    pStringLocation1 = strstr (m_ConfigXmlBufferPtr, xmlSignalElement);
+    while ((pStringLocation1 = strstr (pStringLocation1, xmlSignalElement)) != NULL)
     {
+        pStringLocationSignal = pStringLocation1;
+
         /* find signal_id */
-        pStringLocation1 = strstr (pStringLocation1, xmlSignalId);
+        pStringLocation1 = strstr (pStringLocation1, xmlIdAttr);
         /* Move pointer to attribute value... first double quote (") past the equals (=) */
         pStringLocation1 = strstr (pStringLocation1, "\"");
         /* NOTE: Always assume the attribute value is after the first double quote ("). White spaces and tabs are
@@ -680,11 +684,15 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         }
 
         /* convert signalId to a # and save as int */
-        sscanf (pStringLocation1, "%u", (UINT32 *) &signalId);
-        m_RtdmXmlData.signalDesription[signalCount].id = signalId;
+        sscanf (pStringLocation1, "%u", &signalId);
+        m_RtdmXmlData.signalDesription[signalCount].id = (UINT16)signalId;
+
+        PrintIntegerContents(signalId);
+
+        pStringLocation1 = pStringLocationSignal;
 
         /* Get the variable name and map it to the actual variable address */
-        pStringLocation1 = strstr (pStringLocation1, xmlName);
+        pStringLocation1 = strstr (pStringLocation1, xmlNameAttr);
         /* Move pointer to attribute value... first double quote (") past the equals (=) */
         pStringLocation1 = strstr (pStringLocation1, "\"");
         /* NOTE: Always assume the attribute value is after the first double quote ("). White spaces and tabs are
@@ -723,8 +731,10 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
             return (VARIABLE_NOT_FOUND);
         }
 
+        pStringLocation1 = pStringLocationSignal;
+
         /* Get the data type */
-        pStringLocation1 = strstr (pStringLocation1, xmlDataType);
+        pStringLocation1 = strstr (pStringLocation1, xmlDataTypeAttr);
         /* Move pointer to attribute value... first double quote (") past the equals (=) */
         pStringLocation1 = strstr (pStringLocation1, "\"");
         /* NOTE: Always assume the attribute value is after the first double quote ("). White spaces and tabs are

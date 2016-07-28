@@ -89,8 +89,12 @@
  *
  **********************************************************************************************************************/
 
+
+
 #ifndef TEST_ON_PC
+#include "global_mwt.h"
 #include "rts_api.h"
+#include "../include/iptcom.h"
 #else
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,9 +104,9 @@
 #include "usertypes.h"
 #endif
 
+#include "RtdmStream.h"
 #include "RtdmXml.h"
 #include "RtdmUtils.h"
-#include "RtdmStream.h"
 #include "RtdmFileIO.h"
 
 /*******************************************************************
@@ -154,14 +158,9 @@ static UINT8 *m_RTDMDataLogPingPongPtr = NULL;
 
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 
-/* Calculated at initialization. Value represents the max amount of bytes
- * in 1 hours worth of stream. Assumes worst case of no data compression */
-static UINT32 m_MaxDataPerStreamBytes = 0;
 
 /* Used to index into the current write buffer pointed to by m_RTDMDataLogPingPongPtr */
 static UINT32 m_RTDMDataLogIndex = 0;
-
-static UINT32 m_RequiredMemorySize = 0;
 
 static UINT32 m_SampleCount = 0;
 
@@ -184,7 +183,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RTDMDataLogPingPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
     if (m_RTDMDataLogPingPtr == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -192,7 +191,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RTDMDataLogPongPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
     if (m_RTDMDataLogPongPtr == NULL)
     {
-        debugPrintf("Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(3, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -237,7 +236,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
 
         m_SampleCount++;
 
-        debugPrintf("Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(0, "Data Log Sample Populated %d\n", m_SampleCount);
 
     }
 
@@ -248,7 +247,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
                     || (timeDiff >= (INT32)m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
     {
 
-        debugPrintf("Data Log Saved %d\n", m_SampleCount);
+        debugPrintf(0, "Data Log Saved %d\n", m_SampleCount);
 
         /* Write the data in the current buffer to the dan file. The file write
          * is performed in another task to prevent task overruns due to the amount

@@ -30,8 +30,14 @@
  *
  *******************************************************************/
 
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
-#define SINGLE_FILE_TIMESPAN_HOURS          0.25
+/* TODO required for release
+ #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
+ #define SINGLE_FILE_TIMESPAN_HOURS          0.25
+ */
+
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.1
+#define SINGLE_FILE_TIMESPAN_HOURS          (1.0/60.0)
+
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
 
 #define MAX_NUMBER_OF_DAN_FILES             (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
@@ -135,7 +141,6 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         { 0, 0 };
     INT32 timeDiff = 0;
     StreamHeaderStr streamHeader;
-    UINT32 samplesCRC = 0;
 
     /* Verify there is stream data in the buffer; if not abort */
     if (dataBytesInBuffer == 0)
@@ -143,20 +148,12 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         return;
     }
 
-
-    memset (&streamHeader, 0, sizeof(streamHeader));
-
-    /* calculate CRC for all samples, this needs done before we call Populate_Stream_Header */
-    streamHeader.content.Num_Samples = sampleCount;
-    samplesCRC = 0;
-    samplesCRC = crc32 (samplesCRC, (UINT8 *) &streamHeader.content.Num_Samples,
-                    sizeof(streamHeader.content.Num_Samples));
-    samplesCRC = crc32 (samplesCRC, logBuffer, (INT32)dataBytesInBuffer);
-    PopulateStreamHeader(m_Interface, m_RtdmXmlData, &streamHeader, sampleCount, samplesCRC, currentTime);
+    PopulateStreamHeader (m_Interface, m_RtdmXmlData, &streamHeader, sampleCount, logBuffer,
+                    dataBytesInBuffer, currentTime);
 
     switch (m_DanFileState)
     {
-        /* TODO Look at not closing file after opeing it to speed things along */
+        /* TODO Look at not closing file after opening it to speed things along */
 
         default:
         case CREATE_NEW:
@@ -176,7 +173,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
             s_StartTime = *currentTime;
             m_DanFileState = APPEND_TO_EXISTING;
 
-            debugPrintf("FILEIO - CreateNew to Append Existing\n");
+            debugPrintf(1, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex));
 
             break;
 
@@ -193,12 +190,12 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 os_io_fclose(p_file);
 
             }
-            debugPrintf("FILEIO - Append Existing\n");
+            debugPrintf(1, "FILEIO - Append Existing\n");
 
             /* determine if 15 minutes of data have been saved */
             timeDiff = TimeDiff (currentTime, &s_StartTime);
 
-            if (timeDiff >= (INT32)SINGLE_FILE_TIMESPAN_MSECS)
+            if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
             {
                 m_DanFileState = CREATE_NEW;
 
@@ -206,6 +203,9 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 if (m_DanFileIndex >= MAX_NUMBER_OF_DAN_FILES)
                 {
                     m_DanFileIndex = 0;
+#ifndef REMOVE
+                    SpawnFTPDatalog ();
+#endif
                 }
             }
 
@@ -237,6 +237,7 @@ void SpawnFTPDatalog (void)
 
     /* Determine the newest file index */
     newestDanFileIndex = GetNewestDanFileIndex ();
+    PrintIntegerContents(newestDanFileIndex);
 
     if (newestDanFileIndex < 0)
     {
@@ -248,6 +249,7 @@ void SpawnFTPDatalog (void)
 
     /* Determine the oldest file index */
     oldestDanFileIndex = GetOldestDanFileIndex ();
+    PrintIntegerContents(oldestDanFileIndex);
 
     if (oldestDanFileIndex < 0)
     {
@@ -260,6 +262,7 @@ void SpawnFTPDatalog (void)
     /* Scan through all valid files and count the number of streams in each file; used for
      * RTDM header */
     streamCount = CountStreams ();
+    PrintIntegerContents(streamCount);
 
     /* Create filename and open it for writing */
     CreateFTPFileName (&ftpFilePtr);
@@ -547,6 +550,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Header Version - Always 2 */
     rtdmHeader.Header_Version = RTDM_HEADER_VERSION;
 
+    /* TODO verify m_Interface->... are valid strings */
     /* Consist ID */
     strcpy (&rtdmHeader.Consist_ID[0], m_Interface->VNC_CarData_X_ConsistID);
     strcpy (&rtdmHeader.Car_ID[0], m_Interface->VNC_CarData_X_CarID);
@@ -636,8 +640,8 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
         }
     }
 
-    timeStamp->seconds = streamHeaderContent.TimeStamp_S;
-    timeStamp->msecs = streamHeaderContent.TimeStamp_mS;
+    timeStamp->seconds = streamHeaderContent.postamble.timeStampUtcSecs;
+    timeStamp->msecs = streamHeaderContent.postamble.timeStampUtcMsecs;
 
     os_io_fclose(p_file);
 
@@ -741,11 +745,6 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
             if (amountRead == 0)
             {
                 os_io_fclose(streamFilePtr);
-                /* Move the file pointer back 4 bytes so that the CRC used in each dan file
-                 * for integrity is overwritten
-                 */
-                fseek (ftpFilePtr, -4L, SEEK_END);
-
                 break;
             }
 
@@ -778,6 +777,18 @@ static BOOL VerifyFileIntegrity (const char *filename)
     UINT32 calcCRC = 0;
     UINT32 fileCRC = 0;
 
+#ifndef TODO
+    /* TODO need to verify file contents */
+    if (os_io_fopen (filename, "rb+", &p_file) != ERROR)
+    {
+        return TRUE;
+    }
+    else
+    {
+        return FALSE;
+    }
+#else
+
     if (os_io_fopen (filename, "rb+", &p_file) != ERROR)
     {
         fseek (p_file, 0L, SEEK_END);
@@ -801,9 +812,9 @@ static BOOL VerifyFileIntegrity (const char *filename)
                 /* The last 4 bytes in the buffer are the CRC */
 #ifdef TEST_ON_PC
                 fileCRC = (UINT32) (buffer[amountRead - 1]) << 24
-                                | (UINT32) (buffer[amountRead - 2]) << 16
-                                | (UINT32) (buffer[amountRead - 3]) << 8
-                                | (UINT32) (buffer[amountRead - 4]) << 0;
+                | (UINT32) (buffer[amountRead - 2]) << 16
+                | (UINT32) (buffer[amountRead - 3]) << 8
+                | (UINT32) (buffer[amountRead - 4]) << 0;
 #else
                 fileCRC = (UINT32) (buffer[amountRead - 4]) << 24
                 | (UINT32) (buffer[amountRead - 3]) << 16
@@ -829,6 +840,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     {
         return (FALSE);
     }
+#endif
 
 }
 

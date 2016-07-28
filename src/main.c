@@ -18,6 +18,7 @@
 #include "usertypes.h"
 #include "RtdmStream.h"
 #include "RtdmXml.h"
+#include "RtdmUtils.h"
 #include "RTDMInitialize.h"
 #include "MySleep.h"
 

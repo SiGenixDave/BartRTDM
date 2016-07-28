@@ -77,14 +77,15 @@
 
 /* NOTE: Comment out the following line to "turn off" printfs() */
 #define DEBUG_STATEMENTS_ON
+#define DEBUG_LEVEL   1
 
 #ifdef DEBUG_STATEMENTS_ON
-#define debugPrintf(fmt, args...)    printf(fmt, ## args)
+#define debugPrintf(debugLevel, fmt, args...)  if (debugLevel >= DEBUG_LEVEL) printf(fmt, ## args)
 #else
-#define debugPrintf(fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
+#define debugPrintf(debugLevel, fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
 #endif
 
-#define  PrintIntegerContents(a)   debugPrintf(#a " = %d\n", (INT32)a)
+#define  PrintIntegerContents(a)   debugPrintf(1, #a " = %d\n", (INT32)a)
 /*******************************************************************
  *
  *     E  N  U  M  S
@@ -113,23 +114,34 @@ typedef struct
 
 typedef struct
 {
-    UINT8 Endiannes;
-    UINT16 Header_Size __attribute__ ((packed));
-    UINT32 Header_Checksum __attribute__ ((packed));
-    UINT8 Header_Version;
-    UINT8 Consist_ID[16];
-    UINT8 Car_ID[16];
-    UINT8 Device_ID[16];
-    UINT16 Data_Record_ID __attribute__ ((packed));
-    UINT16 Data_Record_Version __attribute__ ((packed));
-    UINT32 TimeStamp_S __attribute__ ((packed));
-    UINT16 TimeStamp_mS __attribute__ ((packed));
-    UINT8 TimeStamp_accuracy;
-    UINT32 MDS_Receive_S __attribute__ ((packed));
-    UINT16 MDS_Receive_mS __attribute__ ((packed));
-    UINT16 Sample_Size_for_header __attribute__ ((packed));
-    UINT32 Sample_Checksum __attribute__ ((packed));
-    UINT16 Num_Samples __attribute__ ((packed));
+    UINT8 endianness;
+    UINT16 headerSize __attribute__ ((packed));
+    UINT32 headerChecksum __attribute__ ((packed));
+} StreamHeaderPreambleStr;
+
+/* Structure created to support ease of CRC calculation for preamble's header checksum */
+typedef struct
+{
+    UINT8 version;
+    UINT8 consistId[16];
+    UINT8 carId[16];
+    UINT8 deviceId[16];
+    UINT16 dataRecorderId __attribute__ ((packed));
+    UINT16 dataRecorderVersion __attribute__ ((packed));
+    UINT32 timeStampUtcSecs __attribute__ ((packed));
+    UINT16 timeStampUtcMsecs __attribute__ ((packed));
+    UINT8 timeStampUtcAccuracy;
+    UINT32 mdsStreamReceiveSecs __attribute__ ((packed));
+    UINT16 mdsStreamReceiveMsecs __attribute__ ((packed));
+    UINT16 sampleSize __attribute__ ((packed));
+    UINT32 samplesChecksum __attribute__ ((packed));
+    UINT16 numberOfSamples __attribute__ ((packed));
+} StreamHeaderPostambleStr;
+
+typedef struct
+{
+    StreamHeaderPreambleStr preamble;
+    StreamHeaderPostambleStr postamble;
 } StreamHeaderContent;
 
 /* Structure to contain variables in the Stream header of the message */
@@ -145,11 +157,6 @@ typedef struct RTDMTimeStr
     UINT32 nanoseconds;
 } RTDMTimeStr;
 
-#ifndef RTDMSTREAM_H
-struct dataBlock_RtdmStream;
-typedef struct dataBlock_RtdmStream TYPE_RTDMSTREAM_IF;
-#endif
-
 /*******************************************************************
  *
  *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
@@ -164,7 +171,6 @@ typedef struct dataBlock_RtdmStream TYPE_RTDMSTREAM_IF;
 UINT16 GetEpochTime (RTDMTimeStr* currentTime);
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
-                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT32 samples_crc,
+                StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer, UINT32 dataSize,
                 RTDMTimeStr *currentTime);
-
 #endif /* RTDMUTILS_H_ */
