@@ -135,7 +135,8 @@ static const DataTypeMapStr dataTypeMap[] =
 static RtdmXmlStr m_RtdmXmlData;
 
 /** @brief Maps all XML signal names to the memory location where the signal is read. The variable
- * addresses are populated at runTime since they are declared external to this module */
+ * addresses are populated at runTime since they are declared external to this module and thus
+ * are initialized to NULL */
 static VariableMapStr m_VariableMap[] =
     {
         { "oPCU_I1.PCU_I1.Analog801.CTractEffortReq", NULL },

@@ -17,7 +17,6 @@
  *
  *****************************************************************************/
 
-
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -90,7 +89,7 @@ typedef enum
  *    S  T  R  U  C  T  S
  *
  *******************************************************************/
-/** @brief Preamble of RTDM header, CRC not calculated against this section of data */
+/** @brief Preamble of RTDM header, CRC IS NOT calculated on this section of data */
 typedef struct
 {
     /** */
@@ -103,7 +102,7 @@ typedef struct
     UINT32 headerChecksum __attribute__ ((packed));
 } RtdmHeaderPreambleStr;
 
-/** @brief Postamble of RTDM header, CRC is calculated against this section of data */
+/** @brief Postamble of RTDM header, CRC IS calculated on this section of data ONLY */
 typedef struct
 {
     /** */
@@ -178,7 +177,7 @@ static UINT16 CountStreams (void);
 static void IncludeStreamFiles (FILE *ftpFilePtr);
 static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
-static void CreateVerifyStorageDirectory (void);
+static UINT16 CreateVerifyStorageDirectory (void);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -841,14 +840,16 @@ static char *CreateFileName (UINT16 fileIndex)
 static BOOL VerifyFileIntegrity (const char *filename)
 {
     FILE *pFile = NULL;
-    UINT8 buffer[1024];
+    UINT8 buffer;
     UINT32 amountRead = 0;
-    UINT32 numBytes = 0;
+    UINT32 expectedBytesRemaining = 0;
     UINT32 byteCount = 0;
-    UINT32 calcCRC = 0;
-    UINT32 fileCRC = 0;
+    UINT32 lastStrmIndex = 0;
+    UINT16 sIndex = 0;
+    StreamHeaderStr streamHeader;
+    const char *streamHeaderDelimiter = "STRM";
 
-#ifndef TODO
+#ifdef TODO
     /* TODO need to verify file contents */
     if (os_io_fopen (filename, "rb+", &pFile) != ERROR)
     {
@@ -860,79 +861,114 @@ static BOOL VerifyFileIntegrity (const char *filename)
     }
 #else
 
-    if (os_io_fopen (filename, "rb+", &pFile) != ERROR)
+    if (os_io_fopen (filename, "rb+", &pFile) == ERROR)
     {
-        fseek (pFile, 0L, SEEK_END);
-        numBytes = (UINT32) ftell (pFile);
-        fseek (pFile, 0L, SEEK_SET);
+        return FALSE;
+    }
 
-        while (1)
+    fseek (pFile, 0L, SEEK_SET);
+
+    while (1)
+    {
+        /* Search for delimiter */
+        amountRead = fread (&buffer, sizeof(UINT8), 1, pFile);
+        byteCount += amountRead;
+
+        /* End of file reached */
+        if (amountRead != 1)
         {
-            amountRead = fread (&buffer[0], 1, sizeof(buffer), pFile);
+            break;
+        }
 
-            byteCount += amountRead;
-
-            if (amountRead == 0)
+        if (buffer == streamHeaderDelimiter[sIndex])
+        {
+            sIndex++;
+            if (sIndex == strlen (streamHeaderDelimiter))
             {
-                os_io_fclose(pFile);
-                break;
+                lastStrmIndex = byteCount - strlen(streamHeaderDelimiter);
+                sIndex = 0;
             }
-
-            if (byteCount == numBytes)
-            {
-                /* The last 4 bytes in the buffer are the CRC */
-#ifdef TEST_ON_PC
-                fileCRC = (UINT32) (buffer[amountRead - 1]) << 24
-                | (UINT32) (buffer[amountRead - 2]) << 16
-                | (UINT32) (buffer[amountRead - 3]) << 8
-                | (UINT32) (buffer[amountRead - 4]) << 0;
-#else
-                fileCRC = (UINT32) (buffer[amountRead - 4]) << 24
-                | (UINT32) (buffer[amountRead - 3]) << 16
-                | (UINT32) (buffer[amountRead - 2]) << 8
-                | (UINT32) (buffer[amountRead - 1]) << 0;
-#endif
-                amountRead -= sizeof(UINT32);
-            }
-
-            calcCRC = crc32 (calcCRC, buffer, (INT32) amountRead);
+        }
+        else
+        {
+            sIndex = 0;
         }
     }
-    else
+
+    if (lastStrmIndex == 0)
     {
+        debugPrintf(DBG_WARNING, "%s", "No STRMs found in file\n");
         return (FALSE);
     }
 
-    if (calcCRC == fileCRC)
+    memset (&streamHeader, 0, sizeof(streamHeader));
+    fseek (pFile, (INT32)lastStrmIndex, SEEK_SET);
+    amountRead = fread (&streamHeader, 1, sizeof(streamHeader), pFile);
+    /* Verify streamHeader amount could be read */
+    if (amountRead != sizeof(streamHeader))
     {
-        return (TRUE);
-    }
-    else
-    {
+        debugPrintf(DBG_WARNING, "%s", "Last Stream Header not complete... File BAD!!!\n");
         return (FALSE);
     }
+
+    expectedBytesRemaining = byteCount - (lastStrmIndex + sizeof(streamHeader) - 8);
+
+    if (streamHeader.content.postamble.sampleSize != expectedBytesRemaining)
+    {
+        debugPrintf(DBG_WARNING, "%s", "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
+        /* TODO PurgeInvalidStream(fileName, lastStrmIndex); */
+
+        return (FALSE);
+    }
+
 #endif
 
+    return (TRUE);
 }
-static void CreateVerifyStorageDirectory (void)
+
+/*****************************************************************************/
+/**
+ * @brief       Verifies the storage directory exists and creates it if it doesn't
+ *
+ *              This function reads, processes and stores the XML configuration file.
+ *              attributes. It updates all desired parameters into the Rtdm Data
+ *              Structure.
+ *
+ *
+ *  @return UINT16 - error code (NO_ERROR if all's well)
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static UINT16 CreateVerifyStorageDirectory (void)
 {
-    const char *dirDriveName = DRIVE_NAME DIRECTORY_NAME;
-    INT32 errorCode = 0;
+    const char *dirDriveName = DRIVE_NAME DIRECTORY_NAME; /* Concatenate drive and directory */
+    UINT16 errorCode = NO_ERROR; /* returned error code */
+    INT32 mkdirErrorCode = -1; /* mkdir() returned error code */
 
-    errorCode = mkdir (dirDriveName);
+    /* Zero indicates directory created successfully */
+    mkdirErrorCode = mkdir (dirDriveName);
 
-    if (errorCode == 0)
+    if (mkdirErrorCode == 0)
     {
         debugPrintf(DBG_INFO, "Drive/Directory %s created\n", DRIVE_NAME DIRECTORY_NAME);
     }
-    else if ((errorCode == -1) && (errno == 17))
+    else if ((mkdirErrorCode == -1) && (errno == 17))
     {
+        /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
         debugPrintf(DBG_INFO, "Drive/Directory %s exists\n", DRIVE_NAME DIRECTORY_NAME);
     }
     else
     {
+        /* This is an error condition */
         debugPrintf(DBG_ERROR, "Can't create storage directory %s\n", DRIVE_NAME DIRECTORY_NAME);
+        /* TODO need error code */
+        errorCode = 0xFFFF;
     }
 
+    return (errorCode);
 }
 
