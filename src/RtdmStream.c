@@ -1,88 +1,22 @@
-/****************************************************************************************************************
- * PROJECT    : BART
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- * MODULE     : RTDM_Stream.c
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
  *
- * DESCRIPTON : 	Continuously send PCU data in non-real-time stream Message Data based on parameters defined in rtdm_config.xml
- *				ComdId is defined in rtdm_config.xml (800310000)
- *				Currently set to 10,000 byte Max per stream per rtdm_config.xml
+ * Project      :  RTDM (Embedded)
+ *//**
+ * \file RtdmStream.c
+ *//*
  *
- *	Example 1 - Buffer size 60,000:
- *	Time - 98 bytes (1 sample) are written every 50mS
- *	60,000 / 98 = 612 samples
- *	612 * .050 = approx. 30 seconds
- *	A complete record/message is sent approx. every 30 seconds
+ * Revision: 01SEP2016 - D.Smail : Original Release
  *
- *	Example 2 - Buffer size 10,000:
- *	Time - 98 bytes (1 sample) are written every 50mS
- *	10,000 / 98 = 102 samples
- *	102 * .050 = approx. 5 seconds
- *	A complete record/message is sent approx. every 5 seconds
- *
- * 	Size of the Main data buffer to be sent out in MD message - Example: 60,000 bytes
- * 	Example if ALL (24) PCU variables are included in the sample
- * 	60,000/98 bytes per sample = 612 - (m_RtdmSampleArray[612]) - max_main_buffer_count
- * 	1200 * 50 bytes = 60,000 + 85 bytes (Main Header) = 60,085
- *
- * 	Size of the Main data buffer to be sent out in MD message - Example: 10,000 bytes
- * 	Example if ALL (24) PCU variables are included in the sample
- * 	10,000/98 bytes per sample = 102 - (m_RtdmSampleArray[200]) - max_main_buffer_count
- * 	102 * 98 bytes = 9996 + 85 bytes (Main Header) = 10,081
- *
- * 	sample_size = # bytes in current sample - used in calculation of buffer size
- * 	Min - 15 bytes - inclues Timestamps, # signals, and 1 signal (assuming UIN32 for value)
- * 	Max - 98 bytes - includes Timestamps, # signals, and all 24 signals
- * 	What is actually sent in the Main Header include this field plus checksum and # samples to size
- *
- *	PCU output variables MUST be in the correct order in the rtdm_config.xml:
- *	IRateRequest
- *	ITractEffortDeli
- *	IOdometer
- *	CHscbCmd
- *	CRunRelayCmd
- *	CCcContCmd
- *	IDcuState
- *	IDynBrkCutOut
- *	IMCSSModeSel
- *	IPKOStatus
- *	IPKOStatusPKOnet
- *	IPropCutout
- *	IPropSystMode
- *	IRegenCutOut
- *	ITractionSafeSts
- *	PRailGapDet
- *	ICarSpeed
- *
- *
- * INPUTS:
- *	oPCU_I1
- *	RTCTimeAccuracy
- *	VNC_CarData_X_ConsistID
- *	VNC_CarData_X_CarID
- *	VNC_CarData_X_DeviceID
- *	VNC_CarData_S_WhoAmISts
- *
- * OUTPUTS:
- *	RTDMStream
- *	RTDM_Send_Counter
- *	RTDMSendMessage_trig
- *	RTDMSignalCount - Number of PCU signals found in the .xml file
- *	RTDMSampleSize - Size of the current sample inside the stream which includs timestamps, accuracy, and number of signals
- *	RTDMMainBuffSize - Buffer size as read from the config.xml
- *	RTDMSendTime
- *	RTDMDataLogState - Current state of Data Log
- *	RTDMDataLogStop - Stop service from PTU/DCUTerm
- *	RTDMStreamError
- *	RTDMSampleCount
- *	RTDMMainBuffCount =  Number of samples that will fit into current buffer size.  Subtract 2 to make room for the stream header
- *
- * 	RC - 11/11/2015
- *
- *	HISTORY:
- *	RC - 03/28/2016 - Updated per BTNA change to ICD-10 (signal list changed)
- *
- *
- **********************************************************************************************************************/
+ *****************************************************************************/
+
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -156,7 +90,6 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
 static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime);
 
-
 static void PopulateSignalsWithNewSamples (void);
 
 static UINT32 PopulateBufferWithChanges (UINT16 *signalCount);
@@ -179,7 +112,8 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
     if (m_StreamData == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         /* TODO flag error */
     }
 
@@ -188,21 +122,24 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_NewSignalData == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         /* TODO flag error */
     }
 
     m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_OldSignalData == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         /* TODO flag error */
     }
 
     m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_ChangedSignalData == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         /* TODO flag error */
     }
 
@@ -237,7 +174,7 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 
     ServiceStream (interface, networkAvailable, bufferChangeAmount, &currentTime);
 
-    ServiceDataLog (m_ChangedSignalData, bufferChangeAmount, &m_SampleHeader,  &currentTime);
+    ServiceDataLog (m_ChangedSignalData, bufferChangeAmount, &m_SampleHeader, &currentTime);
 
     /* Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -323,7 +260,8 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
     {
 
         /* Time to construct main header */
-        PopulateStreamHeader (interface, m_RtdmXmlData, &streamHeader, m_SampleCount, m_StreamData, s_StreamBufferIndex, currentTime);
+        PopulateStreamHeader (interface, m_RtdmXmlData, &streamHeader, m_SampleCount, m_StreamData,
+                        s_StreamBufferIndex, currentTime);
 
         /* Time to send message */
         /* TODO Check return value for error */
@@ -351,7 +289,6 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
 }
 
-
 static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime)
 {
     INT32 compareResult = 0;
@@ -375,7 +312,7 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
     {
         memcpy (m_ChangedSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
         signalChangeBufferSize = m_RtdmXmlData->metaData.maxStreamDataSize;
-        signalCount = (UINT16)m_RtdmXmlData->metaData.signalCount;
+        signalCount = (UINT16) m_RtdmXmlData->metaData.signalCount;
     }
     else
     {
@@ -504,7 +441,6 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount)
     return (changedIndex);
 
 }
-
 
 /*******************************************************************************************
  *

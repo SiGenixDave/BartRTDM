@@ -1,47 +1,21 @@
-/*******************************************************************************
- * PROJECT    : BART
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- * MODULE     : RTDM_read_xml.c
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
  *
- * DESCRIPTON : 	Reads the rtdm_config.xml file and extracts parameters for Real Time Data Streaming (RTDM)
- * 				Write the above rtdm_config.xml file to the data recorder file rtdm.dan This is the required header for the
- *				rtdm.dan file. The header will be written for a new device or if device was formatted to clear data
+ * Project      :  RTDM (Embedded)
+ *//**
+ * \file RtdmXml.c
+ *//*
  *
- * FUNCTIONS:
- *	read_xml_file()
+ * Revision: 01SEP2016 - D.Smail : Original Release
  *
- * INPUTS:
- *	rtdm_config.xml
- *
- * OUTPUTS:
- *	rtdm_config.dan
- *	DataRecorderCfg - id
- *	DataRecorderCfg - version
- *	samplingRate
- *	compressionEnabled
- *	minRecordingRate
- *	DataLogFileCfg enabled
- *	filesCount
- *	numberSamplesInFile
- *	filesFullPolicy
- *	numberSamplesBeforeSave
- *	maxTimeBeforeSaveMs
- *	OutputStreamCfg enabled
- *	comId
- *	bufferSize
- *	maxTimeBeforeSendMs
- *	Signal id[]
- *	dataType[]
- *	signal_dataType
- *	sample_size
- *
- * RETURN:
- *	error_code
- *
- *
- * RC - 10/26/2015
- *
- *******************************************************************************/
+ *****************************************************************************/
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -212,6 +186,7 @@ static const XmlAttributeDataStr m_DataRecorderCfgAttributes[] =
         { "noChangeFailurePeriod", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.noChangeFailurePeriod,
         NO_NO_CHANGE_FAILURE_PERIOD } };
 
+/** @brief */
 static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
     {
         { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataLogFileCfg.enabled, NO_DATALOG_CFG_ENABLED },
@@ -227,6 +202,7 @@ static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
         { "folderPath", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.folderPath,
         NO_NEED_DEFINE }, };
 
+/** @brief */
 static const XmlAttributeDataStr m_OutputStreamCfgAttributes[] =
     {
         { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.outputStreamCfg.enabled, NO_DATALOG_CFG_ENABLED },
@@ -236,12 +212,17 @@ static const XmlAttributeDataStr m_OutputStreamCfgAttributes[] =
         { "maxTimeBeforeSendMs", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs,
         NO_MAX_TIME_BEFORE_SEND }, };
 
+/** @brief */
 static XmlElementDataStr m_DataRecorderCfg =
     { "DataRecorderCfg", m_DataRecorderCfgAttributes, sizeof(m_DataRecorderCfgAttributes)
                       / sizeof(XmlAttributeDataStr) };
+
+/** @brief */
 static XmlElementDataStr m_DataLogFileCfg =
     { "DataLogFileCfg", m_DataLogFileCfgAttributes, sizeof(m_DataLogFileCfgAttributes)
                       / sizeof(XmlAttributeDataStr) };
+
+/** @brief */
 static XmlElementDataStr m_OutputStreamCfg =
     { "OutputStreamCfg", m_OutputStreamCfgAttributes, sizeof(m_OutputStreamCfgAttributes)
                       / sizeof(XmlAttributeDataStr) };
@@ -261,8 +242,9 @@ static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface);
 /**
  * @brief       Reads and processes the XML configuration file
  *
- *              This function reads and processes the XML configuration file.
- *              It updates all desired parameters into the
+ *              This function reads, processes and stores the XML configuration file.
+ *              attributes. It updates all desired parameters into the Rtdm Data
+ *              Structure.
  *
  *  @param interface - pointer to MTPE module interface data
  *  @param rtdmXmlData - pointer to pointer for XML configuration data (pointer
@@ -291,20 +273,10 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
         return (errorCode);
     }
 
-#if TODO
-    /* Calculate MAX buffer size - subtract 2 to make room for Main Header - how many samples
-     * will fit into buffer size from .xml ex: 60,000 */
-    m_RtdmXmlData.max_main_buffer_count = (UINT16) ((m_RtdmXmlData.streamDataBufferSize
-                                    / m_RtdmXmlData.maxHeaderAndStreamSize) - 2);
-
-    /* Set to interface so we can see in DCUTerm */
-    interface->RTDMMainBuffCount = (UINT16) ((m_RtdmXmlData.streamDataBufferSize
-                                    / m_RtdmXmlData.maxHeaderAndStreamSize) - 2);;
-#endif
-    interface->RTDMSignalCount = (UINT16)m_RtdmXmlData.metaData.signalCount;
-    interface->RTDMSampleSize = (UINT16)m_RtdmXmlData.metaData.maxStreamHeaderDataSize;
-    interface->RTDMSendTime = (UINT16)m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs;
-    interface->RTDMMainBuffSize = (UINT16)m_RtdmXmlData.outputStreamCfg.bufferSize;
+    interface->RTDMSignalCount = (UINT16) m_RtdmXmlData.metaData.signalCount;
+    interface->RTDMSampleSize = (UINT16) m_RtdmXmlData.metaData.maxStreamHeaderDataSize;
+    interface->RTDMSendTime = (UINT16) m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs;
+    interface->RTDMMainBuffSize = (UINT16) m_RtdmXmlData.outputStreamCfg.bufferSize;
 
     /* Return the address of the XML configuration data so that other functions can use
      * it. */
@@ -462,7 +434,8 @@ static UINT16 OpenXMLConfigurationFile (void)
         if (m_ConfigXmlBufferPtr == NULL)
         {
             os_io_fclose(filePtr);
-            debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+            debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+                            __LINE__);
             /* TODO flag error */
 
             /* free the memory we used for the buffer */
@@ -553,7 +526,7 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
                     break;
 
                 case BOOLEAN_DTYPE:
-                    memset (tempArray, 0, sizeof (tempArray));
+                    memset (tempArray, 0, sizeof(tempArray));
                     strncpy (tempArray, pStringLocation2, 5);
                     if (strncmp (tempArray, "TRUE", 4) == 0)
                     {
@@ -571,10 +544,11 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
                     {
                         charCount++;
                     }
-                    stringPtr = (char *)calloc (charCount + 1, sizeof(UINT8));
+                    stringPtr = (char *) calloc (charCount + 1, sizeof(UINT8));
                     /* NOTE Assume a 32 bit native address architecture */
-                    *(UINT32 *)(xmlElementPtr->xmlAttibuteData[index].xmlData) = (UINT32)stringPtr;
-                    strncpy((char *)xmlElementPtr->xmlAttibuteData[index].xmlData, pStringLocation2, charCount);
+                    *(UINT32 *) (xmlElementPtr->xmlAttibuteData[index].xmlData) = (UINT32) stringPtr;
+                    strncpy ((char *) xmlElementPtr->xmlAttibuteData[index].xmlData,
+                                    pStringLocation2, charCount);
                     break;
 
                 case FILESFULL_DTYPE:
@@ -656,7 +630,8 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
     if (m_RtdmXmlData.signalDesription == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         /* TODO flag error */
     }
 
@@ -685,7 +660,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
         /* convert signalId to a # and save as int */
         sscanf (pStringLocation1, "%u", &signalId);
-        m_RtdmXmlData.signalDesription[signalCount].id = (UINT16)signalId;
+        m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId;
 
         PrintIntegerContents(signalId);
 

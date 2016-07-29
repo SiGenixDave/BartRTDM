@@ -1,9 +1,22 @@
-/*
- * RtdmFileIO.c
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- *  Created on: Jul 11, 2016
- *      Author: Dave
- */
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
+ *
+ * Project      :  RTDM (Embedded)
+ *//**
+ * \file RtdmFileIO.c
+ *//*
+ *
+ * Revision: 01SEP2016 - D.Smail : Original Release
+ *
+ *****************************************************************************/
+
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -31,11 +44,11 @@
  *
  *******************************************************************/
 #ifdef TEST_ON_PC
-#define DRIVE_NAME                          "D:\\"
+#define DRIVE_NAME                          "D:/"
 #else
 #define DRIVE_NAME                          "/ata0/"
 #endif
-#define DIRECTORY_NAME                      "rtdm"
+#define DIRECTORY_NAME                      "rtdm/"
 
 /* TODO required for release
  #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
@@ -54,14 +67,22 @@
  *     E  N  U  M  S
  *
  *******************************************************************/
+/** @brief */
 typedef enum
 {
-    CREATE_NEW, APPEND_TO_EXISTING
+    /** */
+    CREATE_NEW,
+    /** */
+    APPEND_TO_EXISTING
 } DanFileState;
 
+/** @brief */
 typedef enum
 {
-    OLDEST_TIMESTAMP, NEWEST_TIMESTAMP
+    /** */
+    OLDEST_TIMESTAMP,
+    /** */
+    NEWEST_TIMESTAMP
 } TimeStampAge;
 
 /*******************************************************************
@@ -69,24 +90,54 @@ typedef enum
  *    S  T  R  U  C  T  S
  *
  *******************************************************************/
-/* Structure to contain variables in the RTDM header of the message */
+/** @brief Preamble of RTDM header, CRC not calculated against this section of data */
 typedef struct
 {
-    char Delimiter[4];
-    UINT8 Endiannes;
-    UINT16 Header_Size __attribute__ ((packed));
-    UINT32 Header_Checksum __attribute__ ((packed));
-    UINT8 Header_Version;
-    char Consist_ID[16];
-    char Car_ID[16];
-    char Device_ID[16];
-    UINT16 Data_Record_ID __attribute__ ((packed));
-    UINT16 Data_Record_Version __attribute__ ((packed));
-    UINT32 FirstTimeStamp_S __attribute__ ((packed));
-    UINT16 FirstTimeStamp_mS __attribute__ ((packed));
-    UINT32 LastTimeStamp_S __attribute__ ((packed));
-    UINT16 LastTimeStamp_mS __attribute__ ((packed));
-    UINT32 Num_Streams __attribute__ ((packed));
+    /** */
+    char delimiter[4];
+    /** */
+    UINT8 endianness;
+    /** */
+    UINT16 headerSize __attribute__ ((packed));
+    /** */
+    UINT32 headerChecksum __attribute__ ((packed));
+} RtdmHeaderPreambleStr;
+
+/** @brief Postamble of RTDM header, CRC is calculated against this section of data */
+typedef struct
+{
+    /** */
+    UINT8 headerVersion;
+    /** */
+    char consistId[16];
+    /** */
+    char carId[16];
+    /** */
+    char deviceId[16];
+    /** */
+    UINT16 dataRecordId __attribute__ ((packed));
+    /** */
+    UINT16 dataRecordVersion __attribute__ ((packed));
+    /** */
+    UINT32 firstTimeStampSecs __attribute__ ((packed));
+    /** */
+    UINT16 firstTimeStampMsecs __attribute__ ((packed));
+    /** */
+    UINT32 lastTimeStampSecs __attribute__ ((packed));
+    /** */
+    UINT16 lastTimeStampMsecs __attribute__ ((packed));
+    /** */
+    UINT32 numStreams __attribute__ ((packed));
+
+} RtdmHeaderPostambleStr;
+
+/** @brief Structure to contain variables in the RTDM header of the message */
+typedef struct
+{
+    /** */
+    RtdmHeaderPreambleStr preamble;
+    /** */
+    RtdmHeaderPostambleStr postamble;
 } RtdmHeaderStr;
 
 /*******************************************************************
@@ -94,18 +145,17 @@ typedef struct
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
+/** @brief Used to create file name of temporary dan file */
 static UINT16 m_DanFileIndex = 0;
-
-/* The contents of this file is a filename. The filename indicates the last data log file
- * that was written.
- */
+/** @brief */
 static TYPE_RTDMSTREAM_IF *m_Interface = NULL;
-
+/** @brief */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
-
+/** @brief */
 static UINT16 m_ValidDanFileListIndexes[MAX_NUMBER_OF_DAN_FILES ];
+/** @brief */
 static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_DAN_FILES ];
-
+/** @brief */
 static DanFileState m_DanFileState;
 
 /*******************************************************************
@@ -132,8 +182,6 @@ static void CreateVerifyStorageDirectory (void);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
-    int d;
-
     m_Interface = interface;
     m_RtdmXmlData = rtdmXmlData;
 
@@ -148,7 +196,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 RTDMTimeStr *currentTime)
 {
 
-    FILE *p_file = NULL;
+    FILE *pFile = NULL;
     static RTDMTimeStr s_StartTime =
         { 0, 0 };
     INT32 timeDiff = 0;
@@ -172,16 +220,16 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         case CREATE_NEW:
             /* TODO handle file open error */
             fileName = CreateFileName (m_DanFileIndex);
-            if (os_io_fopen (fileName, "w+b", &p_file) != ERROR)
+            if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
             {
-                fseek (p_file, 0L, SEEK_SET);
+                fseek (pFile, 0L, SEEK_SET);
                 /* Write the header */
-                fwrite (&streamHeader, 1, sizeof(streamHeader), p_file);
+                fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
 
                 /* Write the stream */
-                fwrite (logBuffer, 1, dataBytesInBuffer, p_file);
+                fwrite (logBuffer, 1, dataBytesInBuffer, pFile);
 
-                os_io_fclose(p_file);
+                os_io_fclose(pFile);
             }
             else
             {
@@ -191,26 +239,24 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
             s_StartTime = *currentTime;
             m_DanFileState = APPEND_TO_EXISTING;
 
-            debugPrintf(DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex))
-            ;
+            debugPrintf(DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex));
 
             break;
 
         case APPEND_TO_EXISTING:
             /* Open the file for appending */
             /* TODO handle file open error */
-            if (os_io_fopen (CreateFileName (m_DanFileIndex), "a+b", &p_file) != ERROR)
+            if (os_io_fopen (CreateFileName (m_DanFileIndex), "a+b", &pFile) != ERROR)
             {
                 /* Write the header */
-                fwrite (&streamHeader, 1, sizeof(streamHeader), p_file);
+                fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
                 /* Write the stream */
-                fwrite (logBuffer, 1, dataBytesInBuffer, p_file);
+                fwrite (logBuffer, 1, dataBytesInBuffer, pFile);
 
-                os_io_fclose(p_file);
+                os_io_fclose(pFile);
 
             }
-            debugPrintf(DBG_INFO, "FILEIO - Append Existing\n")
-            ;
+            debugPrintf(DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
             /* determine if 15 minutes of data have been saved */
             timeDiff = TimeDiff (currentTime, &s_StartTime);
@@ -517,20 +563,12 @@ static void CreateFTPFileName (FILE **ftpFilePtr)
     sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
                     ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
 
-
 #endif
 
     debugPrintf(DBG_INFO, "ANSI Date time = %s", dateTime);
 
     strcat (fileName, DRIVE_NAME);
     strcat (fileName, DIRECTORY_NAME);
-
-#ifndef TEST_ON_PC
-    strcat (fileName, "/");
-#else
-    strcat (fileName, "\\");
-#endif
-
     strcat (fileName, consistId);
     strcat (fileName, carId);
     strcat (fileName, deviceId);
@@ -562,55 +600,55 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 {
     RtdmHeaderStr rtdmHeader;
     char *delimiter = "RTDM";
-    UINT32 rtdm_header_crc = 0;
+    UINT32 rtdmHeaderCrc = 0;
 
     memset (&rtdmHeader, 0, sizeof(rtdmHeader));
 
-    memcpy (&rtdmHeader.Delimiter[0], delimiter, strlen (delimiter));
+    memcpy (&rtdmHeader.preamble.delimiter[0], delimiter, strlen (delimiter));
 
     /* Endiannes - Always BIG */
-    rtdmHeader.Endiannes = BIG_ENDIAN;
+    rtdmHeader.preamble.endianness = BIG_ENDIAN;
 
     /* Header size */
-    rtdmHeader.Header_Size = sizeof(rtdmHeader);
+    rtdmHeader.preamble.headerSize = sizeof(rtdmHeader);
 
     /* Stream Header Checksum - CRC-32 */
     /* This is proper position, but move to end because we need to calculate after the timestamps are entered */
 
     /* Header Version - Always 2 */
-    rtdmHeader.Header_Version = RTDM_HEADER_VERSION;
+    rtdmHeader.postamble.headerVersion = RTDM_HEADER_VERSION;
 
     /* TODO verify m_Interface->... are valid strings */
     /* Consist ID */
-    strcpy (&rtdmHeader.Consist_ID[0], m_Interface->VNC_CarData_X_ConsistID);
-    strcpy (&rtdmHeader.Car_ID[0], m_Interface->VNC_CarData_X_CarID);
-    strcpy (&rtdmHeader.Device_ID[0], m_Interface->VNC_CarData_X_DeviceID);
+    strcpy (&rtdmHeader.postamble.consistId[0], m_Interface->VNC_CarData_X_ConsistID);
+    strcpy (&rtdmHeader.postamble.carId[0], m_Interface->VNC_CarData_X_CarID);
+    strcpy (&rtdmHeader.postamble.deviceId[0], m_Interface->VNC_CarData_X_DeviceID);
 
     /* Data Recorder ID - from .xml file */
-    rtdmHeader.Data_Record_ID = (UINT16) m_RtdmXmlData->dataRecorderCfg.id;
+    rtdmHeader.postamble.dataRecordId = (UINT16) m_RtdmXmlData->dataRecorderCfg.id;
 
     /* Data Recorder Version - from .xml file */
-    rtdmHeader.Data_Record_Version = (UINT16) m_RtdmXmlData->dataRecorderCfg.version;
+    rtdmHeader.postamble.dataRecordVersion = (UINT16) m_RtdmXmlData->dataRecorderCfg.version;
 
     /* First TimeStamp -  time in Seconds */
-    rtdmHeader.FirstTimeStamp_S = oldest->seconds;
+    rtdmHeader.postamble.firstTimeStampSecs = oldest->seconds;
 
     /* First TimeStamp - mS */
-    rtdmHeader.FirstTimeStamp_mS = oldest->msecs;
+    rtdmHeader.postamble.firstTimeStampMsecs = oldest->msecs;
 
     /* Last TimeStamp -  time in Seconds */
-    rtdmHeader.LastTimeStamp_S = newest->seconds;
+    rtdmHeader.postamble.lastTimeStampSecs = newest->seconds;
 
     /* Last TimeStamp - mS */
-    rtdmHeader.LastTimeStamp_mS = newest->msecs;
+    rtdmHeader.postamble.lastTimeStampMsecs = newest->msecs;
 
-    rtdmHeader.Num_Streams = numStreams;
+    rtdmHeader.postamble.numStreams = numStreams;
 
     /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
-    rtdm_header_crc = 0;
-    rtdm_header_crc = crc32 (rtdm_header_crc, ((UINT8 *) &rtdmHeader.Header_Version),
-                    (sizeof(rtdmHeader) - RTDM_HEADER_CHECKSUM_ADJUST));
-    rtdmHeader.Header_Checksum = rtdm_header_crc;
+    rtdmHeaderCrc = 0;
+    rtdmHeaderCrc = crc32 (rtdmHeaderCrc, ((UINT8 *) &rtdmHeader.postamble),
+                    sizeof(rtdmHeader.postamble));
+    rtdmHeader.preamble.headerChecksum = rtdmHeaderCrc;
 
     fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
 
@@ -618,7 +656,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 
 static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex)
 {
-    FILE *p_file = NULL;
+    FILE *pFile = NULL;
     const char *streamHeaderDelimiter = "STRM";
     UINT16 sIndex = 0;
     UINT8 buffer;
@@ -628,7 +666,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     /* Calling function should check for 0 to determine if any streams were detected */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    if (os_io_fopen (CreateFileName (fileIndex), "rb", &p_file) == ERROR)
+    if (os_io_fopen (CreateFileName (fileIndex), "rb", &pFile) == ERROR)
     {
         return;
     }
@@ -638,7 +676,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
         /* TODO revisit and read more than 1 byte at a time
          * Search for delimiter. Design decision to read only a byte at a time. If more than 1 byte is
          * read into a buffer, than more complex logic is needed */
-        amountRead = fread (&buffer, sizeof(UINT8), 1, p_file);
+        amountRead = fread (&buffer, sizeof(UINT8), 1, pFile);
 
         /* End of file reached */
         if (amountRead != sizeof(UINT8))
@@ -651,7 +689,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
             sIndex++;
             if (sIndex == strlen (streamHeaderDelimiter))
             {
-                fread (&streamHeaderContent, sizeof(streamHeaderContent), 1, p_file);
+                fread (&streamHeaderContent, sizeof(streamHeaderContent), 1, pFile);
 
                 /* Get out of while loop on first occurrence */
                 if (age == OLDEST_TIMESTAMP)
@@ -673,7 +711,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     timeStamp->seconds = streamHeaderContent.postamble.timeStampUtcSecs;
     timeStamp->msecs = streamHeaderContent.postamble.timeStampUtcMsecs;
 
-    os_io_fclose(p_file);
+    os_io_fclose(pFile);
 
 }
 
@@ -793,11 +831,6 @@ static char *CreateFileName (UINT16 fileIndex)
 
     strcat (s_FileName, DRIVE_NAME);
     strcat (s_FileName, DIRECTORY_NAME);
-#ifndef TEST_ON_PC
-    strcat (s_FileName, "/");
-#else
-    strcat (s_FileName, "\\");
-#endif
 
     sprintf (&s_FileName[strlen (s_FileName)], "%u", fileIndex);
     strcat (s_FileName, extension);
@@ -807,7 +840,7 @@ static char *CreateFileName (UINT16 fileIndex)
 
 static BOOL VerifyFileIntegrity (const char *filename)
 {
-    FILE *p_file = NULL;
+    FILE *pFile = NULL;
     UINT8 buffer[1024];
     UINT32 amountRead = 0;
     UINT32 numBytes = 0;
@@ -817,7 +850,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
 
 #ifndef TODO
     /* TODO need to verify file contents */
-    if (os_io_fopen (filename, "rb+", &p_file) != ERROR)
+    if (os_io_fopen (filename, "rb+", &pFile) != ERROR)
     {
         return TRUE;
     }
@@ -827,21 +860,21 @@ static BOOL VerifyFileIntegrity (const char *filename)
     }
 #else
 
-    if (os_io_fopen (filename, "rb+", &p_file) != ERROR)
+    if (os_io_fopen (filename, "rb+", &pFile) != ERROR)
     {
-        fseek (p_file, 0L, SEEK_END);
-        numBytes = (UINT32) ftell (p_file);
-        fseek (p_file, 0L, SEEK_SET);
+        fseek (pFile, 0L, SEEK_END);
+        numBytes = (UINT32) ftell (pFile);
+        fseek (pFile, 0L, SEEK_SET);
 
         while (1)
         {
-            amountRead = fread (&buffer[0], 1, sizeof(buffer), p_file);
+            amountRead = fread (&buffer[0], 1, sizeof(buffer), pFile);
 
             byteCount += amountRead;
 
             if (amountRead == 0)
             {
-                os_io_fclose(p_file);
+                os_io_fclose(pFile);
                 break;
             }
 
@@ -890,15 +923,15 @@ static void CreateVerifyStorageDirectory (void)
 
     if (errorCode == 0)
     {
-        debugPrintf(DBG_INFO, "Drive/Directory %s %s created\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(DBG_INFO, "Drive/Directory %s created\n", DRIVE_NAME DIRECTORY_NAME);
     }
     else if ((errorCode == -1) && (errno == 17))
     {
-        debugPrintf(DBG_INFO, "Drive/Directory %s %s exists\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(DBG_INFO, "Drive/Directory %s exists\n", DRIVE_NAME DIRECTORY_NAME);
     }
     else
     {
-        debugPrintf(DBG_ERROR, "Can't create storage directory %s %s\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(DBG_ERROR, "Can't create storage directory %s\n", DRIVE_NAME DIRECTORY_NAME);
     }
 
 }

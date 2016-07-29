@@ -1,9 +1,21 @@
-/*
- * RtdmUtils.c
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- *  Created on: Jul 19, 2016
- *      Author: Dave
- */
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
+ *
+ * Project      :  RTDM (Embedded)
+ *//**
+ * \file RtdmUtils.c
+ *//*
+ *
+ * Revision: 01SEP2016 - D.Smail : Original Release
+ *
+ *****************************************************************************/
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -142,23 +154,30 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
 
 }
 
-/*******************************************************************************************
+/*****************************************************************************/
+/**
+ * @brief       Calculates the difference between 2 stored times
  *
- *   Procedure Name : PopulateStreamHeader
+ *              This function calculates the difference in time between the
+ *              2 parameters and returns the difference in milliseconds. If time1
+ *              is greater than time2, then a positive value will be returned.
+ *              Otherwise, a negative value will be returned.
  *
- *   Functional Description : Fill header array with data
+ *  @param interface -
+ *  @param rtdmXmlData -
+ *  @param streamHeader -
+ *  @param sampleCount -
+ *  @param dataBuffer -
+ *  @param dataSize -
+ *  @param currentTime -
  *
- *  Calls:
- *  Get_Time()
+ *//*
+ * Revision History:
  *
- *   Parameters : samples_crc
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
  *
- *   Returned :  None
- *
- *   History :       11/11/2015    RC  - Creation
- *   Revised :
- *
- ******************************************************************************************/
+ *****************************************************************************/
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime)

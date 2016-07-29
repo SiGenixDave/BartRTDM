@@ -1,9 +1,21 @@
-/*
- * RtdmFileIO.h
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- *  Created on: Jul 11, 2016
- *      Author: Dave
- */
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
+ *
+ * Project    : Communication Controller (Embedded)
+ *//**
+ * @file RtdmFileIO.h
+ *//*
+ *
+ * Revision : 01SEP2016 - D.Smail : Original Release
+ *
+ *****************************************************************************/
 
 #ifndef RTDMFILEIO_H_
 #define RTDMFILEIO_H_

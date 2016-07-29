@@ -1,9 +1,21 @@
-/*
- * RtdmUtils.h
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- *  Created on: Jul 19, 2016
- *      Author: Dave
- */
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
+ *
+ * Project    : Communication Controller (Embedded)
+ *//**
+ * @file RtdmUtils.h
+ *//*
+ *
+ * Revision : 01SEP2016 - D.Smail : Original Release
+ *
+ *****************************************************************************/
 
 #ifndef RTDMUTILS_H_
 #define RTDMUTILS_H_
@@ -14,27 +26,13 @@
  *
  *******************************************************************/
 
-/****************************************************************************************/
-/* CANNOT BE CHANGED OR ADJUSTED WITHOUT CODE CHANGE */
-
-/* The header size needs reduced by this size for the checksum */
-/* Stream Header Checksum does not include the first 11 bytes, starts at Version */
-#define STREAM_HEADER_CHECKSUM_ADJUST       11
-
-/* RTDM Header Checksum does not include the first 11 bytes, starts at Version */
-#define RTDM_HEADER_CHECKSUM_ADJUST         11
-
-/* Add sample_size, samples checksum, and number of samples to size */
-#define SAMPLE_SIZE_ADJUSTMENT              8
-
-/****************************************************************************************/
-
 /* RTDM Header Version */
 #define RTDM_HEADER_VERSION         2
 
 /* Stream Header Verion */
 #define STREAM_HEADER_VERSION       2
 
+/* Must be 0 as defined in the ICD; placed in RTDM and STRM header */
 #define BIG_ENDIAN                 0
 
 /* Error Codes for RTDM Streaming */
@@ -75,7 +73,7 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-/* NOTE: Comment out the following line to "turn off" all printfs() */
+/* NOTE: undefine DEBUG_STATEMENTS_ON to "turn off" all printfs() */
 #define DEBUG_STATEMENTS_ON
 
 /*****************************************************************/
@@ -94,24 +92,29 @@
 
 #ifdef DEBUG_EXCLUSIVE_LEVEL
 #define debugPrintf(debugLevel, fmt, args...)  \
+    do { \
         if (debugLevel == DEBUG_EXCLUSIVE_LEVEL) \
         {   \
             printf("%s: ",#debugLevel); \
             printf(fmt, ## args); \
-        }
+        } \
+    } while (0)
 #else
 #define debugPrintf(debugLevel, fmt, args...)  \
+    do { \
         if (debugLevel >= DEBUG_ABOVE_EQUAL_LEVEL) \
         {   \
             printf("%s: ",#debugLevel); \
             printf(fmt, ## args); \
-        }
+        } \
+    } while (0)
 #endif
 
 /*****************************************************************/
 #else
 
-#define debugPrintf(debugLevel, fmt, args...)    /* Don't do anything in release builds; code effectively doesn't exist */
+#define debugPrintf(debugLevel, fmt, args...)    /* Don't do anything in release builds;
+                                                     code effectively doesn't exist */
 #endif
 /*****************************************************************/
 
