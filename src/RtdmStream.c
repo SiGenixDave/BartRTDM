@@ -231,15 +231,21 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
     if (timeDiff > 1000)
     {
         sampleBecauseOfInactivity = TRUE;
-        debugPrintf("DBG_LOG" "%s\n", "STREAM: Stream sampled because of inactivity");
+        debugPrintf(DBG_LOG, "%s\n", "STREAM: Stream sampled because of inactivity");
     }
 
-    /* Fill m_RtdmSampleArray with samples of data if data changed or the amount of time
+    /* Fill m_StreamData with samples of data if data changed or the amount of time
      * between captures exceeds the allowed amount */
     if ((newChangedDataBytes != 0) || sampleBecauseOfInactivity)
     {
 
         s_PreviousSampleTime = *currentTime;
+
+        /* Override the count value in the header with all of the signals */
+        if (sampleBecauseOfInactivity)
+        {
+            m_SampleHeader.count = m_RtdmXmlData->metaData.signalCount;
+        }
 
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_StreamData[s_StreamBufferIndex], &m_SampleHeader, sizeof(m_SampleHeader));

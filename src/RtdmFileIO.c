@@ -190,10 +190,6 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     InitTrackerIndex ();
 
-#ifndef REMOVE
-    m_DanFileIndex = 5;
-#endif
-
 }
 
 /* TODO Need to be run in a task */
@@ -377,13 +373,18 @@ static void InitTrackerIndex (void)
     UINT16 fileIndex = 0;
     BOOL fileOK = FALSE;
     TimeStampStr timeStamp;
+    RTDMTimeStr newestTimeStamp;
+    RTDMTimeStr oldestTimeStamp;
     UINT32 newestTimestampSeconds = 0;
-    /* Make it the max possible file index in case no valid dan files are found */
+    INT32 timeDiff = 0;
     UINT16 newestFileIndex = 0;
 
+    /* Make it the max possible file index in case no valid dan files are found */
     newestFileIndex = (UINT16) (MAX_NUMBER_OF_DAN_FILES - 1);
 
     memset (&timeStamp, 0, sizeof(timeStamp));
+    memset (&newestTimeStamp, 0, sizeof(newestTimeStamp));
+    memset (&oldestTimeStamp, 0, sizeof(oldestTimeStamp));
 
     /* Find the most recent valid file and point to the next file for writing */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
@@ -400,13 +401,31 @@ static void InitTrackerIndex (void)
         }
     }
 
-    if (newestFileIndex == (MAX_NUMBER_OF_DAN_FILES - 1))
+    /* TODO Now that the newest file is known, determine if more STREAMS can be added to it */
+    GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, newestFileIndex);
+    oldestTimeStamp.seconds = timeStamp.seconds;
+    oldestTimeStamp.nanoseconds = (UINT32)timeStamp.msecs * 1000000;
+    GetTimeStamp (&timeStamp, NEWEST_TIMESTAMP, newestFileIndex);
+    newestTimeStamp.seconds = timeStamp.seconds;
+    newestTimeStamp.nanoseconds = (UINT32)timeStamp.msecs * 1000000;
+
+    timeDiff = TimeDiff (&newestTimeStamp, &oldestTimeStamp);
+
+    if (timeDiff < (INT32)SINGLE_FILE_TIMESPAN_MSECS)
     {
-        newestFileIndex = 0;
+        m_DanFileState = APPEND_TO_EXISTING;
     }
     else
     {
-        newestFileIndex++;
+        m_DanFileState = CREATE_NEW;
+        if (newestFileIndex >= (MAX_NUMBER_OF_DAN_FILES - 1))
+        {
+            newestFileIndex = 0;
+        }
+        else
+        {
+            newestFileIndex++;
+        }
     }
 
     m_DanFileIndex = newestFileIndex;
@@ -881,7 +900,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
             sIndex++;
             if (sIndex == strlen (streamHeaderDelimiter))
             {
-                lastStrmIndex = (INT32)(byteCount - strlen (streamHeaderDelimiter));
+                lastStrmIndex = (INT32) (byteCount - strlen (streamHeaderDelimiter));
                 sIndex = 0;
             }
         }
@@ -907,7 +926,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
         return (FALSE);
     }
 
-    expectedBytesRemaining = byteCount - ((UINT32)lastStrmIndex + sizeof(streamHeader) - 8);
+    expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + sizeof(streamHeader) - 8);
 
     if (streamHeader.content.postamble.sampleSize != expectedBytesRemaining)
     {
@@ -919,11 +938,11 @@ static BOOL VerifyFileIntegrity (const char *filename)
          * entire file should be deleted */
         if (lastStrmIndex == 0)
         {
-            remove(filename);
+            remove (filename);
             return (FALSE);
         }
 
-        purgeResult = PurgeInvalidStream (filename, (UINT32)lastStrmIndex);
+        purgeResult = PurgeInvalidStream (filename, (UINT32) lastStrmIndex);
         return (purgeResult);
 
     }
