@@ -12,10 +12,10 @@
 
 void GetTimeDate (char *dateTime, UINT16 arraySize)
 {
-    time_t now = time(NULL);
-    struct tm *t = localtime(&now);
+    time_t now = time (NULL);
+    struct tm *t = localtime (&now);
 
-    strftime(dateTime, arraySize, "%y%m%d_%H%M%S", t);
+    strftime (dateTime, arraySize, "%y%m%d_%H%M%S", t);
 
 }
 
@@ -28,6 +28,12 @@ int os_io_fopen (const char *fileName, char *arg, FILE **fp)
         return ERROR;
     }
 
+    return 0;
+}
+
+int os_io_fclose (FILE *ptr)
+{
+    fclose (ptr);
     return 0;
 }
 

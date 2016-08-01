@@ -43,11 +43,12 @@
  *
  *******************************************************************/
 #ifdef TEST_ON_PC
-#define DRIVE_NAME                          "D:/"
+#define DRIVE_NAME                          "D:\\"
+#define DIRECTORY_NAME                      "rtdm\\"
 #else
 #define DRIVE_NAME                          "/ata0/"
-#endif
 #define DIRECTORY_NAME                      "rtdm/"
+#endif
 
 /* TODO required for release
  #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
@@ -178,6 +179,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr);
 static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
 static UINT16 CreateVerifyStorageDirectory (void);
+static BOOL PurgeInvalidStream (const char *fileName, UINT32 desiredFileSize);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -187,6 +189,10 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     CreateVerifyStorageDirectory ();
 
     InitTrackerIndex ();
+
+#ifndef REMOVE
+    m_DanFileIndex = 5;
+#endif
 
 }
 
@@ -228,7 +234,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 /* Write the stream */
                 fwrite (logBuffer, 1, dataBytesInBuffer, pFile);
 
-                os_io_fclose(pFile);
+                os_io_fclose (pFile);
             }
             else
             {
@@ -252,12 +258,13 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 /* Write the stream */
                 fwrite (logBuffer, 1, dataBytesInBuffer, pFile);
 
-                os_io_fclose(pFile);
+                os_io_fclose (pFile);
 
             }
             debugPrintf(DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
-            /* determine if 15 minutes of data have been saved */
+            /* determine if the timespan of data saved to the current file has
+             * met or exceeded the desired amount. */
             timeDiff = TimeDiff (currentTime, &s_StartTime);
 
             if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
@@ -347,7 +354,7 @@ void SpawnFTPDatalog (void)
     IncludeStreamFiles (ftpFilePtr);
 
     /* Close file */
-    os_io_fclose(ftpFilePtr);
+    os_io_fclose (ftpFilePtr);
 
     /* TODO Send newly create file to FTP server */
 #ifdef TODO
@@ -665,7 +672,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     /* Calling function should check for 0 to determine if any streams were detected */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    if (os_io_fopen (CreateFileName (fileIndex), "rb", &pFile) == ERROR)
+    if (os_io_fopen (CreateFileName (fileIndex), "rb+", &pFile) == ERROR)
     {
         return;
     }
@@ -710,7 +717,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     timeStamp->seconds = streamHeaderContent.postamble.timeStampUtcSecs;
     timeStamp->msecs = streamHeaderContent.postamble.timeStampUtcMsecs;
 
-    os_io_fclose(pFile);
+    os_io_fclose (pFile);
 
 }
 
@@ -774,7 +781,7 @@ static UINT16 CountStreams (void)
         parseCount++;
 
         /* close stream file */
-        os_io_fclose(streamFilePtr);
+        os_io_fclose (streamFilePtr);
     }
 
     return (streamCount);
@@ -791,7 +798,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
-        if (os_io_fopen (CreateFileName (fileIndex), "r+", &streamFilePtr) == ERROR)
+        if (os_io_fopen (CreateFileName (fileIndex), "r+b", &streamFilePtr) == ERROR)
         {
             streamFilePtr = NULL;
         }
@@ -811,7 +818,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
 
             if (amountRead == 0)
             {
-                os_io_fclose(streamFilePtr);
+                os_io_fclose (streamFilePtr);
                 break;
             }
 
@@ -844,22 +851,11 @@ static BOOL VerifyFileIntegrity (const char *filename)
     UINT32 amountRead = 0;
     UINT32 expectedBytesRemaining = 0;
     UINT32 byteCount = 0;
-    UINT32 lastStrmIndex = 0;
+    INT32 lastStrmIndex = -1;
     UINT16 sIndex = 0;
     StreamHeaderStr streamHeader;
     const char *streamHeaderDelimiter = "STRM";
-
-#ifdef TODO
-    /* TODO need to verify file contents */
-    if (os_io_fopen (filename, "rb+", &pFile) != ERROR)
-    {
-        return TRUE;
-    }
-    else
-    {
-        return FALSE;
-    }
-#else
+    BOOL purgeResult = FALSE;
 
     if (os_io_fopen (filename, "rb+", &pFile) == ERROR)
     {
@@ -885,7 +881,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
             sIndex++;
             if (sIndex == strlen (streamHeaderDelimiter))
             {
-                lastStrmIndex = byteCount - strlen(streamHeaderDelimiter);
+                lastStrmIndex = (INT32)(byteCount - strlen (streamHeaderDelimiter));
                 sIndex = 0;
             }
         }
@@ -895,14 +891,14 @@ static BOOL VerifyFileIntegrity (const char *filename)
         }
     }
 
-    if (lastStrmIndex == 0)
+    if (lastStrmIndex == -1)
     {
         debugPrintf(DBG_WARNING, "%s", "No STRMs found in file\n");
         return (FALSE);
     }
 
     memset (&streamHeader, 0, sizeof(streamHeader));
-    fseek (pFile, (INT32)lastStrmIndex, SEEK_SET);
+    fseek (pFile, (INT32) lastStrmIndex, SEEK_SET);
     amountRead = fread (&streamHeader, 1, sizeof(streamHeader), pFile);
     /* Verify streamHeader amount could be read */
     if (amountRead != sizeof(streamHeader))
@@ -911,17 +907,26 @@ static BOOL VerifyFileIntegrity (const char *filename)
         return (FALSE);
     }
 
-    expectedBytesRemaining = byteCount - (lastStrmIndex + sizeof(streamHeader) - 8);
+    expectedBytesRemaining = byteCount - ((UINT32)lastStrmIndex + sizeof(streamHeader) - 8);
 
     if (streamHeader.content.postamble.sampleSize != expectedBytesRemaining)
     {
-        debugPrintf(DBG_WARNING, "%s", "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
-        /* TODO PurgeInvalidStream(fileName, lastStrmIndex); */
+        debugPrintf(DBG_WARNING, "%s",
+                        "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
+        os_io_fclose (pFile);
 
-        return (FALSE);
+        /* If lastStrmIndex = 0, that indicates the first and only stream in the file is corrupted and therefore the
+         * entire file should be deleted */
+        if (lastStrmIndex == 0)
+        {
+            remove(filename);
+            return (FALSE);
+        }
+
+        purgeResult = PurgeInvalidStream (filename, (UINT32)lastStrmIndex);
+        return (purgeResult);
+
     }
-
-#endif
 
     return (TRUE);
 }
@@ -954,17 +959,17 @@ static UINT16 CreateVerifyStorageDirectory (void)
 
     if (mkdirErrorCode == 0)
     {
-        debugPrintf(DBG_INFO, "Drive/Directory %s created\n", DRIVE_NAME DIRECTORY_NAME);
+        debugPrintf(DBG_INFO, "Drive/Directory %s%s created\n", DRIVE_NAME, DIRECTORY_NAME);
     }
     else if ((mkdirErrorCode == -1) && (errno == 17))
     {
         /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
-        debugPrintf(DBG_INFO, "Drive/Directory %s exists\n", DRIVE_NAME DIRECTORY_NAME);
+        debugPrintf(DBG_INFO, "Drive/Directory %s%s exists\n", DRIVE_NAME, DIRECTORY_NAME);
     }
     else
     {
         /* This is an error condition */
-        debugPrintf(DBG_ERROR, "Can't create storage directory %s\n", DRIVE_NAME DIRECTORY_NAME);
+        debugPrintf(DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME, DIRECTORY_NAME);
         /* TODO need error code */
         errorCode = 0xFFFF;
     }
@@ -972,3 +977,69 @@ static UINT16 CreateVerifyStorageDirectory (void)
     return (errorCode);
 }
 
+static BOOL PurgeInvalidStream (const char *fileName, UINT32 desiredFileSize)
+{
+    UINT8 buffer[1024];
+    UINT32 amountRead = 0;
+    FILE *pReadFile = NULL;
+    FILE *pWriteFile = NULL;
+    UINT32 byteCount = 0;
+    UINT32 remainingBytesToWrite = 0;
+    INT32 osCallReturn = 0;
+    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.dan";
+
+    if (os_io_fopen (fileName, "rb+", &pReadFile) == ERROR)
+    {
+        return FALSE;
+    }
+
+    if (os_io_fopen (tempFileName, "wb+", &pWriteFile) == ERROR)
+    {
+        return FALSE;
+    }
+
+    fseek (pWriteFile, 0L, SEEK_SET);
+    fseek (pReadFile, 0L, SEEK_SET);
+
+    while (1)
+    {
+        /* Search for delimiter */
+        amountRead = fread (&buffer, 1, sizeof(buffer), pReadFile);
+        byteCount += amountRead;
+
+        /* End of file reached, should never enter here because file updates should occur and exit before the end of file
+         * is reached.  */
+        if (amountRead == 0)
+        {
+            return FALSE;
+        }
+
+        if (byteCount < desiredFileSize)
+        {
+            fwrite (buffer, 1, sizeof(buffer), pWriteFile);
+        }
+        else
+        {
+            remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
+            fwrite (buffer, 1, remainingBytesToWrite, pWriteFile);
+            os_io_fclose (pWriteFile);
+            os_io_fclose (pReadFile);
+
+            /* Delete the file whose last stream is being purged */
+            osCallReturn = remove (fileName);
+            if (osCallReturn != 0)
+            {
+                return FALSE;
+            }
+            /* Rename the temporary file to the fileName */
+            rename (tempFileName, fileName);
+            if (osCallReturn != 0)
+            {
+                return FALSE;
+            }
+
+            return TRUE;
+        }
+    }
+
+}

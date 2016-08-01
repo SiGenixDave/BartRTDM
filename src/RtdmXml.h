@@ -31,7 +31,9 @@
  *     E  N  U  M  S
  *
  *******************************************************************/
-/** @brief */
+/** @brief Signal data types from XML file. Each signal has a data type attribute
+ * that describes the type (signed, unsigned) and size 8, 16, or 32 bits. Used to
+ * allocate memory to store the signal */
 typedef enum
 {
     /** */
@@ -64,49 +66,78 @@ typedef struct
     XmlSignalType signalType;
 } SignalDescriptionStr;
 
+/** @brief */
 typedef struct
 {
+    /** */
     UINT32 id;
+    /** */
     UINT32 version;
+    /** */
     char *deviceId;
+    /** */
     char *name;
+    /** */
     char *description;
+    /** */
     char *type;
+    /** */
     UINT32 samplingRate;
+    /** */
     BOOL compressionEnabled;
+    /** */
     UINT32 minRecordingRate;
+    /** */
     UINT32 noChangeFailurePeriod;
 
 } XmlDataRecorderCfgStr;
 
+/** @brief */
 typedef struct
 {
+    /** */
     BOOL enabled;
+    /** */
     UINT32 filesCount;
+    /** */
     UINT32 numberSamplesInFile;
+    /** */
     char *filesFullPolicy;
+    /** */
     UINT32 numberSamplesBeforeSave;
+    /** */
     UINT32 maxTimeBeforeSaveMs;
+    /** */
     char *folderPath;
 
 } XmlDataLogFileCfgStr;
 
+/** @brief */
 typedef struct
 {
+    /** */
     BOOL enabled;
+    /** */
     UINT32 comId;
+    /** */
     UINT32 bufferSize;
+    /** */
     UINT32 maxTimeBeforeSendMs;
 } XmlOutputStreamCfgStr;
 
+/** @brief */
 typedef struct
 {
+    /** */
     UINT32 maxStreamHeaderDataSize;
+    /** */
     UINT32 maxStreamDataSize;
+    /** */
     UINT32 signalCount;
 
 } XmlMetaDataStr;
 
+/** @brief */
 typedef struct
 {
     /** */
@@ -121,7 +152,6 @@ typedef struct
     SignalDescriptionStr *signalDesription;
 
 } RtdmXmlStr;
-
 
 /*******************************************************************
  *

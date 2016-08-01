@@ -107,7 +107,7 @@ typedef struct
     /** The name of the element */
     const char *elementName;
     /** Pointer to all attribute related data */
-    XmlAttributeDataStr *xmlAttibuteData;
+    const XmlAttributeDataStr *xmlAttibuteData;
     /** */
     const UINT16 numAttributes;
 
@@ -453,7 +453,7 @@ static UINT16 OpenXMLConfigurationFile (void)
     /* File does not exist or internal error */
     else
     {
-        debugPrintf(DBG_ERROR, "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
+        debugPrintf(DBG_ERROR, "%s", "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
 

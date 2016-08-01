@@ -35,7 +35,5 @@ typedef struct
 #define IPT_OK				0
 #define OK					0
 
-/* Function wrappers */
-#define os_io_fclose(x)		fclose(x);
 
 #endif /* MYTYPES_H_ */
