@@ -211,9 +211,12 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 {
     INT32 timeDiff = 0;
     BOOL streamBecauseBufferFull = FALSE;
+    BOOL sampleBecauseOfInactivity = FALSE;
     static RTDMTimeStr s_PreviousSendTime =
         { 0, 0 };
     static UINT32 s_StreamBufferIndex = sizeof(StreamHeaderStr);
+    static RTDMTimeStr s_PreviousSampleTime =
+        { 0, 0 };
 
     /* TODO IS "networkAvailable" NEEDED ?????????????????? */
     if (!networkAvailable)
@@ -221,18 +224,38 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
         return (0);
     }
 
+    timeDiff = TimeDiff (currentTime, &s_PreviousSampleTime);
+
+    /* TODO use some param from XML config, can only fall through if statement
+     * if compression is enabled and signals haven't changed  */
+    if (timeDiff > 1000)
+    {
+        sampleBecauseOfInactivity = TRUE;
+        debugPrintf("DBG_LOG" "%s\n", "STREAM: Stream sampled because of inactivity");
+    }
+
     /* Fill m_RtdmSampleArray with samples of data if data changed or the amount of time
      * between captures exceeds the allowed amount */
-    if (newChangedDataBytes != 0)
+    if ((newChangedDataBytes != 0) || sampleBecauseOfInactivity)
     {
+
+        s_PreviousSampleTime = *currentTime;
 
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_StreamData[s_StreamBufferIndex], &m_SampleHeader, sizeof(m_SampleHeader));
 
         s_StreamBufferIndex += sizeof(m_SampleHeader);
 
-        /* Copy the changed data into main buffer */
-        memcpy (&m_StreamData[s_StreamBufferIndex], m_ChangedSignalData, newChangedDataBytes);
+        if (sampleBecauseOfInactivity)
+        {
+            newChangedDataBytes = m_RtdmXmlData->metaData.maxStreamDataSize;
+            memcpy (&m_StreamData[s_StreamBufferIndex], m_NewSignalData, newChangedDataBytes);
+        }
+        else
+        {
+            /* Copy the changed data into main buffer */
+            memcpy (&m_StreamData[s_StreamBufferIndex], m_ChangedSignalData, newChangedDataBytes);
+        }
 
         s_StreamBufferIndex += newChangedDataBytes;
 
@@ -260,8 +283,8 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         /* Time to construct main header */
         PopulateStreamHeader (interface, m_RtdmXmlData, (StreamHeaderStr *) &m_StreamData[0],
-                        m_SampleCount, &m_StreamData[sizeof(StreamHeaderStr)], s_StreamBufferIndex - sizeof(StreamHeaderStr),
-                        currentTime);
+                        m_SampleCount, &m_StreamData[sizeof(StreamHeaderStr)],
+                        s_StreamBufferIndex - sizeof(StreamHeaderStr), currentTime);
 
         /* Time to send message */
         /* TODO Check return value for error */
@@ -299,14 +322,6 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
     compareResult = memcmp (m_OldSignalData, m_NewSignalData,
                     m_RtdmXmlData->metaData.maxStreamDataSize);
 
-    /* If the previous sample of data is identical to the current sample and
-     * compression is enabled do nothing.
-     */
-    if ((!compareResult) && (m_RtdmXmlData->dataRecorderCfg.compressionEnabled))
-    {
-        return (0);
-    }
-
     /* Populate buffer with all signals because timer expired or compression is disabled */
     if (!m_RtdmXmlData->dataRecorderCfg.compressionEnabled)
     {
@@ -336,6 +351,14 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
     /* Number of Signals in current sample*/
     m_SampleHeader.count = signalCount;
     /*********************************** End HEADER *************************************************************/
+
+    /* If the previous sample of data is identical to the current sample and
+     * compression is enabled do nothing.
+     */
+    if ((!compareResult) && (m_RtdmXmlData->dataRecorderCfg.compressionEnabled))
+    {
+        return (0);
+    }
 
     return (signalChangeBufferSize);
 
