@@ -17,7 +17,6 @@
  *
  *****************************************************************************/
 
-
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
@@ -96,7 +95,8 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount);
 
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 
-static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData);
+static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
+                UINT8 *streamBuffer, UINT32 streamBufferSize);
 
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
@@ -211,12 +211,11 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 {
     INT32 timeDiff = 0;
     BOOL streamBecauseBufferFull = FALSE;
-    StreamHeaderStr streamHeader;
     static RTDMTimeStr s_PreviousSendTime =
         { 0, 0 };
-    static UINT32 s_StreamBufferIndex = 0;
+    static UINT32 s_StreamBufferIndex = sizeof(StreamHeaderStr);
 
-    /* IS "networkAvailable" NEEDED ?????????????????? */
+    /* TODO IS "networkAvailable" NEEDED ?????????????????? */
     if (!networkAvailable)
     {
         return (0);
@@ -260,12 +259,13 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
     {
 
         /* Time to construct main header */
-        PopulateStreamHeader (interface, m_RtdmXmlData, &streamHeader, m_SampleCount, m_StreamData,
-                        s_StreamBufferIndex, currentTime);
+        PopulateStreamHeader (interface, m_RtdmXmlData, (StreamHeaderStr *) &m_StreamData[0],
+                        m_SampleCount, &m_StreamData[sizeof(StreamHeaderStr)], s_StreamBufferIndex - sizeof(StreamHeaderStr),
+                        currentTime);
 
         /* Time to send message */
         /* TODO Check return value for error */
-        SendStreamOverNetwork (m_RtdmXmlData);
+        SendStreamOverNetwork (interface, m_RtdmXmlData, m_StreamData, s_StreamBufferIndex);
 
         s_PreviousSendTime = *currentTime;
 
@@ -273,7 +273,7 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;
-        s_StreamBufferIndex = 0;
+        s_StreamBufferIndex = sizeof(StreamHeaderStr);
 
     }
 
@@ -519,49 +519,41 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 
 }
 
-static UINT16 SendStreamOverNetwork (RtdmXmlStr* rtdmXmlData)
+static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
+                UINT8 *streamBuffer, UINT32 streamBufferSize)
 {
-    UINT32 actual_buffer_size = 0;
     UINT16 ipt_result = 0;
     UINT16 errorCode = 0;
 
     /* Number of streams sent out as Message Data */
-    static UINT32 MD_Send_Counter = 0;
-
-#if TODO
-    /* This is the actual buffer size as calculated below */
-    actual_buffer_size = ((rtdmXmlData->max_main_buffer_count * rtdmXmlData->maxHeaderAndStreamSize)
-                    + sizeof(StreamHeaderStr) + 2);
-
-    /* TODO Need to combine the former RTDM_Struct into buff, header, stream */
+    static UINT32 s_MdsSendCounter = 0;
 
     /* Send message overriding of destination URI 800310000 - comId comes from .xml */
-    ipt_result = MDComAPI_putMsgQ (rtdmXmlData->comId, /* ComId */
-                    (const char*) m_RtdmStreamPtr, /* Data buffer */
-                    actual_buffer_size, /* Number of data to be send */
-                    0, /* No queue for communication ipt_result */
-                    0, /* No caller reference value */
-                    0, /* Topo counter */
-                    "grpRTDM.lCar.lCst", /* overriding of destination URI */
-                    0); /* No overriding of source URI */
+    ipt_result = MDComAPI_putMsgQ (rtdmXmlData->outputStreamCfg.comId, /* ComId */
+    (const char*) streamBuffer, /* Data buffer */
+    streamBufferSize, /* Number of data to be send */
+    0, /* No queue for communication ipt_result */
+    0, /* No caller reference value */
+    0, /* Topo counter */
+    "grpRTDM.lCar.lCst", /* overriding of destination URI */
+    0); /* No overriding of source URI */
+
     if (ipt_result != IPT_OK)
     {
         /* The sending couldn't be started. */
         /* Error handling */
         /* TODO */
         errorCode = -1;
-        /* free the memory we used for the buffer */
-        free (m_RtdmStreamPtr);
     }
     else
     {
         /* Send OK */
-        MD_Send_Counter++;
-        m_InterfacePtr->RTDM_Send_Counter = MD_Send_Counter;
+        s_MdsSendCounter++;
+        interface->RTDM_Send_Counter = s_MdsSendCounter;
         /* Clear Error Code */
         errorCode = NO_ERROR;
     }
-#endif
+
     return errorCode;
 }
 
