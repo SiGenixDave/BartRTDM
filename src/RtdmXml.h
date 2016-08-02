@@ -56,6 +56,13 @@ typedef enum
  *
  *******************************************************************/
 /** @brief */
+typedef struct RTDMTimeStr
+{
+    UINT32 seconds;
+    UINT32 nanoseconds;
+} RTDMTimeStr;
+
+/** @brief */
 typedef struct
 {
     /** */
@@ -64,6 +71,8 @@ typedef struct
     void *variableAddr;
     /** */
     XmlSignalType signalType;
+    /** */
+    RTDMTimeStr signalUpdateTime;
 } SignalDescriptionStr;
 
 /** @brief */

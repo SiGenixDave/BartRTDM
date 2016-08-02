@@ -62,6 +62,10 @@
 
 #define MAX_NUMBER_OF_DAN_FILES             (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
 
+#define FILE_READ_BUFFER_SIZE               1024
+#define INVALID_FILE_INDEX                  0xFFFF
+#define INVALID_TIME_STAMP                  0xFFFFFFFF
+
 /*******************************************************************
  *
  *     E  N  U  M  S
@@ -157,6 +161,8 @@ static UINT16 m_ValidDanFileListIndexes[MAX_NUMBER_OF_DAN_FILES ];
 static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_DAN_FILES ];
 /** @brief */
 static DanFileState m_DanFileState;
+/** @brief */
+static const char *m_StreamHeaderDelimiter = "STRM";
 
 /*******************************************************************
  *
@@ -167,9 +173,9 @@ static void InitTrackerIndex (void);
 static void PopulateValidDanFileList (void);
 static void PopulateValidFileTimeStamps (void);
 static void SortValidFileTimeStamps (void);
-static INT16 GetNewestDanFileIndex (void);
-static INT16 GetOldestDanFileIndex (void);
-static void CreateFTPFileName (FILE **ptr);
+static UINT16 GetNewestDanFileIndex (void);
+static UINT16 GetOldestDanFileIndex (void);
+static char * CreateFTPFileName (FILE **ptr);
 static void IncludeXMLFile (FILE *ftpFilePtr);
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
                 UINT16 numStreams);
@@ -179,7 +185,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr);
 static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
 static UINT16 CreateVerifyStorageDirectory (void);
-static BOOL PurgeInvalidStream (const char *fileName, UINT32 desiredFileSize);
+static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -234,7 +240,8 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
             }
             else
             {
-                debugPrintf(DBG_ERROR, "FILE IO ERROR: Couldn't open %s\n", fileName);
+                debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
             }
 
             s_StartTime = *currentTime;
@@ -256,6 +263,11 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
 
                 os_io_fclose (pFile);
 
+            }
+            else
+            {
+                debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
             }
             debugPrintf(DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
@@ -287,12 +299,14 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
 void SpawnFTPDatalog (void)
 {
 
-    INT16 newestDanFileIndex = -1;
-    INT16 oldestDanFileIndex = -1;
+    UINT16 newestDanFileIndex = INVALID_FILE_INDEX;
+    UINT16 oldestDanFileIndex = INVALID_FILE_INDEX;
     FILE *ftpFilePtr = NULL;
     TimeStampStr newestTimeStamp;
     TimeStampStr oldestTimeStamp;
     UINT16 streamCount = 0;
+    char *fileName = NULL;
+    INT16 ftpStatus = 0;
 
     /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
@@ -307,25 +321,25 @@ void SpawnFTPDatalog (void)
     newestDanFileIndex = GetNewestDanFileIndex ();
     PrintIntegerContents(newestDanFileIndex);
 
-    if (newestDanFileIndex < 0)
+    if (newestDanFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
     }
 
     /* Get the newest timestamp (last one) in the newest file; used for RTDM header */
-    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, (UINT16) newestDanFileIndex);
+    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestDanFileIndex);
 
     /* Determine the oldest file index */
     oldestDanFileIndex = GetOldestDanFileIndex ();
     PrintIntegerContents(oldestDanFileIndex);
 
-    if (oldestDanFileIndex < 0)
+    if (oldestDanFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
     }
 
     /* Get the oldest timestamp (first one) in the oldest file ; used for RTDM header */
-    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, (UINT16) oldestDanFileIndex);
+    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestDanFileIndex);
 
     /* Scan through all valid files and count the number of streams in each file; used for
      * RTDM header */
@@ -333,7 +347,7 @@ void SpawnFTPDatalog (void)
     PrintIntegerContents(streamCount);
 
     /* Create filename and open it for writing */
-    CreateFTPFileName (&ftpFilePtr);
+    fileName = CreateFTPFileName (&ftpFilePtr);
 
     if (ftpFilePtr == NULL)
     {
@@ -352,17 +366,17 @@ void SpawnFTPDatalog (void)
     /* Close file */
     os_io_fclose (ftpFilePtr);
 
-    /* TODO Send newly create file to FTP server */
-#ifdef TODO
-    INT16 ftpc_file_put(
-                    char* server, /* In: name of server host */
-                    char* user, /* In: user name for server login */
-                    char* passwd, /* In: password for server login */
-                    char* acct, /* In: account for server login. Typically "". */
-                    char* dirname, /* In: directory to cd to before storing file */
-                    char* remote_file, /* In: filename to put on server */
-                    const char* local_file, /* In: filename of local file to copy to server */
-                    INT16* p_status) /* Out: Status on the operation */
+    /* Send newly create file to FTP server */
+#ifndef TEST_ON_PC
+    /* TODO check return value for success or fail, ftpStatus indicates the type of error */
+    ftpc_file_put("10.0.1.TBD", /* In: name of server host */
+                    "dsmail", /* In: user name for server login */
+                    "", /* In: password for server login */
+                    "", /* In: account for server login. Typically "". */
+                    "", /* In: directory to cd to before storing file */
+                    fileName, /* In: filename to put on server */
+                    fileName, /* In: filename of local file to copy to server */
+                    &ftpStatus); /* Out: Status on the operation */
 #endif
 
     /* TODO Delete file when FTP send complete */
@@ -370,14 +384,14 @@ void SpawnFTPDatalog (void)
 
 static void InitTrackerIndex (void)
 {
-    UINT16 fileIndex = 0;
-    BOOL fileOK = FALSE;
-    TimeStampStr timeStamp;
-    RTDMTimeStr newestTimeStamp;
-    RTDMTimeStr oldestTimeStamp;
-    UINT32 newestTimestampSeconds = 0;
-    INT32 timeDiff = 0;
-    UINT16 newestFileIndex = 0;
+    UINT16 fileIndex = 0;   /* Used to index through all possible stream files */
+    BOOL fileOK = FALSE;    /* TRUE if file exists and is a valid stream file */
+    TimeStampStr timeStamp; /* Used to get the oldest stream time stamp from a file */
+    RTDMTimeStr newestTimeStamp;    /* Holds the newest stream time stamp from the newest file */
+    RTDMTimeStr oldestTimeStamp;    /* Holds the oldest stream time stamp from the newest file */
+    UINT32 newestTimestampSeconds = 0;  /* Used to check a file with for a newer stream */
+    INT32 timeDiff = 0;     /* Used to calculate the difference between 2 times (msecs) */
+    UINT16 newestFileIndex = 0;     /* will hold the newest file index */
 
     /* Make it the max possible file index in case no valid dan files are found */
     newestFileIndex = (UINT16) (MAX_NUMBER_OF_DAN_FILES - 1);
@@ -401,22 +415,26 @@ static void InitTrackerIndex (void)
         }
     }
 
-    /* TODO Now that the newest file is known, determine if more STREAMS can be added to it */
+    /* At this point, newestFileIndex holds the newest file index. Now determine if more
+     * streams can fit in this file
+     */
     GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, newestFileIndex);
     oldestTimeStamp.seconds = timeStamp.seconds;
-    oldestTimeStamp.nanoseconds = (UINT32)timeStamp.msecs * 1000000;
+    oldestTimeStamp.nanoseconds = (UINT32) timeStamp.msecs * 1000000;
     GetTimeStamp (&timeStamp, NEWEST_TIMESTAMP, newestFileIndex);
     newestTimeStamp.seconds = timeStamp.seconds;
-    newestTimeStamp.nanoseconds = (UINT32)timeStamp.msecs * 1000000;
+    newestTimeStamp.nanoseconds = (UINT32) timeStamp.msecs * 1000000;
 
     timeDiff = TimeDiff (&newestTimeStamp, &oldestTimeStamp);
 
-    if (timeDiff < (INT32)SINGLE_FILE_TIMESPAN_MSECS)
+    /* More streams can fit if code falls through this "if" */
+    if (timeDiff < (INT32) SINGLE_FILE_TIMESPAN_MSECS)
     {
         m_DanFileState = APPEND_TO_EXISTING;
     }
     else
     {
+        /* Adjust to the next file index */
         m_DanFileState = CREATE_NEW;
         if (newestFileIndex >= (MAX_NUMBER_OF_DAN_FILES - 1))
         {
@@ -431,19 +449,34 @@ static void InitTrackerIndex (void)
     m_DanFileIndex = newestFileIndex;
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Populates the valid stream file (#.dan) list
+ *
+ *              This function determines if a stream file exists and is valid. The
+ *              call to VerifyFileIntegrity() also attempts to fix a file if the
+ *              last stream was not written in its entirety.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void PopulateValidDanFileList (void)
 {
-    BOOL fileOK = FALSE;
-    UINT16 fileIndex = 0;
-    UINT16 arrayIndex = 0;
-
-    /* Set all members to invalid indexes */
-    memset (&m_ValidDanFileListIndexes[0], 0xFF, sizeof(m_ValidDanFileListIndexes));
+    BOOL fileOK = FALSE;    /* stream file is OK if TRUE */
+    UINT16 fileIndex = 0;   /* Used to index through all possible stream files */
+    UINT16 arrayIndex = 0;  /* increments every time a valid stream file is found */
 
     /* Scan all files to determine what files are valid */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
     {
+        /* Invalidate the index to ensure that */
+        m_ValidDanFileListIndexes[fileIndex] = INVALID_FILE_INDEX;
         fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
+        /* If valid file is found and is OK, populate the valid file array with the fileIndex */
         if (fileOK)
         {
             m_ValidDanFileListIndexes[arrayIndex] = fileIndex;
@@ -453,15 +486,35 @@ static void PopulateValidDanFileList (void)
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Populates the time stamp list
+ *
+ *              This function scans all valid stream files and gets the
+ *              oldest time stamp from each file.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void PopulateValidFileTimeStamps (void)
 {
-    UINT16 arrayIndex = 0;
-    TimeStampStr timeStamp;
+    UINT16 arrayIndex = 0; /* Used to index through time stamps and stream files */
+    TimeStampStr timeStamp; /* temporary placeholder for the oldest time stamp in a stream file */
 
     /* Set all members to invalid indexes */
-    memset (&m_ValidTimeStampList[0], 0xFF, sizeof(m_ValidTimeStampList));
+    for (arrayIndex = 0; arrayIndex < MAX_NUMBER_OF_DAN_FILES ; arrayIndex++)
+    {
+        m_ValidTimeStampList[arrayIndex] = INVALID_TIME_STAMP;
+    }
 
-    while ((m_ValidDanFileListIndexes[arrayIndex] != 0xFFFF)
+    /* Scan all the valid files. Get the oldest time stamp and populate the
+     * time stamp with the seconds (epoch time).
+     */
+    while ((m_ValidDanFileListIndexes[arrayIndex] != INVALID_FILE_INDEX)
                     && (arrayIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
         GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, m_ValidDanFileListIndexes[arrayIndex]);
@@ -470,16 +523,35 @@ static void PopulateValidFileTimeStamps (void)
     }
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Sorts the file indices based on the stream time stamps
+ *
+ *              This function used the bubble sort algorithm to sort the
+ *              file indexes based on the stream time stamps associated with
+ *              each file. It assumes that the time stamps have been populated
+ *              with the stream time stamps and that at least 1 second seperates
+ *              the stream time stamps. The sort orders oldest to newest and
+ *              updates both the time stamps and the file indexes.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void SortValidFileTimeStamps (void)
 {
-    UINT16 c = 0;
-    UINT16 d = 0;
-    UINT16 numValidTimestamps = 0;
-    UINT32 swapTimestamp = 0;
-    UINT16 swapIndex = 0;
+    UINT16 c = 0; /* Used in the bubble sort algorithm */
+    UINT16 d = 0; /* Used in the bubble sort algorithm */
+    UINT16 numValidTimestamps = 0; /* The number of valid time stamps (i.e stream files) */
+    UINT32 swapTimestamp = 0; /* holding variable to place a time stamp */
+    UINT16 swapIndex = 0; /* holding variable to place a file index */
 
     /* Find the number of valid timestamps */
-    while ((m_ValidTimeStampList[numValidTimestamps] != 0xFFFFFFFF)
+    while ((m_ValidTimeStampList[numValidTimestamps] != INVALID_TIME_STAMP)
                     && (numValidTimestamps < MAX_NUMBER_OF_DAN_FILES ))
     {
         numValidTimestamps++;
@@ -490,7 +562,8 @@ static void SortValidFileTimeStamps (void)
     {
         for (d = 0; d < numValidTimestamps - c - 1; d++)
         {
-            if (m_ValidTimeStampList[d] > m_ValidTimeStampList[d + 1]) /* For decreasing order use < */
+            /* For decreasing order use < */
+            if (m_ValidTimeStampList[d] > m_ValidTimeStampList[d + 1])
             {
                 swapTimestamp = m_ValidTimeStampList[d];
                 m_ValidTimeStampList[d] = m_ValidTimeStampList[d + 1];
@@ -504,61 +577,106 @@ static void SortValidFileTimeStamps (void)
     }
 }
 
-static INT16 GetNewestDanFileIndex (void)
+/*****************************************************************************/
+/**
+ * @brief       Returns the newest file index (based on Stream time stamp)
+ *
+ *              This function assumes that the file indexes have been sorted
+ *              prior to its call.
+ *
+ *  @returns UINT16 - newest file index
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static UINT16 GetNewestDanFileIndex (void)
 {
     UINT16 danIndex = 0;
 
-    if (m_ValidDanFileListIndexes[0] == 0xFFFF)
+    if (m_ValidDanFileListIndexes[0] == INVALID_FILE_INDEX)
     {
-        return -1;
+        return INVALID_FILE_INDEX;
     }
 
-    while ((m_ValidDanFileListIndexes[danIndex] != 0xFFFF) && (danIndex < MAX_NUMBER_OF_DAN_FILES ))
+    while ((m_ValidDanFileListIndexes[danIndex] != INVALID_FILE_INDEX)
+                    && (danIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
         danIndex++;
     }
 
-    danIndex--;
-
-    return (INT16) (m_ValidDanFileListIndexes[danIndex]);
+    /* Since the while loop has incremented one past the newest, subtract 1*/
+    return (m_ValidDanFileListIndexes[danIndex - 1]);
 
 }
 
-static INT16 GetOldestDanFileIndex (void)
+/*****************************************************************************/
+/**
+ * @brief       Returns the oldest file index (based on Stream time stamp)
+ *
+ *              This function assumes that the file indexes have been sorted
+ *              prior to its call.
+ *
+ *  @returns UINT16 - oldest file index
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static UINT16 GetOldestDanFileIndex (void)
 {
-    if (m_ValidDanFileListIndexes[0] == 0xFFFF)
-    {
-        return -1;
-    }
-
-    return (INT16) (m_ValidDanFileListIndexes[0]);
-
+    return (m_ValidDanFileListIndexes[0]);
 }
 
-static void CreateFTPFileName (FILE **ftpFilePtr)
+/*****************************************************************************/
+/**
+ * @brief       Creates the FTP file name and opens the file pointer to the file
+ *
+ *              Creates the filename based on the requirements from the ICD. This
+ *              includes the consist, car, and device id along with the date/time.
+ *
+ *  @param ftpFilePtr - pointer FILE pointer to the FTP file. Pointer to pointer
+ *                      required so that the file pointer can be passed around to
+ *                      other functions
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static char * CreateFTPFileName (FILE **ftpFilePtr)
 {
 #ifndef TEST_ON_PC
-    RTDMTimeStr rtdmTime;
-    OS_STR_TIME_ANSI ansiTime;
+    RTDMTimeStr rtdmTime; /* Stores the Epoch time (seconds/nanoseconds) */
+    OS_STR_TIME_ANSI ansiTime; /* Stores the ANSI time (structure) */
 #endif
 
-    char consistId[17];
-    char carId[17];
-    char deviceId[17];
-    UINT32 maxCopySize;
+    char consistId[17]; /* Stores the consist id */
+    char carId[17]; /* Stores the car id */
+    char deviceId[17]; /* Stores the device id */
+    UINT32 maxCopySize; /* Used to ensure memory is not overwritten */
 
-    const char *extension = ".dan";
-    const char *rtdmFill = "rtdm____________";
+    const char *extension = ".dan"; /* Required extension to FTP file */
+    const char *rtdmFill = "rtdm____________"; /* Required filler */
 
-    char fileName[256];
-    char dateTime[64];
+    static char s_FileName[256]; /* FTP file name returned from function */
+    char dateTime[64]; /* stores the date/time inthe required format */
 
-    memset (fileName, 0, sizeof(fileName));
-
+    /* Set all default chars */
+    memset (s_FileName, 0, sizeof(s_FileName));
     memset (consistId, '_', sizeof(consistId));
     memset (carId, '_', sizeof(carId));
     memset (deviceId, '_', sizeof(deviceId));
 
+    /* Terminate all strings with NULL */
     consistId[sizeof(consistId) - 1] = 0;
     carId[sizeof(carId) - 1] = 0;
     deviceId[sizeof(deviceId) - 1] = 0;
@@ -581,10 +699,13 @@ static void CreateFTPFileName (FILE **ftpFilePtr)
 #ifdef TEST_ON_PC
     GetTimeDate (dateTime, sizeof(dateTime));
 #else
+    /* Get the current time */
     GetEpochTime (&rtdmTime);
 
-    os_c_localtime (rtdmTime.seconds, &ansiTime); /* OUT: Local time */
+    /* Convert to ANSI time */
+    os_c_localtime (rtdmTime.seconds, &ansiTime);
 
+    /* Print string (zero filling single digit numbers; this %02d */
     sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
                     ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
 
@@ -592,54 +713,98 @@ static void CreateFTPFileName (FILE **ftpFilePtr)
 
     debugPrintf(DBG_INFO, "ANSI Date time = %s", dateTime);
 
-    strcat (fileName, DRIVE_NAME);
-    strcat (fileName, DIRECTORY_NAME);
-    strcat (fileName, consistId);
-    strcat (fileName, carId);
-    strcat (fileName, deviceId);
-    strcat (fileName, rtdmFill);
-    strcat (fileName, dateTime);
-    strcat (fileName, extension);
+    /* Create the filename by concatenating in the proper order */
+    strcat (s_FileName, DRIVE_NAME);
+    strcat (s_FileName, DIRECTORY_NAME);
+    strcat (s_FileName, consistId);
+    strcat (s_FileName, carId);
+    strcat (s_FileName, deviceId);
+    strcat (s_FileName, rtdmFill);
+    strcat (s_FileName, dateTime);
+    strcat (s_FileName, extension);
 
-    if (os_io_fopen (fileName, "wb+", ftpFilePtr) == ERROR)
+    /* Try opening the file for writing */
+    if (os_io_fopen (s_FileName, "wb+", ftpFilePtr) == ERROR)
     {
+        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         *ftpFilePtr = NULL;
     }
 
+    /* Return the FTP file name */
+    return (s_FileName);
+
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Updates the FTP file with XML configuration file
+ *
+ *              Gets a pointer from memory where the xml configuration file is stored and
+ *              writes the contents to the FTP file
+ *
+ *  @param ftpFilePtr - FILE pointer to the FTP file
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void IncludeXMLFile (FILE *ftpFilePtr)
 {
     char *xmlConfigFile = NULL;
 
     xmlConfigFile = GetXMLConfigFileBuffer ();
 
-    /* Assume file is opened */
+    /* Assume file is opened and go the beginning of the file */
     fseek (ftpFilePtr, 0L, SEEK_END);
+    /* Write the XML configuration file to the FTP file */
     fwrite (xmlConfigFile, 1, strlen (xmlConfigFile), ftpFilePtr);
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Updates the FTP file with the required RTDM header
+ *
+ *              Creates the required RTDM header and writes it to the FTP file.
+ *
+ *  @param ftpFilePtr - FILE pointer to the FTP file
+ *  @param oldest - oldest stream time stamp that will be written to the FTP file
+ *  @param newest - newest stream time stamp that will be written to the FTP file
+ *  @param numStreams - the number of streams to be written in the FTP file
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
                 UINT16 numStreams)
 {
-    RtdmHeaderStr rtdmHeader;
-    char *delimiter = "RTDM";
-    UINT32 rtdmHeaderCrc = 0;
+    RtdmHeaderStr rtdmHeader; /* RTDM header that will be populated and written to FTP file */
+    char *delimiter = "RTDM"; /* RTDM delimiter in header */
+    UINT32 rtdmHeaderCrc = 0; /* CRC calculation result on the postamble part of the header */
 
     memset (&rtdmHeader, 0, sizeof(rtdmHeader));
 
-    memcpy (&rtdmHeader.preamble.delimiter[0], delimiter, strlen (delimiter));
+    if (strlen (delimiter) > sizeof(rtdmHeader.preamble.delimiter))
+    {
+        /* TODO Error won't fit in  */
+    }
+    else
+    {
+        memcpy (&rtdmHeader.preamble.delimiter[0], delimiter, strlen (delimiter));
+    }
 
-    /* Endiannes - Always BIG */
+    /* Endianness - Always BIG */
     rtdmHeader.preamble.endianness = BIG_ENDIAN;
-
     /* Header size */
     rtdmHeader.preamble.headerSize = sizeof(rtdmHeader);
-
-    /* Stream Header Checksum - CRC-32 */
-    /* This is proper position, but move to end because we need to calculate after the timestamps are entered */
-
     /* Header Version - Always 2 */
     rtdmHeader.postamble.headerVersion = RTDM_HEADER_VERSION;
 
@@ -655,44 +820,65 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Data Recorder Version - from .xml file */
     rtdmHeader.postamble.dataRecordVersion = (UINT16) m_RtdmXmlData->dataRecorderCfg.version;
 
-    /* First TimeStamp -  time in Seconds */
+    /* First TimeStamp -  seconds */
     rtdmHeader.postamble.firstTimeStampSecs = oldest->seconds;
 
-    /* First TimeStamp - mS */
+    /* First TimeStamp - msecs */
     rtdmHeader.postamble.firstTimeStampMsecs = oldest->msecs;
 
-    /* Last TimeStamp -  time in Seconds */
+    /* Last TimeStamp -  seconds */
     rtdmHeader.postamble.lastTimeStampSecs = newest->seconds;
 
-    /* Last TimeStamp - mS */
+    /* Last TimeStamp - msecs */
     rtdmHeader.postamble.lastTimeStampMsecs = newest->msecs;
 
     rtdmHeader.postamble.numStreams = numStreams;
 
-    /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
+    /* The CRC is calculated on the "postamble" part of the RTDM header only */
     rtdmHeaderCrc = 0;
     rtdmHeaderCrc = crc32 (rtdmHeaderCrc, ((UINT8 *) &rtdmHeader.postamble),
                     sizeof(rtdmHeader.postamble));
     rtdmHeader.preamble.headerChecksum = rtdmHeaderCrc;
 
+    /* Update the FTP file with the RTDM header */
     fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Gets a time stamp from a stream file (#.dan)
+ *
+ *              Opens the desired stream file and either gets the newest or oldest
+ *              time stamp in the file.
+ *
+ *  @param timeStamp - populated with either the oldest or newest time stamp
+ *  @param age - informs function to get either the oldest or newest time stamp
+ *  @param fileIndex - indicates the name of the stream file (i.e 0 cause "0.dan" to be opened)
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex)
 {
     FILE *pFile = NULL;
-    const char *streamHeaderDelimiter = "STRM";
     UINT16 sIndex = 0;
-    UINT8 buffer;
+    UINT8 buffer[1];
     size_t amountRead = 0;
     StreamHeaderContent streamHeaderContent;
 
-    /* Calling function should check for 0 to determine if any streams were detected */
+    /* Reset the stream header. If no valid streams are found, then the time stamp structure will
+     * have "0" in it. */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
     if (os_io_fopen (CreateFileName (fileIndex), "rb+", &pFile) == ERROR)
     {
+        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         return;
     }
 
@@ -701,19 +887,21 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
         /* TODO revisit and read more than 1 byte at a time
          * Search for delimiter. Design decision to read only a byte at a time. If more than 1 byte is
          * read into a buffer, than more complex logic is needed */
-        amountRead = fread (&buffer, sizeof(UINT8), 1, pFile);
+        amountRead = fread (&buffer, sizeof(UINT8), sizeof(buffer), pFile);
 
         /* End of file reached */
-        if (amountRead != sizeof(UINT8))
+        if (amountRead != sizeof(buffer))
         {
             break;
         }
 
-        if (buffer == streamHeaderDelimiter[sIndex])
+        if (buffer[0] == m_StreamHeaderDelimiter[sIndex])
         {
             sIndex++;
-            if (sIndex == strlen (streamHeaderDelimiter))
+            /* Delimiter found if inside of "if" is reached */
+            if (sIndex == strlen (m_StreamHeaderDelimiter))
             {
+                /* Read the entire stream header, which occurs directly after the stream, delimiter */
                 fread (&streamHeaderContent, sizeof(streamHeaderContent), 1, pFile);
 
                 /* Get out of while loop on first occurrence */
@@ -733,6 +921,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
         }
     }
 
+    /* Copy the stream header time stamp into the passed argument */
     timeStamp->seconds = streamHeaderContent.postamble.timeStampUtcSecs;
     timeStamp->msecs = streamHeaderContent.postamble.timeStampUtcMsecs;
 
@@ -740,152 +929,232 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Counts the number of  valid streams in the stream (#.dan) files
+ *
+ *              This file scans through the list of all valid stream files
+ *              counts the total number of streams in all of the valid stream files.
+ *
+ *  @returns UINT16 - the total number of streams encountered in the valid stream
+ *                    files
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static UINT16 CountStreams (void)
 {
-    UINT16 streamCount = 0;
-    UINT16 parseCount = 0;
-    UINT16 fileIndex = 0;
-    FILE *streamFilePtr = NULL;
-    UINT8 buffer = 0;
-    UINT32 amountRead = 0;
-    const char *streamHeaderDelimiter = "STRM";
-    UINT16 sIndex = 0;
-    UINT32 byteCount = 0;
+    UINT16 streamCount = 0; /* maintains the total the number of streams */
+    UINT16 fileIndex = 0; /* used to scan through all valid dan files */
+    FILE *streamFilePtr = NULL; /* File pointer to read stream files (#.dan) */
+    UINT8 buffer[1]; /* file read buffer */
+    UINT32 amountRead = 0; /* amount of data read from stream file */
+    UINT16 sIndex = 0; /* indexes into stream delimiter */
 
     /* Scan through all valid dan files and tally the number of occurrences of "STRM" */
-    while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF)
+    while ((m_ValidDanFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
-        if (os_io_fopen (CreateFileName (fileIndex), "rb+", &streamFilePtr) == ERROR)
+        /* Open the stream file for reading */
+        if (os_io_fopen (CreateFileName (fileIndex), "r+b", &streamFilePtr) == ERROR)
         {
-            streamFilePtr = NULL;
+            debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                            __LINE__);
+        }
+        else
+        {
+
+            while (1)
+            {
+                /* Search for delimiter */
+                amountRead = fread (&buffer, sizeof(UINT8), sizeof(buffer), streamFilePtr);
+
+                /* End of file reached */
+                if (amountRead != sizeof(buffer))
+                {
+                    break;
+                }
+
+                if (buffer[0] == m_StreamHeaderDelimiter[sIndex])
+                {
+                    sIndex++;
+                    if (sIndex == strlen (m_StreamHeaderDelimiter))
+                    {
+                        /* Stream delimiter found; increment stream count */
+                        streamCount++;
+                        sIndex = 0;
+                    }
+                }
+                else
+                {
+                    sIndex = 0;
+                }
+            }
+
+            sIndex = 0;
+
+            /* close stream file */
+            os_io_fclose (streamFilePtr);
         }
 
         fileIndex++;
 
-        /* TODO handle file error */
-        if (streamFilePtr == NULL)
-        {
-            continue;
-        }
-
-        while (1)
-        {
-            /* Search for delimiter */
-            amountRead = fread (&buffer, sizeof(UINT8), 1, streamFilePtr);
-            byteCount += amountRead;
-
-            /* End of file reached */
-            if (amountRead != 1)
-            {
-                break;
-            }
-
-            if (buffer == streamHeaderDelimiter[sIndex])
-            {
-                sIndex++;
-                if (sIndex == strlen (streamHeaderDelimiter))
-                {
-                    streamCount++;
-                    sIndex = 0;
-                }
-            }
-            else
-            {
-                sIndex = 0;
-            }
-        }
-
-        sIndex = 0;
-        parseCount++;
-
-        /* close stream file */
-        os_io_fclose (streamFilePtr);
     }
 
     return (streamCount);
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Updates the file to FTP'ed with all valid stream (*.dan) files
+ *
+ *              This file scans through the list of all valid stream files
+ *              and appends each stream file to the file that is about to be
+ *              FTP'ed.
+ *
+ *  @param ftpFilePtr - file pointer to ftp file (writes occur)
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void IncludeStreamFiles (FILE *ftpFilePtr)
 {
-    UINT16 fileIndex = 0;
-    FILE *streamFilePtr = NULL;
-    UINT8 buffer[1024];
-    UINT32 amountRead = 0;
+    UINT16 fileIndex = 0; /* Used to scan through m_ValidDanFileListIndexes */
+    FILE *streamFilePtr = NULL; /* Used to open the stream file for reading */
+    UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Stores the data read from the stream file */
+    UINT32 amount = 0; /* bytes or blocks read or written */
 
-    while ((m_ValidDanFileListIndexes[fileIndex] != 0xFFFF)
+    /* Scan through all valid stream files. This list is ordered oldest to newest. */
+    while ((m_ValidDanFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
+        /* Open the stream file for reading */
         if (os_io_fopen (CreateFileName (fileIndex), "r+b", &streamFilePtr) == ERROR)
         {
-            streamFilePtr = NULL;
+            debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                            __LINE__);
+        }
+        else
+        {
+            /* All's well, read from stream file and write to FTP file */
+            while (1)
+            {
+                /* Keep reading the stream file until all of the file is read */
+                amount = fread (&buffer[0], 1, sizeof(buffer), streamFilePtr);
+
+                /* End of file reached */
+                if (amount == 0)
+                {
+                    os_io_fclose (streamFilePtr);
+                    break;
+                }
+
+                /* Keep writing the stream file to the FTP file */
+                amount = fwrite (&buffer[0], amount, 1, ftpFilePtr);
+                if (amount != 1)
+                {
+                    debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                    __LINE__);
+                }
+            }
         }
 
         fileIndex++;
 
-        /* TODO Handle File Error */
-        if (streamFilePtr == NULL)
-        {
-            continue;
-        }
-
-        while (1)
-        {
-            /* Search for delimiter */
-            amountRead = fread (&buffer[0], 1, sizeof(buffer), streamFilePtr);
-
-            if (amountRead == 0)
-            {
-                os_io_fclose (streamFilePtr);
-                break;
-            }
-
-            fwrite (&buffer[0], amountRead, 1, ftpFilePtr);
-        }
-
     }
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Creates a filename #.dan file
+ *
+ *              This function creates a #.dan file based on the drive/directory
+ *              and file index
+ *
+ *  @param fileName - path/filename of file to be verified
+ *
+ *  @return char * - pointer to the newly created file name
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static char *CreateFileName (UINT16 fileIndex)
 {
-    static char s_FileName[100];
-    const char *extension = ".dan";
+    static char s_FileName[100]; /* Stores the newly created filename */
+    const char *extension = ".dan"; /* Holds the extension for the file */
 
     memset (s_FileName, 0, sizeof(s_FileName));
 
     strcat (s_FileName, DRIVE_NAME);
     strcat (s_FileName, DIRECTORY_NAME);
 
+    /* Append the file index to the drive and directory */
     sprintf (&s_FileName[strlen (s_FileName)], "%u", fileIndex);
+    /* Append the extension */
     strcat (s_FileName, extension);
 
     return s_FileName;
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Verifies a #.dan file integrity
+ *
+ *              This function verifies that the final stream "STRM" section
+ *              in the file has the correct number of bytes. IMPORTANT: There
+ *              is no CRC check performed. It assumes that all bytes prior to the last
+ *              stream are written correctly. This check is performed in case a
+ *              file write was interrupted because of a power cycle or the like.
+ *
+ *  @param fileName - path/filename of file to be verified
+ *
+ *  @return BOOL - TRUE if the file is valid or made valid; FALSE if the file doesn't exist
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static BOOL VerifyFileIntegrity (const char *filename)
 {
-    FILE *pFile = NULL;
-    UINT8 buffer;
-    UINT32 amountRead = 0;
-    UINT32 expectedBytesRemaining = 0;
-    UINT32 byteCount = 0;
-    INT32 lastStrmIndex = -1;
-    UINT16 sIndex = 0;
-    StreamHeaderStr streamHeader;
-    const char *streamHeaderDelimiter = "STRM";
-    BOOL purgeResult = FALSE;
+    FILE *pFile = NULL; /* File pointer */
+    UINT8 buffer; /* Stores byte read file */
+    UINT32 amountRead = 0; /* Amount of bytes read on a single read */
+    UINT32 expectedBytesRemaining = 0; /* Amount of bytes that should be remaining in the file */
+    UINT32 byteCount = 0; /* Total amount of bytes read */
+    INT32 lastStrmIndex = -1; /* Byte offset to the last "STRM" in the file, Intentionally set to -1 for a n error check */
+    UINT16 sIndex = 0; /* Used to index in to streamHeaderDelimiter */
+    StreamHeaderStr streamHeader; /* Overlaid on bytes read from the file */
+    BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
 
+    /* File doesn't exist */
     if (os_io_fopen (filename, "rb+", &pFile) == ERROR)
     {
         return FALSE;
     }
 
+    /* Ensure the file pointer points to the beginnning of the file */
     fseek (pFile, 0L, SEEK_SET);
 
+    /* Keep searching the entire file for "STRM". When the end of file is reached
+     * "lastStrmIndex" will hold the byte offset in "filename" to the last "STRM"
+     * encountered.
+     */
     while (1)
     {
-        /* Search for delimiter */
         amountRead = fread (&buffer, sizeof(UINT8), 1, pFile);
         byteCount += amountRead;
 
@@ -895,12 +1164,15 @@ static BOOL VerifyFileIntegrity (const char *filename)
             break;
         }
 
-        if (buffer == streamHeaderDelimiter[sIndex])
+        /* Search for delimiter */
+        if (buffer == m_StreamHeaderDelimiter[sIndex])
         {
             sIndex++;
-            if (sIndex == strlen (streamHeaderDelimiter))
+            if (sIndex == strlen (m_StreamHeaderDelimiter))
             {
-                lastStrmIndex = (INT32) (byteCount - strlen (streamHeaderDelimiter));
+                /* Set the index strlen(streamHeaderDelimiter) backwards so that it points at the
+                 * first char in streamHeaderDelimiter */
+                lastStrmIndex = (INT32) (byteCount - strlen (m_StreamHeaderDelimiter));
                 sIndex = 0;
             }
         }
@@ -910,39 +1182,41 @@ static BOOL VerifyFileIntegrity (const char *filename)
         }
     }
 
+    /* Since lastStrmIndex was never updated in the above loop (maintained its function
+     * invocation value), then no "STRM"s were discovered.
+     */
     if (lastStrmIndex == -1)
     {
         debugPrintf(DBG_WARNING, "%s", "No STRMs found in file\n");
         return (FALSE);
     }
 
-    memset (&streamHeader, 0, sizeof(streamHeader));
+    /* Move the file pointer to the last stream */
     fseek (pFile, (INT32) lastStrmIndex, SEEK_SET);
-    amountRead = fread (&streamHeader, 1, sizeof(streamHeader), pFile);
-    /* Verify streamHeader amount could be read */
-    if (amountRead != sizeof(streamHeader))
-    {
-        debugPrintf(DBG_WARNING, "%s", "Last Stream Header not complete... File BAD!!!\n");
-        return (FALSE);
-    }
+    /* Clear the stream header and overlay it on to the last stream header */
+    memset (&streamHeader, 0, sizeof(streamHeader));
 
+    amountRead = fread (&streamHeader, 1, sizeof(streamHeader), pFile);
     expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + sizeof(streamHeader) - 8);
 
-    if (streamHeader.content.postamble.sampleSize != expectedBytesRemaining)
+    /* Verify the entire streamHeader amount could be read and the expected bytes remaining are in fact there */
+    if ((streamHeader.content.postamble.sampleSize != expectedBytesRemaining)
+                    || (amountRead != sizeof(streamHeader)))
     {
         debugPrintf(DBG_WARNING, "%s",
                         "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
         os_io_fclose (pFile);
 
         /* If lastStrmIndex = 0, that indicates the first and only stream in the file is corrupted and therefore the
-         * entire file should be deleted */
+         * entire file should be deleted. */
         if (lastStrmIndex == 0)
         {
             remove (filename);
             return (FALSE);
         }
 
-        purgeResult = PurgeInvalidStream (filename, (UINT32) lastStrmIndex);
+        /* Remove the last "STRM" from the end of the file */
+        purgeResult = TruncateFile (filename, (UINT32) lastStrmIndex);
         return (purgeResult);
 
     }
@@ -996,9 +1270,29 @@ static UINT16 CreateVerifyStorageDirectory (void)
     return (errorCode);
 }
 
-static BOOL PurgeInvalidStream (const char *fileName, UINT32 desiredFileSize)
+/*****************************************************************************/
+/**
+ * @brief       Removes all desired data from the end of a file
+ *
+ *              This function creates a temporary file and copies the first
+ *              "desiredFileSize" bytes from "fileName" into the temporary
+ *              file. It then deletes the original fileName from the file system.
+ *              It then renames the temporary filename to "fileName".
+ *
+ *  @param fileName - path/filename of file to delete some end of file data
+ *  @param desiredFileSize - the number of bytes to maintain from the original file
+ *
+ *  @return BOOL - TRUE if all OS/file calls; FALSE otherwise
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
 {
-    UINT8 buffer[1024];
+    UINT8 buffer[FILE_READ_BUFFER_SIZE];
     UINT32 amountRead = 0;
     FILE *pReadFile = NULL;
     FILE *pWriteFile = NULL;
@@ -1007,22 +1301,39 @@ static BOOL PurgeInvalidStream (const char *fileName, UINT32 desiredFileSize)
     INT32 osCallReturn = 0;
     const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.dan";
 
-    if (os_io_fopen (fileName, "rb+", &pReadFile) == ERROR)
+    /* Open the file to be truncated for reading */
+    if (os_io_fopen (fileName, "rb", &pReadFile) == ERROR)
     {
+        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         return FALSE;
     }
 
+    /* Open the temporary file where the first "desiredFileSize" bytes will be written */
     if (os_io_fopen (tempFileName, "wb+", &pWriteFile) == ERROR)
     {
+        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         return FALSE;
     }
 
-    fseek (pWriteFile, 0L, SEEK_SET);
-    fseek (pReadFile, 0L, SEEK_SET);
+    /* Ensure the respective file pointers are set to the begining of the file */
+    osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
+    if (osCallReturn != 0)
+    {
+        debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        return FALSE;
+    }
+    osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
+    if (osCallReturn != 0)
+    {
+        debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        return FALSE;
+    }
 
     while (1)
     {
-        /* Search for delimiter */
+        /* Read the file */
         amountRead = fread (&buffer, 1, sizeof(buffer), pReadFile);
         byteCount += amountRead;
 
@@ -1033,27 +1344,49 @@ static BOOL PurgeInvalidStream (const char *fileName, UINT32 desiredFileSize)
             return FALSE;
         }
 
+        /* Check if the amount of bytes read is less than the desired file size */
         if (byteCount < desiredFileSize)
         {
-            fwrite (buffer, 1, sizeof(buffer), pWriteFile);
+            osCallReturn = (INT32) fwrite (buffer, sizeof(UINT8), sizeof(buffer), pWriteFile);
+            if (osCallReturn != (INT32) sizeof(buffer))
+            {
+                debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
+                return FALSE;
+            }
         }
         else
         {
+            /* Calculate how many bytes to write to the file now that the system has read more
+             * bytes than the desired amount to write.
+             */
             remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
-            fwrite (buffer, 1, remainingBytesToWrite, pWriteFile);
+
+            osCallReturn = (INT32) fwrite (buffer, 1, remainingBytesToWrite, pWriteFile);
+            if (osCallReturn != (INT32) remainingBytesToWrite)
+            {
+                debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
+                return FALSE;
+            }
+
             os_io_fclose (pWriteFile);
             os_io_fclose (pReadFile);
 
-            /* Delete the file whose last stream is being purged */
+            /* Delete the file that was being truncated */
             osCallReturn = remove (fileName);
             if (osCallReturn != 0)
             {
+                debugPrintf(DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
                 return FALSE;
             }
             /* Rename the temporary file to the fileName */
             rename (tempFileName, fileName);
             if (osCallReturn != 0)
             {
+                debugPrintf(DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
                 return FALSE;
             }
 

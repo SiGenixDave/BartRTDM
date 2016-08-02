@@ -184,11 +184,6 @@ typedef struct
     StreamHeaderContent content;
 } StreamHeaderStr;
 
-typedef struct RTDMTimeStr
-{
-    UINT32 seconds;
-    UINT32 nanoseconds;
-} RTDMTimeStr;
 
 /*******************************************************************
  *

@@ -113,7 +113,7 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
  *  @param time1 - pointer to a stored time
  *  @param time2 - pointer to a stored time
  *
- *  @return INT32 - difference between the 2 times (milliseconds)
+ *  @return INT32 - (time1 - time2) converted to in milliseconds
  *//*
  * Revision History:
  *
@@ -123,25 +123,37 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
  *****************************************************************************/
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
 {
+#ifdef DOUBLES_ALLOWED
+    double time1d = time1->seconds + ((double)(time1->nanoseconds) / 1E+9);
+    double time2d = time2->seconds + ((double)(time2->nanoseconds) / 1E+9);
+    double timeDiff = (time1d - time2d) * 1000.0;
+
+    return (INT32)(timeDiff);
+#else
+
     INT32 milliSeconds = 0;
     INT32 seconds = 0;
     BOOL subtractFromSeconds = FALSE;
     INT32 time1Ns = 0;
     INT32 time2Ns = 0;
 
+
     time2Ns = (INT32) time2->nanoseconds;
     time1Ns = (INT32) time1->nanoseconds;
 
+    /* Add 1 billion in order to perform the subtraction correctly */
     if (time2Ns > time1Ns)
     {
         time1Ns += 1000000000;
         subtractFromSeconds = TRUE;
     }
 
+    /* Convert the nanoseconds to milliseconds */
     milliSeconds = (time1Ns - time2Ns) / 1000000;
 
     seconds = (INT32) (time1->seconds - time2->seconds);
 
+    /* Account for the addition of the 1 billion if it happened */
     if (subtractFromSeconds)
     {
         milliSeconds++;
@@ -151,7 +163,7 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
     milliSeconds += (seconds * 1000);
 
     return (milliSeconds);
-
+#endif
 }
 
 /*****************************************************************************/
