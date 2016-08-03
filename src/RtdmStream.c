@@ -156,6 +156,16 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
     BOOL networkAvailable = FALSE;
 
     static BOOL firstCall = TRUE;
+
+#ifdef DBG_INFO
+    RTDMTimeStr entryTime;
+    RTDMTimeStr exitTime;
+    static INT32 maxTimeMsecs = -1;
+    static UINT32 taskCount = 0;
+    INT32 timeDiffMsecs;
+    GetEpochTime(&entryTime);
+#endif
+
     if (firstCall)
     {
         RTDMInitialize (interface);
@@ -181,6 +191,17 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 
     /* Set for DCUTerm/PTU */
     interface->RTDMStreamError = errorCode;
+
+#ifdef DBG_INFO
+    GetEpochTime(&exitTime);
+    timeDiffMsecs = TimeDiff(&entryTime, &exitTime);
+    if (timeDiffMsecs > maxTimeMsecs)
+    {
+        maxTimeMsecs = timeDiffMsecs;
+        debugPrintf(DBG_INFO, "MaxTime = %d msecs, TaskCount = %d\n", maxTimeMsecs, taskCount);
+    }
+    taskCount++;
+#endif
 
 }
 

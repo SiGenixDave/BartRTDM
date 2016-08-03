@@ -310,6 +310,8 @@ void SpawnFTPDatalog (void)
 
     /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
+    debugPrintf(DBG_INFO, "%s\n", "SpawSpawnFTPDatalog() invoked");
+
     /* Determine all current valid dan files */
     PopulateValidDanFileList ();
     /* Get the oldest stream timestamp from every valid file */
@@ -344,10 +346,13 @@ void SpawnFTPDatalog (void)
     /* Scan through all valid files and count the number of streams in each file; used for
      * RTDM header */
     streamCount = CountStreams ();
+
     PrintIntegerContents(streamCount);
 
     /* Create filename and open it for writing */
     fileName = CreateFTPFileName (&ftpFilePtr);
+
+    debugPrintf(DBG_INFO, "FTP Client Send filename = %s\n", fileName);
 
     if (ftpFilePtr == NULL)
     {
@@ -369,7 +374,7 @@ void SpawnFTPDatalog (void)
     /* Send newly create file to FTP server */
 #ifndef TEST_ON_PC
     /* TODO check return value for success or fail, ftpStatus indicates the type of error */
-    ftpc_file_put("10.0.1.TBD", /* In: name of server host */
+    ftpc_file_put("10.0.7.13", /* In: name of server host */
                     "dsmail", /* In: user name for server login */
                     "", /* In: password for server login */
                     "", /* In: account for server login. Typically "". */
@@ -377,6 +382,12 @@ void SpawnFTPDatalog (void)
                     fileName, /* In: filename to put on server */
                     fileName, /* In: filename of local file to copy to server */
                     &ftpStatus); /* Out: Status on the operation */
+
+    if (ftpStatus != OK)
+    {
+        debugPrintf(DBG_ERROR, "FTP Error: %d\n", ftpStatus);
+    }
+
 #endif
 
     /* TODO Delete file when FTP send complete */
@@ -384,17 +395,14 @@ void SpawnFTPDatalog (void)
 
 static void InitTrackerIndex (void)
 {
-    UINT16 fileIndex = 0;   /* Used to index through all possible stream files */
-    BOOL fileOK = FALSE;    /* TRUE if file exists and is a valid stream file */
+    UINT16 fileIndex = 0; /* Used to index through all possible stream files */
+    BOOL fileOK = FALSE; /* TRUE if file exists and is a valid stream file */
     TimeStampStr timeStamp; /* Used to get the oldest stream time stamp from a file */
-    RTDMTimeStr newestTimeStamp;    /* Holds the newest stream time stamp from the newest file */
-    RTDMTimeStr oldestTimeStamp;    /* Holds the oldest stream time stamp from the newest file */
-    UINT32 newestTimestampSeconds = 0;  /* Used to check a file with for a newer stream */
-    INT32 timeDiff = 0;     /* Used to calculate the difference between 2 times (msecs) */
-    UINT16 newestFileIndex = 0;     /* will hold the newest file index */
-
-    /* Make it the max possible file index in case no valid dan files are found */
-    newestFileIndex = (UINT16) (MAX_NUMBER_OF_DAN_FILES - 1);
+    RTDMTimeStr newestTimeStamp; /* Holds the newest stream time stamp from the newest file */
+    RTDMTimeStr oldestTimeStamp; /* Holds the oldest stream time stamp from the newest file */
+    UINT32 newestTimestampSeconds = 0; /* Used to check a file with for a newer stream */
+    INT32 timeDiff = 0; /* Used to calculate the difference between 2 times (msecs) */
+    UINT16 newestFileIndex = INVALID_FILE_INDEX; /* will hold the newest file index */
 
     memset (&timeStamp, 0, sizeof(timeStamp));
     memset (&newestTimeStamp, 0, sizeof(newestTimeStamp));
@@ -415,6 +423,13 @@ static void InitTrackerIndex (void)
         }
     }
 
+    if (newestFileIndex == INVALID_FILE_INDEX)
+    {
+        m_DanFileIndex = 0;
+        m_DanFileState = CREATE_NEW;
+        return;
+    }
+
     /* At this point, newestFileIndex holds the newest file index. Now determine if more
      * streams can fit in this file
      */
@@ -424,7 +439,6 @@ static void InitTrackerIndex (void)
     GetTimeStamp (&timeStamp, NEWEST_TIMESTAMP, newestFileIndex);
     newestTimeStamp.seconds = timeStamp.seconds;
     newestTimeStamp.nanoseconds = (UINT32) timeStamp.msecs * 1000000;
-
     timeDiff = TimeDiff (&newestTimeStamp, &oldestTimeStamp);
 
     /* More streams can fit if code falls through this "if" */
@@ -466,9 +480,9 @@ static void InitTrackerIndex (void)
  *****************************************************************************/
 static void PopulateValidDanFileList (void)
 {
-    BOOL fileOK = FALSE;    /* stream file is OK if TRUE */
-    UINT16 fileIndex = 0;   /* Used to index through all possible stream files */
-    UINT16 arrayIndex = 0;  /* increments every time a valid stream file is found */
+    BOOL fileOK = FALSE; /* stream file is OK if TRUE */
+    UINT16 fileIndex = 0; /* Used to index through all possible stream files */
+    UINT16 arrayIndex = 0; /* increments every time a valid stream file is found */
 
     /* Scan all files to determine what files are valid */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
@@ -514,6 +528,7 @@ static void PopulateValidFileTimeStamps (void)
     /* Scan all the valid files. Get the oldest time stamp and populate the
      * time stamp with the seconds (epoch time).
      */
+    arrayIndex = 0;
     while ((m_ValidDanFileListIndexes[arrayIndex] != INVALID_FILE_INDEX)
                     && (arrayIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
@@ -711,7 +726,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
 #endif
 
-    debugPrintf(DBG_INFO, "ANSI Date time = %s", dateTime);
+    debugPrintf(DBG_INFO, "ANSI Date time = %s\n", dateTime);
 
     /* Create the filename by concatenating in the proper order */
     strcat (s_FileName, DRIVE_NAME);
@@ -875,7 +890,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
      * have "0" in it. */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    if (os_io_fopen (CreateFileName (fileIndex), "rb+", &pFile) == ERROR)
+    if (os_io_fopen (CreateFileName (fileIndex), "r+b", &pFile) == ERROR)
     {
         debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
@@ -960,7 +975,7 @@ static UINT16 CountStreams (void)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
         /* Open the stream file for reading */
-        if (os_io_fopen (CreateFileName (fileIndex), "r+b", &streamFilePtr) == ERROR)
+        if (os_io_fopen (CreateFileName (m_ValidDanFileListIndexes[fileIndex]), "r+b", &streamFilePtr) == ERROR)
         {
             debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
@@ -1038,7 +1053,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
         /* Open the stream file for reading */
-        if (os_io_fopen (CreateFileName (fileIndex), "r+b", &streamFilePtr) == ERROR)
+        if (os_io_fopen (CreateFileName (m_ValidDanFileListIndexes[fileIndex]), "r+b", &streamFilePtr) == ERROR)
         {
             debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
@@ -1141,8 +1156,11 @@ static BOOL VerifyFileIntegrity (const char *filename)
     BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
 
     /* File doesn't exist */
-    if (os_io_fopen (filename, "rb+", &pFile) == ERROR)
+    if (os_io_fopen (filename, "r+b", &pFile) == ERROR)
     {
+        debugPrintf(DBG_INFO,
+                        "VerifyFileIntegrity() os_io_fopen() failed... File %s doesn't exist ---> File: %s  Line#: %d\n",
+                        filename, __FILE__, __LINE__);
         return FALSE;
     }
 
