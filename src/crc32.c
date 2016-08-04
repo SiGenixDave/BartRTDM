@@ -85,17 +85,26 @@ static const UINT32 crc_table[256] = {
 #define DO8(buf)  DO4(buf); DO4(buf);
 
 /* ========================================================================= */
-
 UINT32 crc32(UINT32 crc, const UINT8 *buf, INT32 len)
 {
+    UINT32 t1, t2;
+
     crc = crc ^ 0xffffffffL;
     while (len >= 8)
     {
-      DO8(buf);
+      /* DO8(buf); */
       len -= 8;
     }
     if (len) do {
-      DO1(buf);
+
+        printf("Crc1 = %x\n", crc);
+        printf("Buf = %x\n", *buf & 0xff);
+        /* DO1(buf); */
+
+      t1 = crc_table[((INT32)crc ^ (*buf++)) & 0xff];
+      printf("t1 = %x\n", t1);
+      crc = t1 ^ (crc >> 8);
+
     } while (--len);
     return crc ^ 0xffffffffL;
 }

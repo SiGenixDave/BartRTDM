@@ -137,7 +137,6 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
     INT32 time1Ns = 0;
     INT32 time2Ns = 0;
 
-
     time2Ns = (INT32) time2->nanoseconds;
     time1Ns = (INT32) time1->nanoseconds;
 
@@ -203,14 +202,14 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
 
     /* Calculate CRC for all samples, this needs done prior to populating and calculating the
      * stream header CRC. */
-    streamHeader->content.postamble.numberOfSamples = sampleCount;
+    streamHeader->content.postamble.numberOfSamples = htons (sampleCount);
     crc = 0;
     crc = crc32 (crc, (UINT8 *) &streamHeader->content.postamble.numberOfSamples,
                     sizeof(streamHeader->content.postamble.numberOfSamples));
     crc = crc32 (crc, dataBuffer, (INT32) (dataSize));
 
     /* Store the CRC */
-    streamHeader->content.postamble.samplesChecksum = crc;
+    streamHeader->content.postamble.samplesChecksum = htonl (crc);
 
     /* Populate the stream header */
 
@@ -221,7 +220,7 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
     streamHeader->content.preamble.endianness = BIG_ENDIAN;
 
     /* Header size */
-    streamHeader->content.preamble.headerSize = sizeof(StreamHeaderStr);
+    streamHeader->content.preamble.headerSize = htons (sizeof(StreamHeaderStr));
 
     /* Header Checksum - CRC-32 */
     /* Checksum of the following content of the header */
@@ -251,16 +250,16 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
                     maxCopySize);
 
     /* Data Recorder ID - from .xml file */
-    streamHeader->content.postamble.dataRecorderId = (UINT16) rtdmXmlData->dataRecorderCfg.id;
+    streamHeader->content.postamble.dataRecorderId = htons((UINT16) rtdmXmlData->dataRecorderCfg.id);
 
     /* Data Recorder Version - from .xml file */
-    streamHeader->content.postamble.dataRecorderVersion = (UINT16) rtdmXmlData->dataRecorderCfg.version;
+    streamHeader->content.postamble.dataRecorderVersion = htons((UINT16) rtdmXmlData->dataRecorderCfg.version);
 
     /* timeStamp - Current time in Seconds */
-    streamHeader->content.postamble.timeStampUtcSecs = currentTime->seconds;
+    streamHeader->content.postamble.timeStampUtcSecs = htonl(currentTime->seconds);
 
     /* TimeStamp - mS */
-    streamHeader->content.postamble.timeStampUtcMsecs = (UINT16) (currentTime->nanoseconds / 1000000);
+    streamHeader->content.postamble.timeStampUtcMsecs = htons((UINT16) (currentTime->nanoseconds / 1000000));
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
     streamHeader->content.postamble.timeStampUtcAccuracy = (UINT8) interface->RTCTimeAccuracy;
@@ -273,9 +272,9 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
 
     /* Sample size - size of following content including this field */
     /* Add this field plus checksum and # samples to size */
-    streamHeader->content.postamble.sampleSize = (UINT16)(sizeof(streamHeader->content.postamble.sampleSize)
+    streamHeader->content.postamble.sampleSize = htons((UINT16) (sizeof(streamHeader->content.postamble.sampleSize)
                     + sizeof(streamHeader->content.postamble.samplesChecksum)
-                    + sizeof(streamHeader->content.postamble.numberOfSamples) + dataSize);
+                    + sizeof(streamHeader->content.postamble.numberOfSamples) + dataSize));
 
     /* Number of Samples in current stream */
     /* DO NOTHING: Populated above in order to create samples CRC */
@@ -285,11 +284,9 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
     crc = crc32 (crc, ((UINT8 *) &streamHeader->content.postamble),
                     (INT32) (sizeof(StreamHeaderPostambleStr)));
 
-    streamHeader->content.preamble.headerChecksum = crc;
+    streamHeader->content.preamble.headerChecksum = htonl(crc);
 
 }
-
-
 
 #ifdef FOR_UNIT_TEST_ONLY
 void test(void)

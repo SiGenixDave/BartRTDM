@@ -98,8 +98,38 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
                 UINT8 *streamBuffer, UINT32 streamBufferSize);
 
+static void DeleteTestCrc (void)
+{
+    typedef struct
+    {
+            UINT8 a __attribute__ ((packed));
+            UINT16 b __attribute__ ((packed));
+            UINT32 c __attribute__ ((packed));
+
+    } Str;
+
+    Str t;
+    t.a = 0x11;
+    t.b = 0x3322;
+    t.c = 0x77665544;
+
+    UINT32 crc = 0;
+    UINT8 byteArray[] =
+        { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };
+
+    crc = crc32 (0, &t, sizeof(t));
+    debugPrintf(DBG_INFO, "Byte Array CRC = %d\n", crc);
+    crc = crc32 (0, byteArray, sizeof(byteArray));
+    debugPrintf(DBG_INFO, "Byte Array CRC = %d\n", crc);
+
+    // SHould be 785...429
+
+}
+
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
+    DeleteTestCrc ();
+
     m_RtdmXmlData = rtdmXmlData;
 
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
@@ -163,7 +193,7 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
     static INT32 maxTimeMsecs = -1;
     static UINT32 taskCount = 0;
     INT32 timeDiffMsecs;
-    GetEpochTime(&entryTime);
+    GetEpochTime (&entryTime);
 #endif
 
     if (firstCall)
@@ -193,8 +223,8 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
     interface->RTDMStreamError = errorCode;
 
 #ifdef DBG_INFO
-    GetEpochTime(&exitTime);
-    timeDiffMsecs = TimeDiff(&entryTime, &exitTime);
+    GetEpochTime (&exitTime);
+    timeDiffMsecs = TimeDiff (&entryTime, &exitTime);
     if (timeDiffMsecs > maxTimeMsecs)
     {
         maxTimeMsecs = timeDiffMsecs;
@@ -346,16 +376,16 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
 
     /*********************************** HEADER ****************************************************************/
     /* timeStamp - Seconds */
-    m_SampleHeader.timeStamp.seconds = currentTime->seconds;
+    m_SampleHeader.timeStamp.seconds = htonl(currentTime->seconds);
 
     /* timeStamp - mS */
-    m_SampleHeader.timeStamp.msecs = (UINT16) (currentTime->nanoseconds / 1000000);
+    m_SampleHeader.timeStamp.msecs = htons((UINT16) (currentTime->nanoseconds / 1000000));
 
     /* timeStamp - Accuracy */
     m_SampleHeader.timeStamp.accuracy = (UINT8) interface->RTCTimeAccuracy;
 
     /* Number of Signals in current sample*/
-    m_SampleHeader.count = signalCount;
+    m_SampleHeader.count = htons(signalCount);
     /*********************************** End HEADER *************************************************************/
 
     /* If the previous sample of data is identical to the current sample and
@@ -375,14 +405,19 @@ static void PopulateSignalsWithNewSamples (void)
     UINT16 i = 0;
     UINT32 bufferIndex = 0;
     UINT16 variableSize = 0;
+    UINT16 signalId = 0;
+    UINT8 var8 = 0;
+    UINT16 var16 = 0;
+    UINT32 var32 = 0;
+    void *varPtr = NULL;
 
     memset (m_NewSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxStreamDataSize));
 
     for (i = 0; i < m_RtdmXmlData->metaData.signalCount; i++)
     {
+        signalId = htons (m_RtdmXmlData->signalDesription[i].id);
         /* Copy the signal Id */
-        memcpy (&m_NewSignalData[bufferIndex], &m_RtdmXmlData->signalDesription[i].id,
-                        sizeof(UINT16));
+        memcpy (&m_NewSignalData[bufferIndex], &signalId, sizeof(UINT16));
         bufferIndex += sizeof(UINT16);
 
         /* Copy the contents of the variable */
@@ -392,22 +427,29 @@ static void PopulateSignalsWithNewSamples (void)
             case INT8_XML_TYPE:
             default:
                 variableSize = 1;
+                var8 = *(UINT8 *) m_RtdmXmlData->signalDesription[i].variableAddr;
+                varPtr = &var8;
                 break;
 
             case UINT16_XML_TYPE:
             case INT16_XML_TYPE:
                 variableSize = 2;
+                var16 = *(UINT16 *) m_RtdmXmlData->signalDesription[i].variableAddr;
+                var16 = htons (var16);
+                varPtr = &var16;
                 break;
 
             case UINT32_XML_TYPE:
             case INT32_XML_TYPE:
                 variableSize = 4;
+                var32 = *(UINT32 *) m_RtdmXmlData->signalDesription[i].variableAddr;
+                var32 = htonl (var32);
+                varPtr = &var32;
                 break;
 
         }
 
-        memcpy (&m_NewSignalData[bufferIndex], m_RtdmXmlData->signalDesription[i].variableAddr,
-                        variableSize);
+        memcpy (&m_NewSignalData[bufferIndex], varPtr, variableSize);
         bufferIndex += variableSize;
     }
 

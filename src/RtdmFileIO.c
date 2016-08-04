@@ -55,8 +55,8 @@
  #define SINGLE_FILE_TIMESPAN_HOURS          0.25
  */
 
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.1
-#define SINGLE_FILE_TIMESPAN_HOURS          (1.0/60.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.1 / 6.0
+#define SINGLE_FILE_TIMESPAN_HOURS          (0.25/60.0)
 
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
 
@@ -306,7 +306,11 @@ void SpawnFTPDatalog (void)
     TimeStampStr oldestTimeStamp;
     UINT16 streamCount = 0;
     char *fileName = NULL;
+
+#ifndef TEST_ON_PC
     INT16 ftpStatus = 0;
+    INT16 ftpError = 0;
+#endif
 
     /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
@@ -373,21 +377,22 @@ void SpawnFTPDatalog (void)
 
     /* Send newly create file to FTP server */
 #ifndef TEST_ON_PC
+#ifdef TODO
     /* TODO check return value for success or fail, ftpStatus indicates the type of error */
-    ftpc_file_put("10.0.7.13", /* In: name of server host */
+    ftpError = ftpc_file_put("10.0.7.13", /* In: name of server host */
                     "dsmail", /* In: user name for server login */
                     "", /* In: password for server login */
                     "", /* In: account for server login. Typically "". */
                     "", /* In: directory to cd to before storing file */
-                    fileName, /* In: filename to put on server */
-                    fileName, /* In: filename of local file to copy to server */
+                    "test.txt", /* In: filename to put on server */
+                    "/ata0/rtdm/test.txt", /* In: filename of local file to copy to server */
                     &ftpStatus); /* Out: Status on the operation */
 
     if (ftpStatus != OK)
     {
-        debugPrintf(DBG_ERROR, "FTP Error: %d\n", ftpStatus);
+        debugPrintf(DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
     }
-
+#endif
 #endif
 
     /* TODO Delete file when FTP send complete */
@@ -819,7 +824,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Endianness - Always BIG */
     rtdmHeader.preamble.endianness = BIG_ENDIAN;
     /* Header size */
-    rtdmHeader.preamble.headerSize = sizeof(rtdmHeader);
+    rtdmHeader.preamble.headerSize = htons(sizeof(rtdmHeader));
     /* Header Version - Always 2 */
     rtdmHeader.postamble.headerVersion = RTDM_HEADER_VERSION;
 
@@ -830,30 +835,34 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     strcpy (&rtdmHeader.postamble.deviceId[0], m_Interface->VNC_CarData_X_DeviceID);
 
     /* Data Recorder ID - from .xml file */
-    rtdmHeader.postamble.dataRecordId = (UINT16) m_RtdmXmlData->dataRecorderCfg.id;
+    rtdmHeader.postamble.dataRecordId = htons((UINT16) m_RtdmXmlData->dataRecorderCfg.id);
 
     /* Data Recorder Version - from .xml file */
-    rtdmHeader.postamble.dataRecordVersion = (UINT16) m_RtdmXmlData->dataRecorderCfg.version;
+    rtdmHeader.postamble.dataRecordVersion = htons((UINT16) m_RtdmXmlData->dataRecorderCfg.version);
 
     /* First TimeStamp -  seconds */
-    rtdmHeader.postamble.firstTimeStampSecs = oldest->seconds;
+    rtdmHeader.postamble.firstTimeStampSecs = htonl(oldest->seconds);
 
     /* First TimeStamp - msecs */
-    rtdmHeader.postamble.firstTimeStampMsecs = oldest->msecs;
+    rtdmHeader.postamble.firstTimeStampMsecs = htons(oldest->msecs);
 
     /* Last TimeStamp -  seconds */
-    rtdmHeader.postamble.lastTimeStampSecs = newest->seconds;
+    rtdmHeader.postamble.lastTimeStampSecs = htonl(newest->seconds);
 
     /* Last TimeStamp - msecs */
-    rtdmHeader.postamble.lastTimeStampMsecs = newest->msecs;
+    rtdmHeader.postamble.lastTimeStampMsecs = htons(newest->msecs);
 
-    rtdmHeader.postamble.numStreams = numStreams;
+    rtdmHeader.postamble.numStreams = htonl(numStreams);
 
     /* The CRC is calculated on the "postamble" part of the RTDM header only */
     rtdmHeaderCrc = 0;
     rtdmHeaderCrc = crc32 (rtdmHeaderCrc, ((UINT8 *) &rtdmHeader.postamble),
                     sizeof(rtdmHeader.postamble));
     rtdmHeader.preamble.headerChecksum = rtdmHeaderCrc;
+
+#ifdef TEST_ON_PC
+    /*EnidanizeRtdmHeader(&rtdmHeader);*/
+#endif
 
     /* Update the FTP file with the RTDM header */
     fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
@@ -937,8 +946,8 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     }
 
     /* Copy the stream header time stamp into the passed argument */
-    timeStamp->seconds = streamHeaderContent.postamble.timeStampUtcSecs;
-    timeStamp->msecs = streamHeaderContent.postamble.timeStampUtcMsecs;
+    timeStamp->seconds = ntohl(streamHeaderContent.postamble.timeStampUtcSecs);
+    timeStamp->msecs = ntohs(streamHeaderContent.postamble.timeStampUtcMsecs);
 
     os_io_fclose (pFile);
 
@@ -1154,6 +1163,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     UINT16 sIndex = 0; /* Used to index in to streamHeaderDelimiter */
     StreamHeaderStr streamHeader; /* Overlaid on bytes read from the file */
     BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
+    UINT16 sampleSize = 0;
 
     /* File doesn't exist */
     if (os_io_fopen (filename, "r+b", &pFile) == ERROR)
@@ -1218,7 +1228,8 @@ static BOOL VerifyFileIntegrity (const char *filename)
     expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + sizeof(streamHeader) - 8);
 
     /* Verify the entire streamHeader amount could be read and the expected bytes remaining are in fact there */
-    if ((streamHeader.content.postamble.sampleSize != expectedBytesRemaining)
+    sampleSize = ntohs(streamHeader.content.postamble.sampleSize);
+    if ((sampleSize != expectedBytesRemaining)
                     || (amountRead != sizeof(streamHeader)))
     {
         debugPrintf(DBG_WARNING, "%s",
