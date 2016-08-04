@@ -858,11 +858,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     rtdmHeaderCrc = 0;
     rtdmHeaderCrc = crc32 (rtdmHeaderCrc, ((UINT8 *) &rtdmHeader.postamble),
                     sizeof(rtdmHeader.postamble));
-    rtdmHeader.preamble.headerChecksum = rtdmHeaderCrc;
-
-#ifdef TEST_ON_PC
-    /*EnidanizeRtdmHeader(&rtdmHeader);*/
-#endif
+    rtdmHeader.preamble.headerChecksum = htonl(rtdmHeaderCrc);
 
     /* Update the FTP file with the RTDM header */
     fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
