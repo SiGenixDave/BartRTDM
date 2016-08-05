@@ -219,6 +219,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
     PopulateStreamHeader (m_Interface, m_RtdmXmlData, &streamHeader, sampleCount, logBuffer,
                     dataBytesInBuffer, currentTime);
 
+    fileName = CreateFileName (m_DanFileIndex);
     switch (m_DanFileState)
     {
         /* TODO Look at not closing file after opening it to speed things along */
@@ -226,7 +227,6 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         default:
         case CREATE_NEW:
             /* TODO handle file open error */
-            fileName = CreateFileName (m_DanFileIndex);
             if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
             {
                 fseek (pFile, 0L, SEEK_SET);
@@ -240,8 +240,9 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
             }
             else
             {
-                debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                __LINE__);
+                debugPrintf(DBG_ERROR,
+                                "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                                fileName, __FILE__, __LINE__);
             }
 
             s_StartTime = *currentTime;
@@ -254,7 +255,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
         case APPEND_TO_EXISTING:
             /* Open the file for appending */
             /* TODO handle file open error */
-            if (os_io_fopen (CreateFileName (m_DanFileIndex), "a+b", &pFile) != ERROR)
+            if (os_io_fopen (fileName, "a+b", &pFile) != ERROR)
             {
                 /* Write the header */
                 fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
@@ -266,8 +267,9 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
             }
             else
             {
-                debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                __LINE__);
+                debugPrintf(DBG_ERROR,
+                                "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                                fileName, __FILE__, __LINE__);
             }
             debugPrintf(DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
@@ -824,7 +826,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Endianness - Always BIG */
     rtdmHeader.preamble.endianness = BIG_ENDIAN;
     /* Header size */
-    rtdmHeader.preamble.headerSize = htons(sizeof(rtdmHeader));
+    rtdmHeader.preamble.headerSize = htons (sizeof(rtdmHeader));
     /* Header Version - Always 2 */
     rtdmHeader.postamble.headerVersion = RTDM_HEADER_VERSION;
 
@@ -835,30 +837,31 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     strcpy (&rtdmHeader.postamble.deviceId[0], m_Interface->VNC_CarData_X_DeviceID);
 
     /* Data Recorder ID - from .xml file */
-    rtdmHeader.postamble.dataRecordId = htons((UINT16) m_RtdmXmlData->dataRecorderCfg.id);
+    rtdmHeader.postamble.dataRecordId = htons ((UINT16) m_RtdmXmlData->dataRecorderCfg.id);
 
     /* Data Recorder Version - from .xml file */
-    rtdmHeader.postamble.dataRecordVersion = htons((UINT16) m_RtdmXmlData->dataRecorderCfg.version);
+    rtdmHeader.postamble.dataRecordVersion = htons (
+                    (UINT16) m_RtdmXmlData->dataRecorderCfg.version);
 
     /* First TimeStamp -  seconds */
-    rtdmHeader.postamble.firstTimeStampSecs = htonl(oldest->seconds);
+    rtdmHeader.postamble.firstTimeStampSecs = htonl (oldest->seconds);
 
     /* First TimeStamp - msecs */
-    rtdmHeader.postamble.firstTimeStampMsecs = htons(oldest->msecs);
+    rtdmHeader.postamble.firstTimeStampMsecs = htons (oldest->msecs);
 
     /* Last TimeStamp -  seconds */
-    rtdmHeader.postamble.lastTimeStampSecs = htonl(newest->seconds);
+    rtdmHeader.postamble.lastTimeStampSecs = htonl (newest->seconds);
 
     /* Last TimeStamp - msecs */
-    rtdmHeader.postamble.lastTimeStampMsecs = htons(newest->msecs);
+    rtdmHeader.postamble.lastTimeStampMsecs = htons (newest->msecs);
 
-    rtdmHeader.postamble.numStreams = htonl(numStreams);
+    rtdmHeader.postamble.numStreams = htonl (numStreams);
 
     /* The CRC is calculated on the "postamble" part of the RTDM header only */
     rtdmHeaderCrc = 0;
     rtdmHeaderCrc = crc32 (rtdmHeaderCrc, ((UINT8 *) &rtdmHeader.postamble),
                     sizeof(rtdmHeader.postamble));
-    rtdmHeader.preamble.headerChecksum = htonl(rtdmHeaderCrc);
+    rtdmHeader.preamble.headerChecksum = htonl (rtdmHeaderCrc);
 
     /* Update the FTP file with the RTDM header */
     fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
@@ -890,15 +893,17 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     UINT8 buffer[1];
     size_t amountRead = 0;
     StreamHeaderContent streamHeaderContent;
+    char *fileName = NULL;
 
     /* Reset the stream header. If no valid streams are found, then the time stamp structure will
      * have "0" in it. */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    if (os_io_fopen (CreateFileName (fileIndex), "r+b", &pFile) == ERROR)
+    fileName = CreateFileName (fileIndex);
+    if (os_io_fopen (fileName, "r+b", &pFile) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(DBG_ERROR, "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                        fileName, __FILE__, __LINE__);
         return;
     }
 
@@ -942,8 +947,8 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     }
 
     /* Copy the stream header time stamp into the passed argument */
-    timeStamp->seconds = ntohl(streamHeaderContent.postamble.timeStampUtcSecs);
-    timeStamp->msecs = ntohs(streamHeaderContent.postamble.timeStampUtcMsecs);
+    timeStamp->seconds = ntohl (streamHeaderContent.postamble.timeStampUtcSecs);
+    timeStamp->msecs = ntohs (streamHeaderContent.postamble.timeStampUtcMsecs);
 
     os_io_fclose (pFile);
 
@@ -974,16 +979,19 @@ static UINT16 CountStreams (void)
     UINT8 buffer[1]; /* file read buffer */
     UINT32 amountRead = 0; /* amount of data read from stream file */
     UINT16 sIndex = 0; /* indexes into stream delimiter */
+    char *fileName = NULL;
 
     /* Scan through all valid dan files and tally the number of occurrences of "STRM" */
     while ((m_ValidDanFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
+        fileName = CreateFileName (m_ValidDanFileListIndexes[fileIndex]);
         /* Open the stream file for reading */
-        if (os_io_fopen (CreateFileName (m_ValidDanFileListIndexes[fileIndex]), "r+b", &streamFilePtr) == ERROR)
+        if (os_io_fopen (fileName, "r+b", &streamFilePtr) == ERROR)
         {
-            debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                            __LINE__);
+            debugPrintf(DBG_ERROR,
+                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
         }
         else
         {
@@ -1052,16 +1060,19 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     FILE *streamFilePtr = NULL; /* Used to open the stream file for reading */
     UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Stores the data read from the stream file */
     UINT32 amount = 0; /* bytes or blocks read or written */
+    char *fileName = NULL;
 
     /* Scan through all valid stream files. This list is ordered oldest to newest. */
     while ((m_ValidDanFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
                     && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
     {
+        fileName = CreateFileName (m_ValidDanFileListIndexes[fileIndex]);
         /* Open the stream file for reading */
-        if (os_io_fopen (CreateFileName (m_ValidDanFileListIndexes[fileIndex]), "r+b", &streamFilePtr) == ERROR)
+        if (os_io_fopen (fileName, "r+b", &streamFilePtr) == ERROR)
         {
-            debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                            __LINE__);
+            debugPrintf(DBG_ERROR,
+                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
         }
         else
         {
@@ -1224,9 +1235,8 @@ static BOOL VerifyFileIntegrity (const char *filename)
     expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + sizeof(streamHeader) - 8);
 
     /* Verify the entire streamHeader amount could be read and the expected bytes remaining are in fact there */
-    sampleSize = ntohs(streamHeader.content.postamble.sampleSize);
-    if ((sampleSize != expectedBytesRemaining)
-                    || (amountRead != sizeof(streamHeader)))
+    sampleSize = ntohs (streamHeader.content.postamble.sampleSize);
+    if ((sampleSize != expectedBytesRemaining) || (amountRead != sizeof(streamHeader)))
     {
         debugPrintf(DBG_WARNING, "%s",
                         "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
