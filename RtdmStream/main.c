@@ -13,14 +13,14 @@
 #include <string.h>
 #include <conio.h>
 
-#include "MyTypes.h"
-#include "MyFuncs.h"
-#include "usertypes.h"
-#include "RtdmStream.h"
-#include "RtdmXml.h"
-#include "RtdmUtils.h"
-#include "RTDMInitialize.h"
-#include "MySleep.h"
+#include "../RtdmStream/MyTypes.h"
+#include "../RtdmStream/MyFuncs.h"
+#include "../RtdmStream/usertypes.h"
+#include "../RtdmStream/MySleep.h"
+#include "../RtdmStream/RtdmStream.h"
+#include "../RtdmStream/RtdmXml.h"
+#include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RTDMInitialize.h"
 
 
 TYPE_RTDMSTREAM_IF mStreamInfo;
@@ -32,6 +32,7 @@ extern void CreateUIThread (void);
 
 int main (void)
 {
+
 
     mStreamInfo.VNC_CarData_S_WhoAmISts = TRUE;
 

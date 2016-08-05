@@ -27,18 +27,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "MyTypes.h"
-#include "MyFuncs.h"
-#include "usertypes.h"
+#include "../RtdmStream/MyTypes.h"
+#include "../RtdmStream/MyFuncs.h"
+#include "../RtdmStream/usertypes.h"
 #endif
 
-#include "RtdmStream.h"
-#include "RtdmXml.h"
-#include "RtdmUtils.h"
-#include "RtdmDataLog.h"
-#include "RTDMInitialize.h"
+#include "../RtdmStream/RtdmStream.h"
+#include "../RtdmStream/RtdmXml.h"
+#include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RtdmDataLog.h"
+#include "../RtdmStream/RTDMInitialize.h"
 
-#include "crc32.h"
+#include "RtdmCrc32.h"
 
 /*******************************************************************
  *
@@ -98,38 +98,8 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
                 UINT8 *streamBuffer, UINT32 streamBufferSize);
 
-static void DeleteTestCrc (void)
-{
-    typedef struct
-    {
-            UINT8 a __attribute__ ((packed));
-            UINT16 b __attribute__ ((packed));
-            UINT32 c __attribute__ ((packed));
-
-    } Str;
-
-    Str t;
-    t.a = 0x11;
-    t.b = 0x3322;
-    t.c = 0x77665544;
-
-    UINT32 crc = 0;
-    UINT8 byteArray[] =
-        { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77 };
-
-    crc = crc32 (0, &t, sizeof(t));
-    debugPrintf(DBG_INFO, "Byte Array CRC = %d\n", crc);
-    crc = crc32 (0, byteArray, sizeof(byteArray));
-    debugPrintf(DBG_INFO, "Byte Array CRC = %d\n", crc);
-
-    // SHould be 785...429
-
-}
-
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
-    DeleteTestCrc ();
-
     m_RtdmXmlData = rtdmXmlData;
 
     /* Set buffer arrays to zero - has nothing to do with the network so do now */

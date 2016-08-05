@@ -6,9 +6,9 @@
  */
 #include <stdio.h>
 
-#include "MyTypes.h"
 #include <sys\timeb.h>
 #include <time.h>
+#include "../RtdmStream/MyTypes.h"
 
 void GetTimeDate (char *dateTime, UINT16 arraySize)
 {

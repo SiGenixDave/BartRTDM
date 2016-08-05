@@ -16,8 +16,8 @@
 #define RTDMSTREAM_H
 
 #ifndef TARGET_SIM_DLL
-#include "mwt_types.h"
-#include "usertypes.h"
+#include "../RtdmStream/mwt_types.h"
+#include "../RtdmStream/usertypes.h"
 #endif
 
 typedef struct dataBlock_RtdmStream

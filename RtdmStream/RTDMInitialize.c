@@ -26,15 +26,15 @@
 #include "fltinfo.h"
 #else
 #include <stdio.h>
-#include "MyTypes.h"
-#include "usertypes.h"
+#include "../RtdmStream/MyTypes.h"
+#include "../RtdmStream/usertypes.h"
 #endif
 
-#include "RtdmStream.h"
-#include "RtdmXml.h"
-#include "RtdmUtils.h"
-#include "RtdmDataLog.h"
-#include "RtdmFileIO.h"
+#include "../RtdmStream/RtdmStream.h"
+#include "../RtdmStream/RtdmXml.h"
+#include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RtdmDataLog.h"
+#include "../RtdmFileIO/RtdmFileIO.h"
 
 
 /*******************************************************************

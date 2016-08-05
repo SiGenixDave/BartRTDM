@@ -28,15 +28,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <io.h>
-#include "MyTypes.h"
-#include "MyFuncs.h"
-#include "usertypes.h"
+#include "../RtdmStream/MyTypes.h"
+#include "../RtdmStream/MyFuncs.h"
+#include "../RtdmStream/usertypes.h"
 #endif
 
-#include "RtdmStream.h"
-#include "RtdmXml.h"
-#include "RtdmUtils.h"
-#include "crc32.h"
+#include "../RtdmStream/RtdmStream.h"
+#include "../RtdmStream/RtdmXml.h"
+#include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RtdmCrc32.h"
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
