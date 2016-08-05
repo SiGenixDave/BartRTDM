@@ -1256,6 +1256,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
 
     }
 
+    os_io_fclose (pFile);
     return (TRUE);
 }
 
