@@ -25,9 +25,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../RtdmStream/MyTypes.h"
-#include "../RtdmStream/MyFuncs.h"
-#include "../RtdmStream/usertypes.h"
+#include "../PcSrcFiles/MyTypes.h"
+#include "../PcSrcFiles/MyFuncs.h"
+#include "../PcSrcFiles/usertypes.h"
 #endif
 
 #include "../RtdmStream/RtdmStream.h"
@@ -220,7 +220,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
          * is performed in another task to prevent task overruns due to the amount
          * of time required to perform file writes
          */
-        SpawnRtdmFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount,
+        WriteDanFile (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount,
                         currentTime);
 
         /* Exchange buffers so the next time span worth of data won't conflict with the
@@ -242,7 +242,7 @@ void FTPDataLog (void)
     GetEpochTime (&currentTime);
 
     /* Close existing datalog file */
-    SpawnRtdmFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
+    WriteDanFile (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
 
     /* Swap data stream memory buffers */
     SwapBuffers ();
@@ -251,7 +251,7 @@ void FTPDataLog (void)
      * to a single file and then FTP that file to the FTP server */
 
     /* TODO Will need info about FTP server */
-    SpawnFTPDatalog ();
+    BuildSendRtdmFtpFile ();
 
 }
 

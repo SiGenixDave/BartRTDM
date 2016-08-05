@@ -8,7 +8,7 @@
 
 #include <sys\timeb.h>
 #include <time.h>
-#include "../RtdmStream/MyTypes.h"
+#include "../PcSrcFiles/MyTypes.h"
 
 void GetTimeDate (char *dateTime, UINT16 arraySize)
 {

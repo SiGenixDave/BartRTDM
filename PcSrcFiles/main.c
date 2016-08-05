@@ -13,10 +13,10 @@
 #include <string.h>
 #include <conio.h>
 
-#include "../RtdmStream/MyTypes.h"
-#include "../RtdmStream/MyFuncs.h"
-#include "../RtdmStream/usertypes.h"
-#include "../RtdmStream/MySleep.h"
+#include "../PcSrcFiles/MyTypes.h"
+#include "../PcSrcFiles/MyFuncs.h"
+#include "../PcSrcFiles/usertypes.h"
+#include "../PcSrcFiles/MySleep.h"
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"

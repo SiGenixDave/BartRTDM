@@ -14,8 +14,8 @@
 #include "../include/iptcom.h"
 #else
 #include <stdio.h>
-#include "../RtdmStream/MyTypes.h"
-#include "../RtdmStream/MyFuncs.h"
+#include "../PcSrcFiles/MyTypes.h"
+#include "../PcSrcFiles/MyFuncs.h"
 #endif
 
 /* ========================================================================

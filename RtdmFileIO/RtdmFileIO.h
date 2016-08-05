@@ -51,8 +51,8 @@
  *******************************************************************/
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT32 sampleCount,
+void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT32 sampleCount,
                 RTDMTimeStr *currentTime);
-void SpawnFTPDatalog (void);
+void BuildSendRtdmFtpFile (void);
 
 #endif /* RTDMFILEIO_H_ */

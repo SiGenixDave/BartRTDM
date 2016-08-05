@@ -28,9 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <io.h>
-#include "../RtdmStream/MyTypes.h"
-#include "../RtdmStream/MyFuncs.h"
-#include "../RtdmStream/usertypes.h"
+#include "../PcSrcFiles/MyTypes.h"
+#include "../PcSrcFiles/MyFuncs.h"
+#include "../PcSrcFiles/usertypes.h"
 #endif
 
 #include "../RtdmStream/RtdmStream.h"
@@ -199,7 +199,7 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 }
 
 /* TODO Need to be run in a task */
-void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
+void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime)
 {
 
@@ -286,7 +286,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
                 {
                     m_DanFileIndex = 0;
 #ifndef REMOVE
-                    SpawnFTPDatalog ();
+                    BuildSendRtdmFtpFile ();
 #endif
                 }
             }
@@ -298,7 +298,7 @@ void SpawnRtdmFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 samp
 }
 
 /* TODO Need to be run in a task */
-void SpawnFTPDatalog (void)
+void BuildSendRtdmFtpFile (void)
 {
 
     UINT16 newestDanFileIndex = INVALID_FILE_INDEX;
@@ -745,7 +745,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     strcat (s_FileName, dateTime);
     strcat (s_FileName, extension);
 
-    /* Try opening the file for writing */
+    /* Try opening the file for writing and leave open */
     if (os_io_fopen (s_FileName, "wb+", ftpFilePtr) == ERROR)
     {
         debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
@@ -1223,6 +1223,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     if (lastStrmIndex == -1)
     {
         debugPrintf(DBG_WARNING, "%s", "No STRMs found in file\n");
+        os_io_fclose(pFile);
         return (FALSE);
     }
 
@@ -1350,6 +1351,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     {
         debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
+        os_io_fclose(pReadFile);
         return FALSE;
     }
 
@@ -1358,12 +1360,16 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     if (osCallReturn != 0)
     {
         debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        os_io_fclose(pWriteFile);
+        os_io_fclose(pReadFile);
         return FALSE;
     }
     osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
         debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        os_io_fclose(pWriteFile);
+        os_io_fclose(pReadFile);
         return FALSE;
     }
 
@@ -1377,6 +1383,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
          * is reached.  */
         if (amountRead == 0)
         {
+            os_io_fclose(pWriteFile);
+            os_io_fclose(pReadFile);
             return FALSE;
         }
 
@@ -1388,6 +1396,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             {
                 debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
+                os_io_fclose(pWriteFile);
+                os_io_fclose(pReadFile);
                 return FALSE;
             }
         }
@@ -1403,6 +1413,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             {
                 debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
+                os_io_fclose(pWriteFile);
+                os_io_fclose(pReadFile);
                 return FALSE;
             }
 

@@ -15,7 +15,7 @@
 #ifndef _USERTYPES_H
 #define _USERTYPES_H
 
-#include "../RtdmStream/mwt_types.h"
+#include "../PcSrcFiles/mwt_types.h"
 
 #ifdef __cplusplus
 extern "C" {

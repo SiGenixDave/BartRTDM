@@ -27,9 +27,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../RtdmStream/MyTypes.h"
-#include "../RtdmStream/MyFuncs.h"
-#include "../RtdmStream/usertypes.h"
+#include "../PcSrcFiles/MyTypes.h"
+#include "../PcSrcFiles/MyFuncs.h"
+#include "../PcSrcFiles/usertypes.h"
 #endif
 
 #include "../RtdmStream/RtdmStream.h"

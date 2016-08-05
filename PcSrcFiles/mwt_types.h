@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#include "../RtdmStream/mitraclib.h"
+#include "../PcSrcFiles/mitraclib.h"
 
 typedef CC_ANALOG        MWT_ANALOG;
 typedef CC_BCD4          MWT_BCD4;
