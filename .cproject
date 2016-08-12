@@ -29,6 +29,7 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1467067100" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="TEST_ON_PC"/>
 									<listOptionValue builtIn="false" value="TARGET_SIM_DLL"/>
+									<listOptionValue builtIn="false" value="WAIT_FOR_EVENT_DRIVEN_FIX"/>
 								</option>
 								<option defaultValue="gnu.c.optimization.level.none" id="gnu.c.compiler.option.optimization.level.1212586791" name="Optimization Level" superClass="gnu.c.compiler.option.optimization.level" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.debugging.level.798040654" name="Debug Level" superClass="gnu.c.compiler.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>
@@ -109,15 +110,6 @@
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
 		<project id="BART_RTDM.cdt.managedbuild.target.gnu.mingw.exe.528341079" name="Executable" projectType="cdt.managedbuild.target.gnu.mingw.exe"/>
 	</storageModule>
-	<storageModule moduleId="scannerConfiguration">
-		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.mingw.exe.debug.1238644138;cdt.managedbuild.config.gnu.mingw.exe.debug.1238644138.;cdt.managedbuild.tool.gnu.c.compiler.mingw.exe.debug.1328567914;cdt.managedbuild.tool.gnu.c.compiler.input.1026618504">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		</scannerConfigBuildInfo>
-		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.mingw.exe.release.265001605;cdt.managedbuild.config.gnu.mingw.exe.release.265001605.;cdt.managedbuild.tool.gnu.c.compiler.mingw.exe.release.751947847;cdt.managedbuild.tool.gnu.c.compiler.input.2028511115">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		</scannerConfigBuildInfo>
-	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="refreshScope" versionNumber="2">
 		<configuration configurationName="Debug">
@@ -126,5 +118,17 @@
 		<configuration configurationName="Release">
 			<resource resourceType="PROJECT" workspacePath="/BART_RTDM"/>
 		</configuration>
+	</storageModule>
+	<storageModule moduleId="scannerConfiguration">
+		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.mingw.exe.debug.1238644138;cdt.managedbuild.config.gnu.mingw.exe.debug.1238644138.;cdt.managedbuild.tool.gnu.c.compiler.mingw.exe.debug.1328567914;cdt.managedbuild.tool.gnu.c.compiler.input.1026618504">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.mingw.exe.debug.1238644138;cdt.managedbuild.config.gnu.mingw.exe.debug.1238644138.;cdt.managedbuild.tool.gnu.c.compiler.mingw.base.407236222;cdt.managedbuild.tool.gnu.c.compiler.input.1830130979">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.mingw.exe.release.265001605;cdt.managedbuild.config.gnu.mingw.exe.release.265001605.;cdt.managedbuild.tool.gnu.c.compiler.mingw.exe.release.751947847;cdt.managedbuild.tool.gnu.c.compiler.input.2028511115">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		</scannerConfigBuildInfo>
 	</storageModule>
 </cproject>

@@ -157,15 +157,6 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 
     static BOOL firstCall = TRUE;
 
-#ifdef DBG_INFO
-    RTDMTimeStr entryTime;
-    RTDMTimeStr exitTime;
-    static INT32 maxTimeMsecs = -1;
-    static UINT32 taskCount = 0;
-    INT32 timeDiffMsecs;
-    GetEpochTime (&entryTime);
-#endif
-
     if (firstCall)
     {
         RTDMInitialize (interface);
@@ -182,6 +173,11 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 
     errorCode = NetworkAvailable (interface, &networkAvailable);
 
+    if (bufferChangeAmount != 0)
+    {
+        PrintIntegerContents(bufferChangeAmount);
+    }
+
     ServiceStream (interface, networkAvailable, bufferChangeAmount, &currentTime);
 
     ServiceDataLog (m_ChangedSignalData, bufferChangeAmount, &m_SampleHeader, &currentTime);
@@ -191,17 +187,6 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 
     /* Set for DCUTerm/PTU */
     interface->RTDMStreamError = errorCode;
-
-#ifdef DBG_INFO
-    GetEpochTime (&exitTime);
-    timeDiffMsecs = TimeDiff (&entryTime, &exitTime);
-    if (timeDiffMsecs > maxTimeMsecs)
-    {
-        maxTimeMsecs = timeDiffMsecs;
-        debugPrintf(DBG_INFO, "MaxTime = %d msecs, TaskCount = %d\n", maxTimeMsecs, taskCount);
-    }
-    taskCount++;
-#endif
 
 }
 
@@ -232,7 +217,6 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 {
     INT32 timeDiff = 0;
     BOOL streamBecauseBufferFull = FALSE;
-    BOOL sampleBecauseOfInactivity = FALSE;
     static RTDMTimeStr s_PreviousSendTime =
         { 0, 0 };
     static UINT32 s_StreamBufferIndex = sizeof(StreamHeaderStr);
@@ -252,16 +236,8 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
         s_StreamBufferIndex += sizeof(m_SampleHeader);
 
-        if (sampleBecauseOfInactivity)
-        {
-            newChangedDataBytes = m_RtdmXmlData->metaData.maxStreamDataSize;
-            memcpy (&m_StreamData[s_StreamBufferIndex], m_NewSignalData, newChangedDataBytes);
-        }
-        else
-        {
-            /* Copy the changed data into main buffer */
-            memcpy (&m_StreamData[s_StreamBufferIndex], m_ChangedSignalData, newChangedDataBytes);
-        }
+        /* Copy the changed data into main buffer */
+        memcpy (&m_StreamData[s_StreamBufferIndex], m_ChangedSignalData, newChangedDataBytes);
 
         s_StreamBufferIndex += newChangedDataBytes;
 
@@ -320,22 +296,17 @@ static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailabl
 
 static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime)
 {
-    INT32 compareResult = 0;
     UINT32 signalChangeBufferSize = 0;
     UINT16 signalCount = 0;
 
-    /* FYI: compareResult = 0 if new signal data and previous signal data identical */
-    compareResult = memcmp (m_OldSignalData, m_NewSignalData,
-                    m_RtdmXmlData->metaData.maxStreamDataSize);
-
-    /* Populate buffer with all signals because timer expired or compression is disabled */
     if (m_RtdmXmlData->dataRecorderCfg.compressionEnabled)
     {
-        /* Populate buffer with signals that changed */
+        /* Populate buffer with signals that changed or if individual signal timers have expired */
         signalChangeBufferSize = PopulateBufferWithChanges (&signalCount, currentTime);
     }
     else
     {
+        /* Populate buffer with all signals because compression is disabled */
         memcpy (m_ChangedSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
         signalChangeBufferSize = m_RtdmXmlData->metaData.maxStreamDataSize;
         signalCount = (UINT16) m_RtdmXmlData->metaData.signalCount;
@@ -357,14 +328,6 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
     /* Number of Signals in current sample*/
     m_SampleHeader.count = htons(signalCount);
     /*********************************** End HEADER *************************************************************/
-
-    /* If the previous sample of data is identical to the current sample and
-     * compression is enabled do nothing.
-     */
-    if ((!compareResult) && (m_RtdmXmlData->dataRecorderCfg.compressionEnabled))
-    {
-        return (0);
-    }
 
     return (signalChangeBufferSize);
 
@@ -436,6 +399,7 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *curre
     INT32 compareResult = 0;
     INT32 timeDiff = 0;
 
+    /* Clear the changed signal buffer */
     memset (m_ChangedSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxStreamDataSize));
 
     for (i = 0; i < m_RtdmXmlData->metaData.signalCount; i++)
@@ -464,13 +428,13 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *curre
         compareResult = memcmp (&m_NewSignalData[dataIndex], &m_OldSignalData[dataIndex],
                         variableSize);
 
-        timeDiff = TimeDiff (currentTime, &m_RtdmXmlData->signalDesription->signalUpdateTime);
+        timeDiff = TimeDiff (currentTime, &m_RtdmXmlData->signalDesription[i].signalUpdateTime);
 
         /* TODO Need to find out what is the max stagnant time for the signal before being updated */
         if ((compareResult != 0) || (timeDiff > 3000))
         {
             /* Save the current sample time */
-            m_RtdmXmlData->signalDesription->signalUpdateTime = *currentTime;
+            m_RtdmXmlData->signalDesription[i].signalUpdateTime = *currentTime;
 
             /* Start copying the from the signal id and copy the id and data */
             memcpy (&m_ChangedSignalData[changedIndex], &m_NewSignalData[signalIndex],

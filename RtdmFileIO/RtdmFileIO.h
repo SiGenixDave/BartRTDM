@@ -1,58 +1,40 @@
-/*****************************************************************************/
-/* This document and its contents are the property of Bombardier
- * Inc or its subsidiaries.  This document contains confidential
- * proprietary information.  The reproduction, distribution,
- * utilization or the communication of this document or any part
- * thereof, without express authorization is strictly prohibited.
- * Offenders will be held liable for the payment of damages.
+/*****************************************************************************
+ *  COPYRIGHT   : (c) 2016 Bombardier Transportation BTPC
+ *****************************************************************************
  *
- * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
+ *  MODULE      : RtdmFileIO.h
  *
- * Project    : Communication Controller (Embedded)
- *//**
- * @file RtdmFileIO.h
- *//*
+ *  ABSTRACT    : Interface definition for resource 'RtdmFileIO'
  *
- * Revision : 01SEP2016 - D.Smail : Original Release
+ *  CREATOR     : PMAKE 5.5.0.4
  *
- *****************************************************************************/
+ *  REMARKS     : ANY CHANGES TO THIS FILE WILL BE LOST !!!
+ *
+ ****************************************************************************/
 
-#ifndef RTDMFILEIO_H_
-#define RTDMFILEIO_H_
+#ifndef RTDMFILEIO_H
+#define RTDMFILEIO_H
 
-/*******************************************************************
- *
- *     C  O  N  S  T  A  N  T  S
- *
- *******************************************************************/
+#ifndef TARGET_SIM_DLL
+#include "mwt_types.h"
+#include "usertypes.h"
+#endif
 
-/*******************************************************************
- *
- *     E  N  U  M  S
- *
- *******************************************************************/
+typedef struct dataBlock_RtdmFileIO
+{
+    /* Group: Default */
+    BOOL              RTDMSendMessage_trig;                    /* input  */
+}   TYPE_RTDMFILEIO_IF;
 
-/*******************************************************************
- *
- *    S  T  R  U  C  T  S
- *
- *******************************************************************/
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/*******************************************************************
- *
- *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
- *
- *******************************************************************/
+void RtdmFileIO(TYPE_RTDMFILEIO_IF *interface);
 
-/*******************************************************************
- *
- *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
- *
- *******************************************************************/
+#ifdef __cplusplus
+}
+#endif
 
-void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT32 sampleCount,
-                RTDMTimeStr *currentTime);
-void BuildSendRtdmFtpFile (void);
+#endif /* RTDMFILEIO_H */
 
-#endif /* RTDMFILEIO_H_ */

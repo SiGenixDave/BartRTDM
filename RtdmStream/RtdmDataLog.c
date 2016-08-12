@@ -33,7 +33,7 @@
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
-#include "../RtdmFileIO/RtdmFileIO.h"
+#include "../RtdmFileIO/RtdmFileExt.h"
 
 /*******************************************************************
  *
@@ -216,13 +216,14 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
         debugPrintf(DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n", m_SampleCount,
                         timeDiff);
 
+#ifdef WAIT_FOR_EVENT_DRIVEN_FIX
         /* Write the data in the current buffer to the dan file. The file write
          * is performed in another task to prevent task overruns due to the amount
          * of time required to perform file writes
          */
         WriteDanFile (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount,
                         currentTime);
-
+#endif
         /* Exchange buffers so the next time span worth of data won't conflict with the
          * previous time span data
          */
@@ -265,12 +266,12 @@ static void SwapBuffers (void)
     if (m_RTDMDataLogPingPongPtr == m_RTDMDataLogPingPtr)
     {
         m_RTDMDataLogPingPongPtr = m_RTDMDataLogPongPtr;
-        debugPrintf(DBG_INFO, "%s", "Data Log writes will occur to PONG buffer\n");
+        debugPrintf(DBG_LOG, "%s", "Data Log writes will occur to PONG buffer\n");
     }
     else
     {
         m_RTDMDataLogPingPongPtr = m_RTDMDataLogPingPtr;
-        debugPrintf(DBG_INFO, "%s", "Data Log writes will occur to PING buffer\n");
+        debugPrintf(DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
     }
 
     m_RTDMDataLogIndex = 0;

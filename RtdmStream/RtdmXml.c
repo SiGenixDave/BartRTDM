@@ -33,6 +33,7 @@
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmFileIO/RtdmFileExt.h"
 
 /*******************************************************************
  *
@@ -120,6 +121,9 @@ typedef struct
  *******************************************************************/
 /** @brief Pointer to memory where the entire XML configuration file is stored */
 static char *m_ConfigXmlBufferPtr = NULL;
+
+/** @brief XML configuration file size */
+static INT32 m_ConfigXmlFileSize = 0;
 
 /** @brief Maps the XML data type to the local storage data type */
 static const DataTypeMapStr dataTypeMap[] =
@@ -233,6 +237,7 @@ static XmlElementDataStr m_OutputStreamCfg =
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+static UINT16 CopyXMLConfigFile (void);
 static UINT16 ReadProcessXmlFile (void);
 static UINT16 OpenXMLConfigurationFile (void);
 static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr);
@@ -274,6 +279,13 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
         return (errorCode);
     }
 
+    errorCode = CopyXMLConfigFile ();
+    if (errorCode != NO_ERROR)
+    {
+        /* TODO if errorCode then need to log fault and inform that XML file read failed */
+        return (errorCode);
+    }
+
     interface->RTDMSignalCount = (UINT16) m_RtdmXmlData.metaData.signalCount;
     interface->RTDMSampleSize = (UINT16) m_RtdmXmlData.metaData.maxStreamHeaderDataSize;
     interface->RTDMSendTime = (UINT16) m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs;
@@ -304,6 +316,27 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
 char *GetXMLConfigFileBuffer (void)
 {
     return m_ConfigXmlBufferPtr;
+}
+
+static UINT16 CopyXMLConfigFile (void)
+{
+    const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
+    FILE *copyFile = NULL;
+
+    if (os_io_fopen (copyFileName, "wb+", &copyFile) == ERROR)
+    {
+        debugPrintf(DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
+                        __FILE__, __LINE__);
+        /* TODO Error type */
+        return 1;
+    }
+
+    fwrite (m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, sizeof(char), copyFile);
+
+    os_io_fclose (copyFile);
+
+    return (NO_ERROR);
+
 }
 
 /*****************************************************************************/
@@ -415,26 +448,26 @@ static UINT16 ReadProcessXmlFile (void)
 static UINT16 OpenXMLConfigurationFile (void)
 {
     FILE* filePtr = NULL; /* OS file pointer to XML configuration file */
-    INT32 numBytes = 0; /* Number of bytes in the XML configuration file  */
 
-    /* open the existing configuration file for reading TEXT MODE */
-    if (os_io_fopen (RTDM_XML_FILE, "r", &filePtr) != ERROR)
+    /* open the existing configuration file for reading TEXT MODE ("rb" needed because if "r" only
+     * \n gets discarded ) */
+    if (os_io_fopen (RTDM_XML_FILE, "rb", &filePtr) != ERROR)
     {
         /* Get the number of bytes */
         fseek (filePtr, 0L, SEEK_END);
-        numBytes = ftell (filePtr);
+        m_ConfigXmlFileSize = ftell (filePtr);
 
         /* reset the file position indicator to the beginning of the file */
         fseek (filePtr, 0L, SEEK_SET);
 
         /* grab sufficient memory for the buffer to hold the text - clear all bytes. Add
          * an additional byte to ensure a NULL character (end of string) is encountered */
-        m_ConfigXmlBufferPtr = (char*) calloc ((size_t) (numBytes + 1), sizeof(char));
+        m_ConfigXmlBufferPtr = (char*) calloc ((size_t) (m_ConfigXmlFileSize + 1), sizeof(char));
 
         /* memory error */
         if (m_ConfigXmlBufferPtr == NULL)
         {
-            os_io_fclose(filePtr);
+            os_io_fclose (filePtr);
             debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
             /* TODO flag error */
@@ -445,15 +478,16 @@ static UINT16 OpenXMLConfigurationFile (void)
         }
 
         /* copy all the text into the buffer */
-        fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t) numBytes, filePtr);
+        fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t) m_ConfigXmlFileSize, filePtr);
 
         /* Close the file, no longer needed */
-        os_io_fclose(filePtr);
+        os_io_fclose (filePtr);
     }
     /* File does not exist or internal error */
     else
     {
-        debugPrintf(DBG_ERROR, "%s", "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
+        debugPrintf(DBG_ERROR, "%s",
+                        "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
 

@@ -61,7 +61,7 @@ int main (void)
     {
         RtdmStream (&mStreamInfo);
         MySleep (50);
-        //mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+        mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
     }
 
     puts ("!!!Hello World!!!"); /* prints !!!Hello World!!! */

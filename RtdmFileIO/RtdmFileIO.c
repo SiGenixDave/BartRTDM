@@ -37,26 +37,22 @@
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmCrc32.h"
+#include "../RtdmFileIO/RtdmFileExt.h"
+#include "../RtdmFileIO/RtdmFileIO.h"
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-#ifdef TEST_ON_PC
-#define DRIVE_NAME                          "D:\\"
-#define DIRECTORY_NAME                      "rtdm\\"
-#else
-#define DRIVE_NAME                          "/ata0/"
-#define DIRECTORY_NAME                      "rtdm/"
-#endif
+
 
 /* TODO required for release
  #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
  #define SINGLE_FILE_TIMESPAN_HOURS          0.25
  */
 
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.1 / 6.0
-#define SINGLE_FILE_TIMESPAN_HOURS          (0.25/60.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.5
+#define SINGLE_FILE_TIMESPAN_HOURS          (0.025)
 
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
 
@@ -186,6 +182,7 @@ static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
 static UINT16 CreateVerifyStorageDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
+static BOOL CreateCarConDevFile (void);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -194,7 +191,21 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     CreateVerifyStorageDirectory ();
 
+    CreateCarConDevFile();
+
+    /* TODO Bug exists in code where file stops appending to existing file after application stopped and
+     * restarted. File appended once but because s_StartTime is never updated, the issue arises. Might just be better to
+     * always start a new file
+     */
     InitTrackerIndex ();
+
+
+
+}
+
+void RtdmFileIO(TYPE_RTDMFILEIO_IF *interface)
+{
+
 
 }
 
@@ -222,8 +233,6 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
     fileName = CreateFileName (m_DanFileIndex);
     switch (m_DanFileState)
     {
-        /* TODO Look at not closing file after opening it to speed things along */
-
         default:
         case CREATE_NEW:
             /* TODO handle file open error */
@@ -297,7 +306,6 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
 
 }
 
-/* TODO Need to be run in a task */
 void BuildSendRtdmFtpFile (void)
 {
 
@@ -332,6 +340,9 @@ void BuildSendRtdmFtpFile (void)
     if (newestDanFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
+        debugPrintf(DBG_ERROR, "%s\n",
+                        "No valid DAN files exist to build compilation DAN file (newestDanFileIndex not found)\n");
+        return;
     }
 
     /* Get the newest timestamp (last one) in the newest file; used for RTDM header */
@@ -344,9 +355,12 @@ void BuildSendRtdmFtpFile (void)
     if (oldestDanFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
+        debugPrintf(DBG_ERROR, "%s\n",
+                        "No valid DAN files exist to build compilation DAN file (oldestDanFileIndex not found)\n");
+        return;
     }
 
-    /* Get the oldest timestamp (first one) in the oldest file ; used for RTDM header */
+    /* Get the oldest timestamp (first one) in the oldest file; used for RTDM header */
     GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestDanFileIndex);
 
     /* Scan through all valid files and count the number of streams in each file; used for
@@ -358,11 +372,14 @@ void BuildSendRtdmFtpFile (void)
     /* Create filename and open it for writing */
     fileName = CreateFTPFileName (&ftpFilePtr);
 
-    debugPrintf(DBG_INFO, "FTP Client Send filename = %s\n", fileName);
+    debugPrintf(DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
 
     if (ftpFilePtr == NULL)
     {
         /* TODO handle error */
+        debugPrintf(DBG_ERROR, "%s %s\n",
+                        "Couldn't open compilation DAN file", fileName);
+        return;
     }
 
     /* Include xml file */
@@ -374,7 +391,7 @@ void BuildSendRtdmFtpFile (void)
     /* Open each file .dan (oldest first) and concatenate */
     IncludeStreamFiles (ftpFilePtr);
 
-    /* Close file */
+    /* Close file pointer */
     os_io_fclose (ftpFilePtr);
 
     /* Send newly create file to FTP server */
@@ -400,6 +417,26 @@ void BuildSendRtdmFtpFile (void)
     /* TODO Delete file when FTP send complete */
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Determines which #.dan file to start writing to
+ *
+ *              Called at startup / system initialization. Determines what
+ *              #.dan files exist and if they do exist, verifies they are valid
+ *              by examining the final stream in the file. The newest file
+ *              is then determined. Once the newest file is determined, then
+ *              if room exists in the file for more streams, this file is
+ *              set as the file to begin writing to. If there isn't room, then
+ *              the next file is the file where streams will be written.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void InitTrackerIndex (void)
 {
     UINT16 fileIndex = 0; /* Used to index through all possible stream files */
@@ -430,6 +467,7 @@ static void InitTrackerIndex (void)
         }
     }
 
+    /* No valid files found, begin writing to 0.dan */
     if (newestFileIndex == INVALID_FILE_INDEX)
     {
         m_DanFileIndex = 0;
@@ -708,7 +746,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
                     strlen (m_Interface->VNC_CarData_X_ConsistID) : sizeof(consistId) - 1;
     memcpy (consistId, m_Interface->VNC_CarData_X_ConsistID, maxCopySize);
 
-    maxCopySize = sizeof(carId) - 1 > strlen (m_Interface->VNC_CarData_X_ConsistID) ?
+    maxCopySize = sizeof(carId) - 1 > strlen (m_Interface->VNC_CarData_X_CarID) ?
                     strlen (m_Interface->VNC_CarData_X_CarID) : sizeof(carId) - 1;
     memcpy (carId, m_Interface->VNC_CarData_X_CarID, maxCopySize);
 
@@ -1136,7 +1174,7 @@ static char *CreateFileName (UINT16 fileIndex)
     /* Append the extension */
     strcat (s_FileName, extension);
 
-    return s_FileName;
+    return (s_FileName);
 }
 
 /*****************************************************************************/
@@ -1178,7 +1216,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
         debugPrintf(DBG_INFO,
                         "VerifyFileIntegrity() os_io_fopen() failed... File %s doesn't exist ---> File: %s  Line#: %d\n",
                         filename, __FILE__, __LINE__);
-        return FALSE;
+        return (FALSE);
     }
 
     /* Ensure the file pointer points to the beginnning of the file */
@@ -1223,7 +1261,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     if (lastStrmIndex == -1)
     {
         debugPrintf(DBG_WARNING, "%s", "No STRMs found in file\n");
-        os_io_fclose(pFile);
+        os_io_fclose (pFile);
         return (FALSE);
     }
 
@@ -1343,7 +1381,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     {
         debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
-        return FALSE;
+        return (FALSE);
     }
 
     /* Open the temporary file where the first "desiredFileSize" bytes will be written */
@@ -1351,8 +1389,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     {
         debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
-        os_io_fclose(pReadFile);
-        return FALSE;
+        os_io_fclose (pReadFile);
+        return (FALSE);
     }
 
     /* Ensure the respective file pointers are set to the begining of the file */
@@ -1360,17 +1398,17 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     if (osCallReturn != 0)
     {
         debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
-        os_io_fclose(pWriteFile);
-        os_io_fclose(pReadFile);
-        return FALSE;
+        os_io_fclose (pWriteFile);
+        os_io_fclose (pReadFile);
+        return (FALSE);
     }
     osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
         debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
-        os_io_fclose(pWriteFile);
-        os_io_fclose(pReadFile);
-        return FALSE;
+        os_io_fclose (pWriteFile);
+        os_io_fclose (pReadFile);
+        return (FALSE);
     }
 
     while (1)
@@ -1383,9 +1421,9 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
          * is reached.  */
         if (amountRead == 0)
         {
-            os_io_fclose(pWriteFile);
-            os_io_fclose(pReadFile);
-            return FALSE;
+            os_io_fclose (pWriteFile);
+            os_io_fclose (pReadFile);
+            return (FALSE);
         }
 
         /* Check if the amount of bytes read is less than the desired file size */
@@ -1396,9 +1434,9 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             {
                 debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
-                os_io_fclose(pWriteFile);
-                os_io_fclose(pReadFile);
-                return FALSE;
+                os_io_fclose (pWriteFile);
+                os_io_fclose (pReadFile);
+                return (FALSE);
             }
         }
         else
@@ -1413,9 +1451,9 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             {
                 debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
-                os_io_fclose(pWriteFile);
-                os_io_fclose(pReadFile);
-                return FALSE;
+                os_io_fclose (pWriteFile);
+                os_io_fclose (pReadFile);
+                return (FALSE);
             }
 
             os_io_fclose (pWriteFile);
@@ -1427,7 +1465,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             {
                 debugPrintf(DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
-                return FALSE;
+                return (FALSE);
             }
             /* Rename the temporary file to the fileName */
             rename (tempFileName, fileName);
@@ -1435,11 +1473,55 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             {
                 debugPrintf(DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
-                return FALSE;
+                return (FALSE);
             }
 
-            return TRUE;
+            return (TRUE);
         }
     }
 
 }
+
+
+/*****************************************************************************/
+/**
+ * @brief       Create car, consist and device data file (used by PTU RTDM only)
+ *
+ *              This function creates a data file used by the PTU RTDM only
+ *              that informs the PTU of the Car Id, Device Id and Consiste Id
+ *
+ *  @return BOOL - TRUE if all OS/file calls; FALSE otherwise
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static BOOL CreateCarConDevFile (void)
+{
+    const char *ccdFileName = DRIVE_NAME DIRECTORY_NAME "CarConDev.dat";
+    FILE *pFile = NULL;
+
+    /* Create the data file  */
+    if (os_io_fopen (ccdFileName, "wb+", &pFile) == ERROR)
+    {
+        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
+        os_io_fclose (pFile);
+        return (FALSE);
+    }
+
+    /* TODO check that these have been updated by the output task responsible  */
+    fprintf(pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.id);
+    fprintf(pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
+    fprintf(pFile, "%s\n", m_Interface->VNC_CarData_X_CarID);
+    fprintf(pFile, "%s\n", m_Interface->VNC_CarData_X_ConsistID);
+    fprintf(pFile, "%s\n", m_Interface->VNC_CarData_X_DeviceID);
+
+    os_io_fclose (pFile);
+
+    return (TRUE);
+
+}
+
