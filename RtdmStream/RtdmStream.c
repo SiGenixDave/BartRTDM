@@ -173,11 +173,6 @@ void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 
     errorCode = NetworkAvailable (interface, &networkAvailable);
 
-    if (bufferChangeAmount != 0)
-    {
-        PrintIntegerContents(bufferChangeAmount);
-    }
-
     ServiceStream (interface, networkAvailable, bufferChangeAmount, &currentTime);
 
     ServiceDataLog (m_ChangedSignalData, bufferChangeAmount, &m_SampleHeader, &currentTime);

@@ -45,7 +45,6 @@
  *
  *******************************************************************/
 
-
 /* TODO required for release
  #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
  #define SINGLE_FILE_TIMESPAN_HOURS          0.25
@@ -148,7 +147,9 @@ typedef struct
 /** @brief Used to create file name of temporary dan file */
 static UINT16 m_DanFileIndex = 0;
 /** @brief */
-static TYPE_RTDMSTREAM_IF *m_Interface = NULL;
+static TYPE_RTDMSTREAM_IF *m_StreamInterface = NULL;
+/** @brief */
+static TYPE_RTDMFILEIO_IF *m_FileIOInterface = NULL;
 /** @brief */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 /** @brief */
@@ -165,7 +166,8 @@ static const char *m_StreamHeaderDelimiter = "STRM";
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static void InitTrackerIndex (void);
+static void InitFileIndex (void);
+static void InitFtpTrackerFile (void);
 static void PopulateValidDanFileList (void);
 static void PopulateValidFileTimeStamps (void);
 static void SortValidFileTimeStamps (void);
@@ -186,26 +188,25 @@ static BOOL CreateCarConDevFile (void);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
-    m_Interface = interface;
+    m_StreamInterface = interface;
     m_RtdmXmlData = rtdmXmlData;
 
     CreateVerifyStorageDirectory ();
 
-    CreateCarConDevFile();
+    CreateCarConDevFile ();
 
     /* TODO Bug exists in code where file stops appending to existing file after application stopped and
      * restarted. File appended once but because s_StartTime is never updated, the issue arises. Might just be better to
      * always start a new file
      */
-    InitTrackerIndex ();
+    InitFileIndex ();
 
-
+    InitFtpTrackerFile ();
 
 }
 
-void RtdmFileIO(TYPE_RTDMFILEIO_IF *interface)
+void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
 {
-
 
 }
 
@@ -227,7 +228,7 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
         return;
     }
 
-    PopulateStreamHeader (m_Interface, m_RtdmXmlData, &streamHeader, sampleCount, logBuffer,
+    PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &streamHeader, sampleCount, logBuffer,
                     dataBytesInBuffer, currentTime);
 
     fileName = CreateFileName (m_DanFileIndex);
@@ -377,8 +378,7 @@ void BuildSendRtdmFtpFile (void)
     if (ftpFilePtr == NULL)
     {
         /* TODO handle error */
-        debugPrintf(DBG_ERROR, "%s %s\n",
-                        "Couldn't open compilation DAN file", fileName);
+        debugPrintf(DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
         return;
     }
 
@@ -437,7 +437,7 @@ void BuildSendRtdmFtpFile (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static void InitTrackerIndex (void)
+static void InitFileIndex (void)
 {
     UINT16 fileIndex = 0; /* Used to index through all possible stream files */
     BOOL fileOK = FALSE; /* TRUE if file exists and is a valid stream file */
@@ -542,6 +542,21 @@ static void PopulateValidDanFileList (void)
             arrayIndex++;
         }
     }
+
+}
+
+static void InitFtpTrackerFile (void)
+{
+    /* Determine if file exists...
+     * if not create it and initialize all and exit */
+
+    /* If exists, verify proper size based on the number iof DAN files
+     * if it isn't the proper size, make it so */
+
+    /* Update the file every time a new #.dan file created */
+
+    /* Open this file to determine what files to FTP */
+
 
 }
 
@@ -742,17 +757,17 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     deviceId[sizeof(deviceId) - 1] = 0;
 
     /* Set max copy size for each member, choose the smaller amount so as not to overflow the buffer */
-    maxCopySize = sizeof(consistId) - 1 > strlen (m_Interface->VNC_CarData_X_ConsistID) ?
-                    strlen (m_Interface->VNC_CarData_X_ConsistID) : sizeof(consistId) - 1;
-    memcpy (consistId, m_Interface->VNC_CarData_X_ConsistID, maxCopySize);
+    maxCopySize = sizeof(consistId) - 1 > strlen (m_StreamInterface->VNC_CarData_X_ConsistID) ?
+                    strlen (m_StreamInterface->VNC_CarData_X_ConsistID) : sizeof(consistId) - 1;
+    memcpy (consistId, m_StreamInterface->VNC_CarData_X_ConsistID, maxCopySize);
 
-    maxCopySize = sizeof(carId) - 1 > strlen (m_Interface->VNC_CarData_X_CarID) ?
-                    strlen (m_Interface->VNC_CarData_X_CarID) : sizeof(carId) - 1;
-    memcpy (carId, m_Interface->VNC_CarData_X_CarID, maxCopySize);
+    maxCopySize = sizeof(carId) - 1 > strlen (m_StreamInterface->VNC_CarData_X_CarID) ?
+                    strlen (m_StreamInterface->VNC_CarData_X_CarID) : sizeof(carId) - 1;
+    memcpy (carId, m_StreamInterface->VNC_CarData_X_CarID, maxCopySize);
 
-    maxCopySize = sizeof(deviceId) - 1 > strlen (m_Interface->VNC_CarData_X_DeviceID) ?
-                    strlen (m_Interface->VNC_CarData_X_DeviceID) : sizeof(deviceId) - 1;
-    memcpy (deviceId, m_Interface->VNC_CarData_X_DeviceID, maxCopySize);
+    maxCopySize = sizeof(deviceId) - 1 > strlen (m_StreamInterface->VNC_CarData_X_DeviceID) ?
+                    strlen (m_StreamInterface->VNC_CarData_X_DeviceID) : sizeof(deviceId) - 1;
+    memcpy (deviceId, m_StreamInterface->VNC_CarData_X_DeviceID, maxCopySize);
 
     memset (dateTime, 0, sizeof(dateTime));
 
@@ -868,11 +883,11 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Header Version - Always 2 */
     rtdmHeader.postamble.headerVersion = RTDM_HEADER_VERSION;
 
-    /* TODO verify m_Interface->... are valid strings */
+    /* TODO verify m_StreamInterface->... are valid strings */
     /* Consist ID */
-    strcpy (&rtdmHeader.postamble.consistId[0], m_Interface->VNC_CarData_X_ConsistID);
-    strcpy (&rtdmHeader.postamble.carId[0], m_Interface->VNC_CarData_X_CarID);
-    strcpy (&rtdmHeader.postamble.deviceId[0], m_Interface->VNC_CarData_X_DeviceID);
+    strcpy (&rtdmHeader.postamble.consistId[0], m_StreamInterface->VNC_CarData_X_ConsistID);
+    strcpy (&rtdmHeader.postamble.carId[0], m_StreamInterface->VNC_CarData_X_CarID);
+    strcpy (&rtdmHeader.postamble.deviceId[0], m_StreamInterface->VNC_CarData_X_DeviceID);
 
     /* Data Recorder ID - from .xml file */
     rtdmHeader.postamble.dataRecordId = htons ((UINT16) m_RtdmXmlData->dataRecorderCfg.id);
@@ -1482,7 +1497,6 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
 
 }
 
-
 /*****************************************************************************/
 /**
  * @brief       Create car, consist and device data file (used by PTU RTDM only)
@@ -1513,11 +1527,11 @@ static BOOL CreateCarConDevFile (void)
     }
 
     /* TODO check that these have been updated by the output task responsible  */
-    fprintf(pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.id);
-    fprintf(pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
-    fprintf(pFile, "%s\n", m_Interface->VNC_CarData_X_CarID);
-    fprintf(pFile, "%s\n", m_Interface->VNC_CarData_X_ConsistID);
-    fprintf(pFile, "%s\n", m_Interface->VNC_CarData_X_DeviceID);
+    fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.id);
+    fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
+    fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
+    fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
+    fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_DeviceID);
 
     os_io_fclose (pFile);
 

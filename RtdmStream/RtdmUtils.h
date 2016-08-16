@@ -88,7 +88,7 @@
  */
 /* #define DEBUG_EXCLUSIVE_LEVEL       DBG_INFO */
 
-#define DEBUG_ABOVE_EQUAL_LEVEL     DBG_LOG
+#define DEBUG_ABOVE_EQUAL_LEVEL     DBG_INFO
 
 #ifdef DEBUG_EXCLUSIVE_LEVEL
 #define debugPrintf(debugLevel, fmt, args...)  \
