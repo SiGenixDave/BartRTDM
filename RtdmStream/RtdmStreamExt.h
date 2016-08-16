@@ -1,24 +1,12 @@
-/*****************************************************************************/
-/* This document and its contents are the property of Bombardier
- * Inc or its subsidiaries.  This document contains confidential
- * proprietary information.  The reproduction, distribution,
- * utilization or the communication of this document or any part
- * thereof, without express authorization is strictly prohibited.
- * Offenders will be held liable for the payment of damages.
+/*
+ * RtdmStreamExt.h
  *
- * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
- *
- * Project    : Communication Controller (Embedded)
- *//**
- * @file RtdmInitialize.h
- *//*
- *
- * Revision : 01SEP2016 - D.Smail : Original Release
- *
- *****************************************************************************/
+ *  Created on: Aug 16, 2016
+ *      Author: Dave
+ */
 
-#ifndef RTDMINITIALIZE_H_
-#define RTDMINITIALIZE_H_
+#ifndef RTDMSTREAMEXT_H_
+#define RTDMSTREAMEXT_H_
 
 /*******************************************************************
  *
@@ -49,7 +37,7 @@
  *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
+void SetRtdmInitFinished (void);
 
-void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface);
-
-#endif /* RTDMINITIALIZE_H_ */
+#endif /* RTDMSTREAMEXT_H_ */

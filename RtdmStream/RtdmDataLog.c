@@ -216,14 +216,12 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
         debugPrintf(DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n", m_SampleCount,
                         timeDiff);
 
-#ifdef WAIT_FOR_EVENT_DRIVEN_FIX
         /* Write the data in the current buffer to the dan file. The file write
          * is performed in another task to prevent task overruns due to the amount
          * of time required to perform file writes
          */
-        WriteDanFile (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount,
+        PrepareForFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount,
                         currentTime);
-#endif
         /* Exchange buffers so the next time span worth of data won't conflict with the
          * previous time span data
          */
@@ -243,7 +241,7 @@ void FTPDataLog (void)
     GetEpochTime (&currentTime);
 
     /* Close existing datalog file */
-    WriteDanFile (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
+    PrepareForFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
 
     /* Swap data stream memory buffers */
     SwapBuffers ();
@@ -251,8 +249,8 @@ void FTPDataLog (void)
     /* Spawn new task to concatenate all the previous 24 hours worth of streams
      * to a single file and then FTP that file to the FTP server */
 
-    /* TODO Will need info about FTP server */
-    BuildSendRtdmFtpFile ();
+    /* TODO Will need info about FTP server
+    BuildSendRtdmFtpFile (); */
 
 }
 

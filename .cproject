@@ -29,7 +29,6 @@
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1467067100" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="TEST_ON_PC"/>
 									<listOptionValue builtIn="false" value="TARGET_SIM_DLL"/>
-									<listOptionValue builtIn="false" value="WAIT_FOR_EVENT_DRIVEN_FIX"/>
 								</option>
 								<option defaultValue="gnu.c.optimization.level.none" id="gnu.c.compiler.option.optimization.level.1212586791" name="Optimization Level" superClass="gnu.c.compiler.option.optimization.level" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.debugging.level.798040654" name="Debug Level" superClass="gnu.c.compiler.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>

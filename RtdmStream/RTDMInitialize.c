@@ -35,6 +35,7 @@
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmDataLog.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
+#include "../RtdmStream/RtdmStreamExt.h"
 
 
 /*******************************************************************
@@ -67,9 +68,7 @@
  *
  *******************************************************************/
 
-void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData);
-
-void RTDMInitialize (TYPE_RTDMSTREAM_IF *interface)
+void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface)
 {
 
     RtdmXmlStr *rtdmXmlData = NULL;
@@ -84,6 +83,8 @@ void RTDMInitialize (TYPE_RTDMSTREAM_IF *interface)
     InitializeDataLog (rtdmXmlData);
 
     InitializeFileIO (interface, rtdmXmlData);
+
+    SetRtdmInitFinished();
 
 }
 

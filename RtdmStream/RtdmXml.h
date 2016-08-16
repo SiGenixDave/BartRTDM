@@ -58,7 +58,9 @@ typedef enum
 /** @brief */
 typedef struct RTDMTimeStr
 {
+    /** */
     UINT32 seconds;
+    /** */
     UINT32 nanoseconds;
 } RTDMTimeStr;
 

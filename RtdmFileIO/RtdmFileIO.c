@@ -37,6 +37,7 @@
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmCrc32.h"
+#include "../RtdmStream/RTDMInitialize.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 #include "../RtdmFileIO/RtdmFileIO.h"
 /*******************************************************************
@@ -51,7 +52,7 @@
  */
 
 #define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.5
-#define SINGLE_FILE_TIMESPAN_HOURS          (0.025)
+#define SINGLE_FILE_TIMESPAN_HOURS          (5.0/60.0)
 
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
 
@@ -83,6 +84,19 @@ typedef enum
     /** */
     NEWEST_TIMESTAMP
 } TimeStampAge;
+
+/** @brief */
+typedef enum
+{
+    /** */
+    NO_ACTION = 0x00,
+    /** */
+    INIT_RTDM_SYSTEM = 0x01,
+    /** */
+    WRITE_FILE = 0x02,
+    /** */
+    COMPILE_FTP_FILE = 0x04,
+} FileAction;
 
 /*******************************************************************
  *
@@ -139,6 +153,20 @@ typedef struct
     RtdmHeaderPostambleStr postamble;
 } RtdmHeaderStr;
 
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT8 *buffer;
+    /** */
+    UINT32 bytesInBuffer;
+    /** */
+    UINT16 sampleCount;
+    /** */
+    RTDMTimeStr time;
+
+} RtdmFileWrite;
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
@@ -160,6 +188,10 @@ static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_DAN_FILES ];
 static DanFileState m_DanFileState;
 /** @brief */
 static const char *m_StreamHeaderDelimiter = "STRM";
+/** @brief */
+static FileAction m_FileAction = 0;
+/** @brief */
+static RtdmFileWrite m_FileWrite;
 
 /*******************************************************************
  *
@@ -185,6 +217,10 @@ static BOOL VerifyFileIntegrity (const char *filename);
 static UINT16 CreateVerifyStorageDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
+static void InitiateFileIOAction (void);
+static void WriteDanFile (void);
+static void BuildSendRtdmFtpFile (void);
+static void InitiateFileIOAction (void);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -195,10 +231,6 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
     CreateCarConDevFile ();
 
-    /* TODO Bug exists in code where file stops appending to existing file after application stopped and
-     * restarted. File appended once but because s_StartTime is never updated, the issue arises. Might just be better to
-     * always start a new file
-     */
     InitFileIndex ();
 
     InitFtpTrackerFile ();
@@ -207,12 +239,73 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
 {
+    m_FileIOInterface = interface;
 
+    while (m_FileAction != NO_ACTION)
+    {
+        if ((m_FileAction & INIT_RTDM_SYSTEM) != 0)
+        {
+            RtdmInitializeAllFunctions (m_StreamInterface);
+            m_FileAction &= ~(INIT_RTDM_SYSTEM);
+        }
+        if ((m_FileAction & WRITE_FILE) != 0)
+        {
+            WriteDanFile ();
+            m_FileAction &= ~(WRITE_FILE);
+        }
+        if ((m_FileAction & COMPILE_FTP_FILE) != 0)
+        {
+            BuildSendRtdmFtpFile ();
+            m_FileAction &= ~(COMPILE_FTP_FILE);
+        }
+    }
+
+    m_StreamInterface->RTDMSendMessage_trig = FALSE;
 }
 
-/* TODO Need to be run in a task */
-void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
+UINT32 RtdmSystemInitialize(TYPE_RTDMSTREAM_IF *interface)
+{
+    m_StreamInterface = interface;
+
+    m_FileAction |= INIT_RTDM_SYSTEM;
+
+    InitiateFileIOAction ();
+
+    return (0);
+}
+
+UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime)
+{
+    /* Error: File writing is in progress */
+    if ((m_FileAction & WRITE_FILE) != 0)
+    {
+        return (1);
+    }
+
+    m_FileWrite.buffer = logBuffer;
+    m_FileWrite.bytesInBuffer = dataBytesInBuffer;
+    m_FileWrite.sampleCount = sampleCount;
+    m_FileWrite.time = *currentTime;
+
+    m_FileAction |= WRITE_FILE;
+
+    InitiateFileIOAction ();
+
+    return (0);
+}
+
+static void InitiateFileIOAction (void)
+{
+    /* Via OS magic, spawns an event task and triggers call to RtdmFileIO() on that task */
+    m_StreamInterface->RTDMSendMessage_trig = TRUE;
+
+#ifdef TEST_ON_PC
+    RtdmFileIO (NULL);
+#endif
+}
+
+static void WriteDanFile (void)
 {
 
     FILE *pFile = NULL;
@@ -223,13 +316,13 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
     char *fileName = NULL;
 
     /* Verify there is stream data in the buffer; if not abort */
-    if (dataBytesInBuffer == 0)
+    if (m_FileWrite.bytesInBuffer == 0)
     {
         return;
     }
 
-    PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &streamHeader, sampleCount, logBuffer,
-                    dataBytesInBuffer, currentTime);
+    PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &streamHeader, m_FileWrite.sampleCount,
+                    m_FileWrite.buffer, m_FileWrite.bytesInBuffer, &m_FileWrite.time);
 
     fileName = CreateFileName (m_DanFileIndex);
     switch (m_DanFileState)
@@ -239,12 +332,11 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
             /* TODO handle file open error */
             if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
             {
-                fseek (pFile, 0L, SEEK_SET);
                 /* Write the header */
                 fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
 
                 /* Write the stream */
-                fwrite (logBuffer, 1, dataBytesInBuffer, pFile);
+                fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
 
                 os_io_fclose (pFile);
             }
@@ -255,7 +347,7 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
                                 fileName, __FILE__, __LINE__);
             }
 
-            s_StartTime = *currentTime;
+            s_StartTime = m_FileWrite.time;
             m_DanFileState = APPEND_TO_EXISTING;
 
             debugPrintf(DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex));
@@ -270,7 +362,7 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
                 /* Write the header */
                 fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
                 /* Write the stream */
-                fwrite (logBuffer, 1, dataBytesInBuffer, pFile);
+                fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
 
                 os_io_fclose (pFile);
 
@@ -283,9 +375,9 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
             }
             debugPrintf(DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
-            /* determine if the timespan of data saved to the current file has
+            /* determine if the time span of data saved to the current file has
              * met or exceeded the desired amount. */
-            timeDiff = TimeDiff (currentTime, &s_StartTime);
+            timeDiff = TimeDiff (&m_FileWrite.time, &s_StartTime);
 
             if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
             {
@@ -295,9 +387,6 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
                 if (m_DanFileIndex >= MAX_NUMBER_OF_DAN_FILES)
                 {
                     m_DanFileIndex = 0;
-#ifndef REMOVE
-                    BuildSendRtdmFtpFile ();
-#endif
                 }
             }
 
@@ -307,7 +396,7 @@ void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCoun
 
 }
 
-void BuildSendRtdmFtpFile (void)
+static void BuildSendRtdmFtpFile (void)
 {
 
     UINT16 newestDanFileIndex = INVALID_FILE_INDEX;
@@ -445,7 +534,6 @@ static void InitFileIndex (void)
     RTDMTimeStr newestTimeStamp; /* Holds the newest stream time stamp from the newest file */
     RTDMTimeStr oldestTimeStamp; /* Holds the oldest stream time stamp from the newest file */
     UINT32 newestTimestampSeconds = 0; /* Used to check a file with for a newer stream */
-    INT32 timeDiff = 0; /* Used to calculate the difference between 2 times (msecs) */
     UINT16 newestFileIndex = INVALID_FILE_INDEX; /* will hold the newest file index */
 
     memset (&timeStamp, 0, sizeof(timeStamp));
@@ -475,36 +563,7 @@ static void InitFileIndex (void)
         return;
     }
 
-    /* At this point, newestFileIndex holds the newest file index. Now determine if more
-     * streams can fit in this file
-     */
-    GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, newestFileIndex);
-    oldestTimeStamp.seconds = timeStamp.seconds;
-    oldestTimeStamp.nanoseconds = (UINT32) timeStamp.msecs * 1000000;
-    GetTimeStamp (&timeStamp, NEWEST_TIMESTAMP, newestFileIndex);
-    newestTimeStamp.seconds = timeStamp.seconds;
-    newestTimeStamp.nanoseconds = (UINT32) timeStamp.msecs * 1000000;
-    timeDiff = TimeDiff (&newestTimeStamp, &oldestTimeStamp);
-
-    /* More streams can fit if code falls through this "if" */
-    if (timeDiff < (INT32) SINGLE_FILE_TIMESPAN_MSECS)
-    {
-        m_DanFileState = APPEND_TO_EXISTING;
-    }
-    else
-    {
-        /* Adjust to the next file index */
-        m_DanFileState = CREATE_NEW;
-        if (newestFileIndex >= (MAX_NUMBER_OF_DAN_FILES - 1))
-        {
-            newestFileIndex = 0;
-        }
-        else
-        {
-            newestFileIndex++;
-        }
-    }
-
+    m_DanFileState = APPEND_TO_EXISTING;
     m_DanFileIndex = newestFileIndex;
 }
 
@@ -556,7 +615,6 @@ static void InitFtpTrackerFile (void)
     /* Update the file every time a new #.dan file created */
 
     /* Open this file to determine what files to FTP */
-
 
 }
 

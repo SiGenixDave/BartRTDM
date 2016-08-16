@@ -77,24 +77,21 @@ static UINT8 *m_ChangedSignalData = NULL;
 
 static RtdmXmlStr *m_RtdmXmlData;
 
+static BOOL m_InitFinished = FALSE;
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface);
 static UINT16 NetworkAvailable (TYPE_RTDMSTREAM_IF *interface, BOOL *networkAvailable);
-
 static UINT32 ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime);
-
 static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime);
-
 static void PopulateSignalsWithNewSamples (void);
-
 static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *currentTime);
-
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
-
 static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
                 UINT8 *streamBuffer, UINT32 streamBufferSize);
 
@@ -148,21 +145,37 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 {
     /* DAS FYI gets called every 50 msecs */
+    static BOOL firstCall = TRUE;
+
+    if (firstCall)
+    {
+        RtdmSystemInitialize (interface);
+        firstCall = FALSE;
+        return;
+    }
+    else if (!m_InitFinished)
+    {
+        /* Intentionally DO NOTHING */
+    }
+    else
+    {
+        NormalStreamProcessing (interface);
+    }
+}
+
+void SetRtdmInitFinished (void)
+{
+    m_InitFinished = TRUE;
+}
+
+static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
+{
     UINT16 errorCode = 0;
     UINT16 result = 0;
     UINT32 bufferChangeAmount = 0;
 
     RTDMTimeStr currentTime;
     BOOL networkAvailable = FALSE;
-
-    static BOOL firstCall = TRUE;
-
-    if (firstCall)
-    {
-        RTDMInitialize (interface);
-        firstCall = FALSE;
-        return;
-    }
 
     result = GetEpochTime (&currentTime);
     /* TODO check result for valid time read */
@@ -312,16 +325,16 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
 
     /*********************************** HEADER ****************************************************************/
     /* timeStamp - Seconds */
-    m_SampleHeader.timeStamp.seconds = htonl(currentTime->seconds);
+    m_SampleHeader.timeStamp.seconds = htonl (currentTime->seconds);
 
     /* timeStamp - mS */
-    m_SampleHeader.timeStamp.msecs = htons((UINT16) (currentTime->nanoseconds / 1000000));
+    m_SampleHeader.timeStamp.msecs = htons ((UINT16) (currentTime->nanoseconds / 1000000));
 
     /* timeStamp - Accuracy */
     m_SampleHeader.timeStamp.accuracy = (UINT8) interface->RTCTimeAccuracy;
 
     /* Number of Signals in current sample*/
-    m_SampleHeader.count = htons(signalCount);
+    m_SampleHeader.count = htons (signalCount);
     /*********************************** End HEADER *************************************************************/
 
     return (signalChangeBufferSize);

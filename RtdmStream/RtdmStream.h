@@ -30,6 +30,7 @@ typedef struct dataBlock_RtdmStream
     MWT_STRING        VNC_CarData_X_DeviceID;                  /* input Device ID */
     MWT_BOOL          VNC_CarData_S_WhoAmISts;                 /* input Who Am I Status */
     UINT8             RTDMDataLogStop;                         /* input Stop the RTDM Data Log */
+    BOOL              ClearTrig;                               /* input */
     /* Group: OUTPUT */
     UINT8             RTDMDataLogState;                        /* output State of RTDM Data Log, RUN, STOP, RESTART, FULL */
     UINT16            RTDMMainBuffCount;                       /* output MD data stream message */

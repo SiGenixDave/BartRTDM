@@ -58,8 +58,8 @@
  *******************************************************************/
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData);
-void WriteDanFile (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
+UINT32 RtdmSystemInitialize(TYPE_RTDMSTREAM_IF *interface);
+UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime);
-void BuildSendRtdmFtpFile (void);
 
 #endif /* RTDMFILEEXT_H_ */
