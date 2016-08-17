@@ -177,8 +177,6 @@ static UINT16 m_DanFileIndex = 0;
 /** @brief */
 static TYPE_RTDMSTREAM_IF *m_StreamInterface = NULL;
 /** @brief */
-static TYPE_RTDMFILEIO_IF *m_FileIOInterface = NULL;
-/** @brief */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 /** @brief */
 static UINT16 m_ValidDanFileListIndexes[MAX_NUMBER_OF_DAN_FILES ];
@@ -217,10 +215,10 @@ static BOOL VerifyFileIntegrity (const char *filename);
 static UINT16 CreateVerifyStorageDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
-static void InitiateFileIOAction (void);
+static void InitiateRtdmFileIOEventTask (void);
 static void WriteDanFile (void);
 static void BuildSendRtdmFtpFile (void);
-static void InitiateFileIOAction (void);
+static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -237,14 +235,41 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Function invoked by OS when trigger BOOL set TRUE
+ *
+ *              This function is "magically" invoked by the OS whenever the
+ *              specified BOOL flag (RTDMSendMessage_trig) is set TRUE. The OS
+ *              effectively spawns this function as an event driven task so that
+ *              the length of time to execute doesn't adversely affect (cause overflows)
+ *              of the real time cyclic task(s) that invoked is. The function
+ *              determines the desired file operation to perform based on the
+ *              contents of "m_FileAction" which is a bitmask variable. This
+ *              variable must be updated prior to RTDMSendMessage_trig being set
+ *              to TRUE.
+ *
+ *  @param interface - pointer to input data to event driven task (see MTPE project)
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
 {
-    m_FileIOInterface = interface;
+    m_StreamInterface->RTDMSendMessage_trig = FALSE;
 
     while (m_FileAction != NO_ACTION)
     {
         if ((m_FileAction & INIT_RTDM_SYSTEM) != 0)
         {
+            /* Due to the length of time to initialize the RTDM, this too is done in the
+             * background. The reason that the RTDM initialization isn't done on the initialization
+             * task is that some initialization functions require the stream interface pointer.
+             */
             RtdmInitializeAllFunctions (m_StreamInterface);
             m_FileAction &= ~(INIT_RTDM_SYSTEM);
         }
@@ -260,16 +285,15 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
         }
     }
 
-    m_StreamInterface->RTDMSendMessage_trig = FALSE;
 }
 
-UINT32 RtdmSystemInitialize(TYPE_RTDMSTREAM_IF *interface)
+UINT32 RtdmSystemInitialize (TYPE_RTDMSTREAM_IF *interface)
 {
     m_StreamInterface = interface;
 
     m_FileAction |= INIT_RTDM_SYSTEM;
 
-    InitiateFileIOAction ();
+    InitiateRtdmFileIOEventTask ();
 
     return (0);
 }
@@ -290,12 +314,12 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
 
     m_FileAction |= WRITE_FILE;
 
-    InitiateFileIOAction ();
+    InitiateRtdmFileIOEventTask ();
 
     return (0);
 }
 
-static void InitiateFileIOAction (void)
+static void InitiateRtdmFileIOEventTask (void)
 {
     /* Via OS magic, spawns an event task and triggers call to RtdmFileIO() on that task */
     m_StreamInterface->RTDMSendMessage_trig = TRUE;
@@ -425,7 +449,7 @@ static void BuildSendRtdmFtpFile (void)
 
     /* Determine the newest file index */
     newestDanFileIndex = GetNewestDanFileIndex ();
-    PrintIntegerContents(newestDanFileIndex);
+    PrintIntegerContents(DBG_LOG, newestDanFileIndex);
 
     if (newestDanFileIndex == INVALID_FILE_INDEX)
     {
@@ -435,12 +459,12 @@ static void BuildSendRtdmFtpFile (void)
         return;
     }
 
-    /* Get the newest timestamp (last one) in the newest file; used for RTDM header */
+    /* Get the newest time stamp (last one) in the newest file; used for RTDM header */
     GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestDanFileIndex);
 
     /* Determine the oldest file index */
     oldestDanFileIndex = GetOldestDanFileIndex ();
-    PrintIntegerContents(oldestDanFileIndex);
+    PrintIntegerContents(DBG_LOG, oldestDanFileIndex);
 
     if (oldestDanFileIndex == INVALID_FILE_INDEX)
     {
@@ -457,7 +481,7 @@ static void BuildSendRtdmFtpFile (void)
      * RTDM header */
     streamCount = CountStreams ();
 
-    PrintIntegerContents(streamCount);
+    PrintIntegerContents(DBG_LOG, streamCount);
 
     /* Create filename and open it for writing */
     fileName = CreateFTPFileName (&ftpFilePtr);
@@ -1594,6 +1618,46 @@ static BOOL CreateCarConDevFile (void)
     os_io_fclose (pFile);
 
     return (TRUE);
+
+}
+
+static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)
+{
+    char buffer[FILE_READ_BUFFER_SIZE];
+    INT32 bytesRead = 0;
+    INT32 bytesWritten = 0;
+    FILE *pFileInput = NULL;
+    FILE *pFileOutput = NULL;
+
+    os_io_fopen (fileToCopy, "rb", &pFileInput);
+    os_io_fopen (copiedFile, "wb", &pFileOutput);
+
+    memset (&buffer[0], 0, sizeof(buffer));
+
+    if ((pFileInput == NULL) || (pFileOutput == NULL))
+    {
+        return (1);
+    }
+
+    do
+    {
+        bytesRead = fread (buffer, 1, sizeof(buffer), pFileInput);
+        /* end of file reached, let "while" handle exiting loop */
+        if (bytesRead == 0)
+        {
+            continue;
+        }
+        bytesWritten = fwrite (buffer, 1, bytesRead, pFileOutput);
+        if (bytesWritten != bytesRead)
+        {
+            return (1);
+        }
+    } while (bytesRead != 0);
+
+    os_io_fclose (pFileInput);
+    os_io_fclose (pFileOutput);
+
+    return (0);
 
 }
 

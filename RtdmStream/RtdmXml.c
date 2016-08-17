@@ -697,7 +697,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         sscanf (pStringLocation1, "%u", &signalId);
         m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId;
 
-        PrintIntegerContents(signalId);
+        PrintIntegerContents(DBG_LOG,signalId);
 
         pStringLocation1 = pStringLocationSignal;
 

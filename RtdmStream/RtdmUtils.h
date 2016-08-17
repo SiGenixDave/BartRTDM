@@ -118,7 +118,7 @@
 #endif
 /*****************************************************************/
 
-#define  PrintIntegerContents(a)   debugPrintf(DBG_INFO, #a " = %d\n", (INT32)a)
+#define  PrintIntegerContents(debugLevel,a)   debugPrintf(debugLevel, #a " = %d\n", (INT32)a)
 /*******************************************************************
  *
  *     E  N  U  M  S

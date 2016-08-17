@@ -37,6 +37,7 @@
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmDataLog.h"
 #include "../RtdmStream/RTDMInitialize.h"
+#include "../RtdmFileIO/RtdmFileExt.h"
 
 #include "RtdmCrc32.h"
 
@@ -102,7 +103,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
     memset (&m_SampleHeader, 0, sizeof(m_SampleHeader));
 
-    PrintIntegerContents(rtdmXmlData->outputStreamCfg.bufferSize);
+    PrintIntegerContents(DBG_LOG, rtdmXmlData->outputStreamCfg.bufferSize);
 
     /* Allocate memory to store data according to buffer size from .xml file */
     m_StreamData = (UINT8 *) calloc (rtdmXmlData->outputStreamCfg.bufferSize, sizeof(UINT8));
@@ -114,7 +115,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
         /* TODO flag error */
     }
 
-    PrintIntegerContents(rtdmXmlData->metaData.maxStreamDataSize);
+    PrintIntegerContents(DBG_LOG, rtdmXmlData->metaData.maxStreamDataSize);
 
     m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
     if (m_NewSignalData == NULL)
@@ -178,7 +179,12 @@ static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
     BOOL networkAvailable = FALSE;
 
     result = GetEpochTime (&currentTime);
-    /* TODO check result for valid time read */
+
+    if (result != NO_ERROR)
+    {
+        debugPrintf(DBG_ERROR, "%s", "Error reading read real time clock\n");
+        return;
+    }
 
     PopulateSignalsWithNewSamples ();
 
@@ -323,7 +329,7 @@ static UINT32 CompareOldNewSignals (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *
     /* Always copy the new signals for the next comparison */
     memcpy (m_OldSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
 
-    /*********************************** HEADER ****************************************************************/
+    /*********************************** Begin HEADER ***********************************************************/
     /* timeStamp - Seconds */
     m_SampleHeader.timeStamp.seconds = htonl (currentTime->seconds);
 
