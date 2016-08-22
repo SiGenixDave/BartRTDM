@@ -22,10 +22,6 @@
 
 typedef struct dataBlock_RtdmFileIO
 {
-    /* Group: INPUT */
-    BOOL              RTDMSendMessage_trig;                    /* input  */
-    /* Group: OUTPUT */
-    BOOL              ClearTrig;                               /* output  */
 }   TYPE_RTDMFILEIO_IF;
 
 #ifdef __cplusplus

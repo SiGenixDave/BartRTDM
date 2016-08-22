@@ -73,27 +73,27 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-/* NOTE: undefine DEBUG_STATEMENTS_ON to "turn off" all printfs() */
-#define DEBUG_STATEMENTS_ON
+/* NOTE: undefine RTDM_DEBUG_STATEMENTS_ON to "turn off" all printfs() */
+#define RTDM_DEBUG_STATEMENTS_ON
 
 /*****************************************************************/
-#ifdef DEBUG_STATEMENTS_ON
-#define DBG_LOG             1
-#define DBG_INFO            2
-#define DBG_WARNING         3
-#define DBG_ERROR           4
+#ifdef RTDM_DEBUG_STATEMENTS_ON
+#define RTDM_DBG_LOG             1
+#define RTDM_DBG_INFO            2
+#define RTDM_DBG_WARNING         3
+#define RTDM_DBG_ERROR           4
 
 /* NOTE: If the developer only wants to see printfs set at one level, enable this #define (DEBUG_EXCLUSIVE_LEVEL) and
  * set it to the desired debug level. Otherwise all printfs equal or above DEBUG_ABOVE_EQUAL_LEVEL will be enabled
  */
-/* #define DEBUG_EXCLUSIVE_LEVEL       DBG_INFO */
+/* #define RTDM_DEBUG_EXCLUSIVE_LEVEL     RTDM_DBG_INFO */
 
-#define DEBUG_ABOVE_EQUAL_LEVEL     DBG_INFO
+#define RTDM_DEBUG_ABOVE_EQUAL_LEVEL     RTDM_DBG_INFO
 
-#ifdef DEBUG_EXCLUSIVE_LEVEL
+#ifdef RTDM_DEBUG_EXCLUSIVE_LEVEL
 #define debugPrintf(debugLevel, fmt, args...)  \
     do { \
-        if (debugLevel == DEBUG_EXCLUSIVE_LEVEL) \
+        if (debugLevel == RTDM_DEBUG_EXCLUSIVE_LEVEL) \
         {   \
             printf("%s: ",#debugLevel); \
             printf(fmt, ## args); \
@@ -102,7 +102,7 @@
 #else
 #define debugPrintf(debugLevel, fmt, args...)  \
     do { \
-        if (debugLevel >= DEBUG_ABOVE_EQUAL_LEVEL) \
+        if (debugLevel >= RTDM_DEBUG_ABOVE_EQUAL_LEVEL) \
         {   \
             printf("%s: ",#debugLevel); \
             printf(fmt, ## args); \

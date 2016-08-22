@@ -59,12 +59,12 @@
  *
  *******************************************************************/
 /** @brief Pointer to dynamically allocated memory that will store an entire
- * "number.dan" file (currently set to 1 hour worth of streams).
+ * "#.stream" file.
  */
 static UINT8 *m_RTDMDataLogPingPtr = NULL;
 
 /** @brief Pointer to dynamically allocated memory that will store an entire
- * "number.dan" file (currently set to 1 hour worth of streams).
+ * "#.stream" file.
  */
 static UINT8 *m_RTDMDataLogPongPtr = NULL;
 
@@ -124,7 +124,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RTDMDataLogPingPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
     if (m_RTDMDataLogPingPtr == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         /* TODO flag error */
     }
@@ -133,7 +133,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     m_RTDMDataLogPongPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
     if (m_RTDMDataLogPongPtr == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         /* TODO flag error */
     }
@@ -201,7 +201,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
 
         m_SampleCount++;
 
-        debugPrintf(DBG_LOG, "Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(RTDM_DBG_LOG, "Data Log Sample Populated %d\n", m_SampleCount);
     }
 
     /* Get the time difference between the saved time & the current time */
@@ -213,10 +213,10 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
                     || (timeDiff >= (INT32) m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
     {
 
-        debugPrintf(DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n", m_SampleCount,
+        debugPrintf(RTDM_DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n", m_SampleCount,
                         timeDiff);
 
-        /* Write the data in the current buffer to the dan file. The file write
+        /* Write the data in the current buffer to the .stream file. The file write
          * is performed in another task to prevent task overruns due to the amount
          * of time required to perform file writes
          */
@@ -232,7 +232,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
     }
 }
 
-/* Called when a request is made by the network to concatenate all dan files
+/* Called when a request is made by the network to concatenate all .stream files
  into 1 file and send over network via FTP */
 void FTPDataLog (void)
 {
@@ -259,17 +259,17 @@ static void SwapBuffers (void)
     /* Swap the buffers by changing the pointer to either the ping or
      * pong buffer. Avoid any chance of data corruption when writing
      * the next hours' stream to memory while writing the previous hours' streams to a
-     * dan file
+     * .stream file
      */
     if (m_RTDMDataLogPingPongPtr == m_RTDMDataLogPingPtr)
     {
         m_RTDMDataLogPingPongPtr = m_RTDMDataLogPongPtr;
-        debugPrintf(DBG_LOG, "%s", "Data Log writes will occur to PONG buffer\n");
+        debugPrintf(RTDM_DBG_LOG, "%s", "Data Log writes will occur to PONG buffer\n");
     }
     else
     {
         m_RTDMDataLogPingPongPtr = m_RTDMDataLogPingPtr;
-        debugPrintf(DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
+        debugPrintf(RTDM_DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
     }
 
     m_RTDMDataLogIndex = 0;

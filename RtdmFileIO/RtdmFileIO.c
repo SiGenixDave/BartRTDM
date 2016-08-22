@@ -21,13 +21,12 @@
 #include "global_mwt.h"
 #include "rts_api.h"
 #include "../include/iptcom.h"
-#include "ptu.h"
-#include "fltinfo.h"
 #else
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <io.h>
+#include <sys/stat.h>
 #include "../PcSrcFiles/MyTypes.h"
 #include "../PcSrcFiles/MyFuncs.h"
 #include "../PcSrcFiles/usertypes.h"
@@ -51,12 +50,15 @@
  #define SINGLE_FILE_TIMESPAN_HOURS          0.25
  */
 
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      0.5
-#define SINGLE_FILE_TIMESPAN_HOURS          (5.0/60.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (2.5/60.0)
+#define SINGLE_FILE_TIMESPAN_HOURS          (0.5/60.0)
 
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
 
-#define MAX_NUMBER_OF_DAN_FILES             (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
+#define MAX_NUMBER_OF_STREAM_FILES             (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
+
+/* #define DELETE_ALL_STREAM_FILES_AT_BOOT */
+#define CLEANUP_EXTRA_STREAM_FILES             (MAX_NUMBER_OF_STREAM_FILES + 100)
 
 #define FILE_READ_BUFFER_SIZE               1024
 #define INVALID_FILE_INDEX                  0xFFFF
@@ -74,7 +76,7 @@ typedef enum
     CREATE_NEW,
     /** */
     APPEND_TO_EXISTING
-} DanFileState;
+} StreamFileState;
 
 /** @brief */
 typedef enum
@@ -172,18 +174,18 @@ typedef struct
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
-/** @brief Used to create file name of temporary dan file */
-static UINT16 m_DanFileIndex = 0;
+/** @brief Used to create file name of temporary stream file */
+static UINT16 m_StreamFileIndex = 0;
 /** @brief */
 static TYPE_RTDMSTREAM_IF *m_StreamInterface = NULL;
 /** @brief */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 /** @brief */
-static UINT16 m_ValidDanFileListIndexes[MAX_NUMBER_OF_DAN_FILES ];
+static UINT16 m_ValidStreamFileListIndexes[MAX_NUMBER_OF_STREAM_FILES ];
 /** @brief */
-static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_DAN_FILES ];
+static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_STREAM_FILES ];
 /** @brief */
-static DanFileState m_DanFileState;
+static StreamFileState m_StreamFileState;
 /** @brief */
 static const char *m_StreamHeaderDelimiter = "STRM";
 /** @brief */
@@ -198,11 +200,11 @@ static RtdmFileWrite m_FileWrite;
  *******************************************************************/
 static void InitFileIndex (void);
 static void InitFtpTrackerFile (void);
-static void PopulateValidDanFileList (void);
+static void PopulateValidStreamFileList (void);
 static void PopulateValidFileTimeStamps (void);
 static void SortValidFileTimeStamps (void);
-static UINT16 GetNewestDanFileIndex (void);
-static UINT16 GetOldestDanFileIndex (void);
+static UINT16 GetNewestStreamFileIndex (void);
+static UINT16 GetOldestStreamFileIndex (void);
 static char * CreateFTPFileName (FILE **ptr);
 static void IncludeXMLFile (FILE *ftpFilePtr);
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
@@ -213,12 +215,13 @@ static void IncludeStreamFiles (FILE *ftpFilePtr);
 static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
 static UINT16 CreateVerifyStorageDirectory (void);
+static void CleanupDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
-static void WriteDanFile (void);
+static void WriteStreamFile (void);
 static void BuildSendRtdmFtpFile (void);
-static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile);
+static BOOL FileExists (const char *fileName);
 
 void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 {
@@ -226,6 +229,8 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
     m_RtdmXmlData = rtdmXmlData;
 
     CreateVerifyStorageDirectory ();
+
+    CleanupDirectory ();
 
     CreateCarConDevFile ();
 
@@ -260,8 +265,6 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
  *****************************************************************************/
 void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
 {
-    m_StreamInterface->RTDMSendMessage_trig = FALSE;
-
     while (m_FileAction != NO_ACTION)
     {
         if ((m_FileAction & INIT_RTDM_SYSTEM) != 0)
@@ -275,7 +278,7 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
         }
         if ((m_FileAction & WRITE_FILE) != 0)
         {
-            WriteDanFile ();
+            WriteStreamFile ();
             m_FileAction &= ~(WRITE_FILE);
         }
         if ((m_FileAction & COMPILE_FTP_FILE) != 0)
@@ -321,15 +324,15 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
 
 static void InitiateRtdmFileIOEventTask (void)
 {
-    /* Via OS magic, spawns an event task and triggers call to RtdmFileIO() on that task */
-    m_StreamInterface->RTDMSendMessage_trig = TRUE;
+    /* Via OS event queue, spawns an event task and triggers call to RtdmFileIO() on that task */
+    m_StreamInterface->RTDMTriggerFileIOTask = TRUE;
 
 #ifdef TEST_ON_PC
     RtdmFileIO (NULL);
 #endif
 }
 
-static void WriteDanFile (void)
+static void WriteStreamFile (void)
 {
 
     FILE *pFile = NULL;
@@ -348,8 +351,8 @@ static void WriteDanFile (void)
     PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &streamHeader, m_FileWrite.sampleCount,
                     m_FileWrite.buffer, m_FileWrite.bytesInBuffer, &m_FileWrite.time);
 
-    fileName = CreateFileName (m_DanFileIndex);
-    switch (m_DanFileState)
+    fileName = CreateFileName (m_StreamFileIndex);
+    switch (m_StreamFileState)
     {
         default:
         case CREATE_NEW:
@@ -366,15 +369,15 @@ static void WriteDanFile (void)
             }
             else
             {
-                debugPrintf(DBG_ERROR,
+                debugPrintf(RTDM_DBG_ERROR,
                                 "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                                 fileName, __FILE__, __LINE__);
             }
 
             s_StartTime = m_FileWrite.time;
-            m_DanFileState = APPEND_TO_EXISTING;
+            m_StreamFileState = APPEND_TO_EXISTING;
 
-            debugPrintf(DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_DanFileIndex));
+            debugPrintf(RTDM_DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_StreamFileIndex));
 
             break;
 
@@ -393,11 +396,11 @@ static void WriteDanFile (void)
             }
             else
             {
-                debugPrintf(DBG_ERROR,
+                debugPrintf(RTDM_DBG_ERROR,
                                 "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                                 fileName, __FILE__, __LINE__);
             }
-            debugPrintf(DBG_INFO, "%s", "FILEIO - Append Existing\n");
+            debugPrintf(RTDM_DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
             /* determine if the time span of data saved to the current file has
              * met or exceeded the desired amount. */
@@ -405,12 +408,12 @@ static void WriteDanFile (void)
 
             if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
             {
-                m_DanFileState = CREATE_NEW;
+                m_StreamFileState = CREATE_NEW;
 
-                m_DanFileIndex++;
-                if (m_DanFileIndex >= MAX_NUMBER_OF_DAN_FILES)
+                m_StreamFileIndex++;
+                if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
                 {
-                    m_DanFileIndex = 0;
+                    m_StreamFileIndex = 0;
                 }
             }
 
@@ -423,8 +426,8 @@ static void WriteDanFile (void)
 static void BuildSendRtdmFtpFile (void)
 {
 
-    UINT16 newestDanFileIndex = INVALID_FILE_INDEX;
-    UINT16 oldestDanFileIndex = INVALID_FILE_INDEX;
+    UINT16 newestStreamFileIndex = INVALID_FILE_INDEX;
+    UINT16 oldestStreamFileIndex = INVALID_FILE_INDEX;
     FILE *ftpFilePtr = NULL;
     TimeStampStr newestTimeStamp;
     TimeStampStr oldestTimeStamp;
@@ -438,60 +441,60 @@ static void BuildSendRtdmFtpFile (void)
 
     /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
-    debugPrintf(DBG_INFO, "%s\n", "SpawSpawnFTPDatalog() invoked");
+    debugPrintf(RTDM_DBG_INFO, "%s\n", "SpawSpawnFTPDatalog() invoked");
 
-    /* Determine all current valid dan files */
-    PopulateValidDanFileList ();
+    /* Determine all current valid stream files */
+    PopulateValidStreamFileList ();
     /* Get the oldest stream timestamp from every valid file */
     PopulateValidFileTimeStamps ();
     /* Sort the file indexes and timestamps from oldest to newest */
     SortValidFileTimeStamps ();
 
     /* Determine the newest file index */
-    newestDanFileIndex = GetNewestDanFileIndex ();
-    PrintIntegerContents(DBG_LOG, newestDanFileIndex);
+    newestStreamFileIndex = GetNewestStreamFileIndex ();
+    PrintIntegerContents(RTDM_DBG_LOG, newestStreamFileIndex);
 
-    if (newestDanFileIndex == INVALID_FILE_INDEX)
+    if (newestStreamFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
-        debugPrintf(DBG_ERROR, "%s\n",
-                        "No valid DAN files exist to build compilation DAN file (newestDanFileIndex not found)\n");
+        debugPrintf(RTDM_DBG_ERROR, "%s\n",
+                        "No valid .stream files exist to build compilation DAN file (newestStreamFileIndex not found)\n");
         return;
     }
 
     /* Get the newest time stamp (last one) in the newest file; used for RTDM header */
-    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestDanFileIndex);
+    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestStreamFileIndex);
 
     /* Determine the oldest file index */
-    oldestDanFileIndex = GetOldestDanFileIndex ();
-    PrintIntegerContents(DBG_LOG, oldestDanFileIndex);
+    oldestStreamFileIndex = GetOldestStreamFileIndex ();
+    PrintIntegerContents(RTDM_DBG_LOG, oldestStreamFileIndex);
 
-    if (oldestDanFileIndex == INVALID_FILE_INDEX)
+    if (oldestStreamFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
-        debugPrintf(DBG_ERROR, "%s\n",
-                        "No valid DAN files exist to build compilation DAN file (oldestDanFileIndex not found)\n");
+        debugPrintf(RTDM_DBG_ERROR, "%s\n",
+                        "No valid .stream files exist to build compilation DAN file (oldestStreamFileIndex not found)\n");
         return;
     }
 
     /* Get the oldest timestamp (first one) in the oldest file; used for RTDM header */
-    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestDanFileIndex);
+    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestStreamFileIndex);
 
     /* Scan through all valid files and count the number of streams in each file; used for
      * RTDM header */
     streamCount = CountStreams ();
 
-    PrintIntegerContents(DBG_LOG, streamCount);
+    PrintIntegerContents(RTDM_DBG_LOG, streamCount);
 
     /* Create filename and open it for writing */
     fileName = CreateFTPFileName (&ftpFilePtr);
 
-    debugPrintf(DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
+    debugPrintf(RTDM_DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
 
     if (ftpFilePtr == NULL)
     {
         /* TODO handle error */
-        debugPrintf(DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
+        debugPrintf(RTDM_DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
         return;
     }
 
@@ -501,7 +504,7 @@ static void BuildSendRtdmFtpFile (void)
     /* Include rtdm header */
     IncludeRTDMHeader (ftpFilePtr, &oldestTimeStamp, &newestTimeStamp, streamCount);
 
-    /* Open each file .dan (oldest first) and concatenate */
+    /* Open each file .stream (oldest first) and concatenate */
     IncludeStreamFiles (ftpFilePtr);
 
     /* Close file pointer */
@@ -522,7 +525,7 @@ static void BuildSendRtdmFtpFile (void)
 
     if (ftpStatus != OK)
     {
-        debugPrintf(DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
+        debugPrintf(RTDM_DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
     }
 #endif
 #endif
@@ -532,10 +535,10 @@ static void BuildSendRtdmFtpFile (void)
 
 /*****************************************************************************/
 /**
- * @brief       Determines which #.dan file to start writing to
+ * @brief       Determines which #.stream file to start writing to
  *
  *              Called at startup / system initialization. Determines what
- *              #.dan files exist and if they do exist, verifies they are valid
+ *              #.stream files exist and if they do exist, verifies they are valid
  *              by examining the final stream in the file. The newest file
  *              is then determined. Once the newest file is determined, then
  *              if room exists in the file for more streams, this file is
@@ -565,7 +568,7 @@ static void InitFileIndex (void)
     memset (&oldestTimeStamp, 0, sizeof(oldestTimeStamp));
 
     /* Find the most recent valid file and point to the next file for writing */
-    for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
+    for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
     {
         fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
         if (fileOK == TRUE)
@@ -579,21 +582,26 @@ static void InitFileIndex (void)
         }
     }
 
-    /* No valid files found, begin writing to 0.dan */
+    /* No valid files found, begin writing to 0.stream */
     if (newestFileIndex == INVALID_FILE_INDEX)
     {
-        m_DanFileIndex = 0;
-        m_DanFileState = CREATE_NEW;
-        return;
+        m_StreamFileIndex = 0;
+    }
+    else
+    {
+        m_StreamFileIndex = newestFileIndex + 1;
+        if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
+        {
+            m_StreamFileIndex = 0;
+        }
     }
 
-    m_DanFileState = APPEND_TO_EXISTING;
-    m_DanFileIndex = newestFileIndex;
+    m_StreamFileState = CREATE_NEW;
 }
 
 /*****************************************************************************/
 /**
- * @brief       Populates the valid stream file (#.dan) list
+ * @brief       Populates the valid stream file (#.stream) list
  *
  *              This function determines if a stream file exists and is valid. The
  *              call to VerifyFileIntegrity() also attempts to fix a file if the
@@ -606,22 +614,22 @@ static void InitFileIndex (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static void PopulateValidDanFileList (void)
+static void PopulateValidStreamFileList (void)
 {
     BOOL fileOK = FALSE; /* stream file is OK if TRUE */
     UINT16 fileIndex = 0; /* Used to index through all possible stream files */
     UINT16 arrayIndex = 0; /* increments every time a valid stream file is found */
 
     /* Scan all files to determine what files are valid */
-    for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_DAN_FILES ; fileIndex++)
+    for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
     {
         /* Invalidate the index to ensure that */
-        m_ValidDanFileListIndexes[fileIndex] = INVALID_FILE_INDEX;
+        m_ValidStreamFileListIndexes[fileIndex] = INVALID_FILE_INDEX;
         fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
         /* If valid file is found and is OK, populate the valid file array with the fileIndex */
         if (fileOK)
         {
-            m_ValidDanFileListIndexes[arrayIndex] = fileIndex;
+            m_ValidStreamFileListIndexes[arrayIndex] = fileIndex;
             arrayIndex++;
         }
     }
@@ -633,10 +641,10 @@ static void InitFtpTrackerFile (void)
     /* Determine if file exists...
      * if not create it and initialize all and exit */
 
-    /* If exists, verify proper size based on the number iof DAN files
+    /* If exists, verify proper size based on the number if .stream files
      * if it isn't the proper size, make it so */
 
-    /* Update the file every time a new #.dan file created */
+    /* Update the file every time a new #.stream file created */
 
     /* Open this file to determine what files to FTP */
 
@@ -662,7 +670,7 @@ static void PopulateValidFileTimeStamps (void)
     TimeStampStr timeStamp; /* temporary placeholder for the oldest time stamp in a stream file */
 
     /* Set all members to invalid indexes */
-    for (arrayIndex = 0; arrayIndex < MAX_NUMBER_OF_DAN_FILES ; arrayIndex++)
+    for (arrayIndex = 0; arrayIndex < MAX_NUMBER_OF_STREAM_FILES ; arrayIndex++)
     {
         m_ValidTimeStampList[arrayIndex] = INVALID_TIME_STAMP;
     }
@@ -671,10 +679,10 @@ static void PopulateValidFileTimeStamps (void)
      * time stamp with the seconds (epoch time).
      */
     arrayIndex = 0;
-    while ((m_ValidDanFileListIndexes[arrayIndex] != INVALID_FILE_INDEX)
-                    && (arrayIndex < MAX_NUMBER_OF_DAN_FILES ))
+    while ((m_ValidStreamFileListIndexes[arrayIndex] != INVALID_FILE_INDEX)
+                    && (arrayIndex < MAX_NUMBER_OF_STREAM_FILES ))
     {
-        GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, m_ValidDanFileListIndexes[arrayIndex]);
+        GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, m_ValidStreamFileListIndexes[arrayIndex]);
         m_ValidTimeStampList[arrayIndex] = timeStamp.seconds;
         arrayIndex++;
     }
@@ -709,7 +717,7 @@ static void SortValidFileTimeStamps (void)
 
     /* Find the number of valid timestamps */
     while ((m_ValidTimeStampList[numValidTimestamps] != INVALID_TIME_STAMP)
-                    && (numValidTimestamps < MAX_NUMBER_OF_DAN_FILES ))
+                    && (numValidTimestamps < MAX_NUMBER_OF_STREAM_FILES ))
     {
         numValidTimestamps++;
     }
@@ -726,9 +734,9 @@ static void SortValidFileTimeStamps (void)
                 m_ValidTimeStampList[d] = m_ValidTimeStampList[d + 1];
                 m_ValidTimeStampList[d + 1] = swapTimestamp;
 
-                swapIndex = m_ValidDanFileListIndexes[d];
-                m_ValidDanFileListIndexes[d] = m_ValidDanFileListIndexes[d + 1];
-                m_ValidDanFileListIndexes[d + 1] = swapIndex;
+                swapIndex = m_ValidStreamFileListIndexes[d];
+                m_ValidStreamFileListIndexes[d] = m_ValidStreamFileListIndexes[d + 1];
+                m_ValidStreamFileListIndexes[d + 1] = swapIndex;
             }
         }
     }
@@ -750,23 +758,23 @@ static void SortValidFileTimeStamps (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static UINT16 GetNewestDanFileIndex (void)
+static UINT16 GetNewestStreamFileIndex (void)
 {
-    UINT16 danIndex = 0;
+    UINT16 streamIndex = 0;
 
-    if (m_ValidDanFileListIndexes[0] == INVALID_FILE_INDEX)
+    if (m_ValidStreamFileListIndexes[0] == INVALID_FILE_INDEX)
     {
         return INVALID_FILE_INDEX;
     }
 
-    while ((m_ValidDanFileListIndexes[danIndex] != INVALID_FILE_INDEX)
-                    && (danIndex < MAX_NUMBER_OF_DAN_FILES ))
+    while ((m_ValidStreamFileListIndexes[streamIndex] != INVALID_FILE_INDEX)
+                    && (streamIndex < MAX_NUMBER_OF_STREAM_FILES ))
     {
-        danIndex++;
+        streamIndex++;
     }
 
     /* Since the while loop has incremented one past the newest, subtract 1*/
-    return (m_ValidDanFileListIndexes[danIndex - 1]);
+    return (m_ValidStreamFileListIndexes[streamIndex - 1]);
 
 }
 
@@ -786,9 +794,9 @@ static UINT16 GetNewestDanFileIndex (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static UINT16 GetOldestDanFileIndex (void)
+static UINT16 GetOldestStreamFileIndex (void)
 {
-    return (m_ValidDanFileListIndexes[0]);
+    return (m_ValidStreamFileListIndexes[0]);
 }
 
 /*****************************************************************************/
@@ -821,7 +829,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     char deviceId[17]; /* Stores the device id */
     UINT32 maxCopySize; /* Used to ensure memory is not overwritten */
 
-    const char *extension = ".dan"; /* Required extension to FTP file */
+    const char *extension = ".stream"; /* Required extension to FTP file */
     const char *rtdmFill = "rtdm____________"; /* Required filler */
 
     static char s_FileName[256]; /* FTP file name returned from function */
@@ -868,7 +876,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
 #endif
 
-    debugPrintf(DBG_INFO, "ANSI Date time = %s\n", dateTime);
+    debugPrintf(RTDM_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 
     /* Create the filename by concatenating in the proper order */
     strcat (s_FileName, DRIVE_NAME);
@@ -883,7 +891,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     /* Try opening the file for writing and leave open */
     if (os_io_fopen (s_FileName, "wb+", ftpFilePtr) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         *ftpFilePtr = NULL;
     }
@@ -1005,14 +1013,14 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
 
 /*****************************************************************************/
 /**
- * @brief       Gets a time stamp from a stream file (#.dan)
+ * @brief       Gets a time stamp from a stream file (#.stream)
  *
  *              Opens the desired stream file and either gets the newest or oldest
  *              time stamp in the file.
  *
  *  @param timeStamp - populated with either the oldest or newest time stamp
  *  @param age - informs function to get either the oldest or newest time stamp
- *  @param fileIndex - indicates the name of the stream file (i.e 0 cause "0.dan" to be opened)
+ *  @param fileIndex - indicates the name of the stream file (i.e 0 cause "0.stream" to be opened)
  *
  *//*
  * Revision History:
@@ -1037,7 +1045,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     fileName = CreateFileName (fileIndex);
     if (os_io_fopen (fileName, "r+b", &pFile) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                         fileName, __FILE__, __LINE__);
         return;
     }
@@ -1091,7 +1099,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
 
 /*****************************************************************************/
 /**
- * @brief       Counts the number of  valid streams in the stream (#.dan) files
+ * @brief       Counts the number of  valid streams in the stream (#.stream) files
  *
  *              This file scans through the list of all valid stream files
  *              counts the total number of streams in all of the valid stream files.
@@ -1109,22 +1117,22 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
 static UINT16 CountStreams (void)
 {
     UINT16 streamCount = 0; /* maintains the total the number of streams */
-    UINT16 fileIndex = 0; /* used to scan through all valid dan files */
-    FILE *streamFilePtr = NULL; /* File pointer to read stream files (#.dan) */
+    UINT16 fileIndex = 0; /* used to scan through all valid .stream files */
+    FILE *streamFilePtr = NULL; /* File pointer to read stream files (#.stream) */
     UINT8 buffer[1]; /* file read buffer */
     UINT32 amountRead = 0; /* amount of data read from stream file */
     UINT16 sIndex = 0; /* indexes into stream delimiter */
     char *fileName = NULL;
 
-    /* Scan through all valid dan files and tally the number of occurrences of "STRM" */
-    while ((m_ValidDanFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
-                    && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
+    /* Scan through all valid .stream files and tally the number of occurrences of "STRM" */
+    while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
+                    && (fileIndex < MAX_NUMBER_OF_STREAM_FILES ))
     {
-        fileName = CreateFileName (m_ValidDanFileListIndexes[fileIndex]);
+        fileName = CreateFileName (m_ValidStreamFileListIndexes[fileIndex]);
         /* Open the stream file for reading */
         if (os_io_fopen (fileName, "r+b", &streamFilePtr) == ERROR)
         {
-            debugPrintf(DBG_ERROR,
+            debugPrintf(RTDM_DBG_ERROR,
                             "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
         }
@@ -1174,7 +1182,7 @@ static UINT16 CountStreams (void)
 
 /*****************************************************************************/
 /**
- * @brief       Updates the file to FTP'ed with all valid stream (*.dan) files
+ * @brief       Updates the file to FTP'ed with all valid stream (*.stream) files
  *
  *              This file scans through the list of all valid stream files
  *              and appends each stream file to the file that is about to be
@@ -1191,21 +1199,21 @@ static UINT16 CountStreams (void)
  *****************************************************************************/
 static void IncludeStreamFiles (FILE *ftpFilePtr)
 {
-    UINT16 fileIndex = 0; /* Used to scan through m_ValidDanFileListIndexes */
+    UINT16 fileIndex = 0; /* Used to scan through m_ValidStreamFileListIndexes */
     FILE *streamFilePtr = NULL; /* Used to open the stream file for reading */
     UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Stores the data read from the stream file */
     UINT32 amount = 0; /* bytes or blocks read or written */
     char *fileName = NULL;
 
     /* Scan through all valid stream files. This list is ordered oldest to newest. */
-    while ((m_ValidDanFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
-                    && (fileIndex < MAX_NUMBER_OF_DAN_FILES ))
+    while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
+                    && (fileIndex < MAX_NUMBER_OF_STREAM_FILES ))
     {
-        fileName = CreateFileName (m_ValidDanFileListIndexes[fileIndex]);
+        fileName = CreateFileName (m_ValidStreamFileListIndexes[fileIndex]);
         /* Open the stream file for reading */
         if (os_io_fopen (fileName, "r+b", &streamFilePtr) == ERROR)
         {
-            debugPrintf(DBG_ERROR,
+            debugPrintf(RTDM_DBG_ERROR,
                             "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
         }
@@ -1228,7 +1236,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
                 amount = fwrite (&buffer[0], amount, 1, ftpFilePtr);
                 if (amount != 1)
                 {
-                    debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                     __LINE__);
                 }
             }
@@ -1241,9 +1249,9 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
 
 /*****************************************************************************/
 /**
- * @brief       Creates a filename #.dan file
+ * @brief       Creates a filename #.stream file
  *
- *              This function creates a #.dan file based on the drive/directory
+ *              This function creates a #.stream file based on the drive/directory
  *              and file index
  *
  *  @param fileName - path/filename of file to be verified
@@ -1259,7 +1267,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
 static char *CreateFileName (UINT16 fileIndex)
 {
     static char s_FileName[100]; /* Stores the newly created filename */
-    const char *extension = ".dan"; /* Holds the extension for the file */
+    const char *extension = ".stream"; /* Holds the extension for the file */
 
     memset (s_FileName, 0, sizeof(s_FileName));
 
@@ -1276,7 +1284,7 @@ static char *CreateFileName (UINT16 fileIndex)
 
 /*****************************************************************************/
 /**
- * @brief       Verifies a #.dan file integrity
+ * @brief       Verifies a #.stream file integrity
  *
  *              This function verifies that the final stream "STRM" section
  *              in the file has the correct number of bytes. IMPORTANT: There
@@ -1307,16 +1315,23 @@ static BOOL VerifyFileIntegrity (const char *filename)
     BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
     UINT16 sampleSize = 0;
 
-    /* File doesn't exist */
-    if (os_io_fopen (filename, "r+b", &pFile) == ERROR)
+    /* Check if the file exists */
+    if (!FileExists (filename))
     {
-        debugPrintf(DBG_INFO,
-                        "VerifyFileIntegrity() os_io_fopen() failed... File %s doesn't exist ---> File: %s  Line#: %d\n",
+        debugPrintf(RTDM_DBG_INFO,
+                        "VerifyFileIntegrity(): File %s doesn't exist ---> File: %s  Line#: %d\n",
                         filename, __FILE__, __LINE__);
         return (FALSE);
     }
 
-    /* Ensure the file pointer points to the beginnning of the file */
+    if (os_io_fopen (filename, "r+b", &pFile) == ERROR)
+    {
+        debugPrintf(RTDM_DBG_INFO, "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
+        return (FALSE);
+    }
+
+    /* Ensure the file pointer points to the beginning of the file */
     fseek (pFile, 0L, SEEK_SET);
 
     /* Keep searching the entire file for "STRM". When the end of file is reached
@@ -1357,7 +1372,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
      */
     if (lastStrmIndex == -1)
     {
-        debugPrintf(DBG_WARNING, "%s", "No STRMs found in file\n");
+        debugPrintf(RTDM_DBG_WARNING, "%s", "No STRMs found in file\n");
         os_io_fclose (pFile);
         return (FALSE);
     }
@@ -1374,7 +1389,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     sampleSize = ntohs (streamHeader.content.postamble.sampleSize);
     if ((sampleSize != expectedBytesRemaining) || (amountRead != sizeof(streamHeader)))
     {
-        debugPrintf(DBG_WARNING, "%s",
+        debugPrintf(RTDM_DBG_WARNING, "%s",
                         "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
         os_io_fclose (pFile);
 
@@ -1424,22 +1439,67 @@ static UINT16 CreateVerifyStorageDirectory (void)
 
     if (mkdirErrorCode == 0)
     {
-        debugPrintf(DBG_INFO, "Drive/Directory %s%s created\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s created\n", DRIVE_NAME, DIRECTORY_NAME);
     }
     else if ((mkdirErrorCode == -1) && (errno == 17))
     {
         /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
-        debugPrintf(DBG_INFO, "Drive/Directory %s%s exists\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s exists\n", DRIVE_NAME, DIRECTORY_NAME);
     }
     else
     {
         /* This is an error condition */
-        debugPrintf(DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(RTDM_DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME, DIRECTORY_NAME);
         /* TODO need error code */
         errorCode = 0xFFFF;
     }
 
     return (errorCode);
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Responsible for removing excess #.stream files
+ *
+ *              This function deletes all #.stream files that are beyond the current
+ *              scope. This usually occurs whenever there is a software change
+ *              that limits the amount of stream files required to support
+ *              the minimum stream files time span.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+
+static void CleanupDirectory (void)
+{
+    INT32 osCallReturn = 0;
+    UINT16 index = 0;
+    char *fileName = NULL;
+
+#ifdef DELETE_ALL_STREAM_FILES_AT_BOOT
+    index = 0;
+#else
+    index = MAX_NUMBER_OF_STREAM_FILES;
+#endif
+    for (; index < CLEANUP_EXTRA_STREAM_FILES; index++)
+    {
+        fileName = CreateFileName (index);
+        /* Check if the file exists, if it doesn't don't try t o delete it */
+        if (!FileExists (fileName))
+        {
+            continue;
+        }
+        osCallReturn = remove (fileName);
+        if (osCallReturn != 0)
+        {
+            debugPrintf(RTDM_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n", fileName,
+                            __FILE__, __LINE__);
+        }
+    }
 }
 
 /*****************************************************************************/
@@ -1471,12 +1531,12 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     UINT32 byteCount = 0;
     UINT32 remainingBytesToWrite = 0;
     INT32 osCallReturn = 0;
-    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.dan";
+    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream";
 
     /* Open the file to be truncated for reading */
     if (os_io_fopen (fileName, "rb", &pReadFile) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         return (FALSE);
     }
@@ -1484,7 +1544,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     /* Open the temporary file where the first "desiredFileSize" bytes will be written */
     if (os_io_fopen (tempFileName, "wb+", &pWriteFile) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         os_io_fclose (pReadFile);
         return (FALSE);
@@ -1494,7 +1554,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
-        debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         os_io_fclose (pWriteFile);
         os_io_fclose (pReadFile);
         return (FALSE);
@@ -1502,7 +1562,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
-        debugPrintf(DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
         os_io_fclose (pWriteFile);
         os_io_fclose (pReadFile);
         return (FALSE);
@@ -1529,7 +1589,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = (INT32) fwrite (buffer, sizeof(UINT8), sizeof(buffer), pWriteFile);
             if (osCallReturn != (INT32) sizeof(buffer))
             {
-                debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 os_io_fclose (pWriteFile);
                 os_io_fclose (pReadFile);
@@ -1546,7 +1606,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = (INT32) fwrite (buffer, 1, remainingBytesToWrite, pWriteFile);
             if (osCallReturn != (INT32) remainingBytesToWrite)
             {
-                debugPrintf(DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 os_io_fclose (pWriteFile);
                 os_io_fclose (pReadFile);
@@ -1560,7 +1620,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = remove (fileName);
             if (osCallReturn != 0)
             {
-                debugPrintf(DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 return (FALSE);
             }
@@ -1568,7 +1628,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             rename (tempFileName, fileName);
             if (osCallReturn != 0)
             {
-                debugPrintf(DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 return (FALSE);
             }
@@ -1602,7 +1662,7 @@ static BOOL CreateCarConDevFile (void)
     /* Create the data file  */
     if (os_io_fopen (ccdFileName, "wb+", &pFile) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         os_io_fclose (pFile);
         return (FALSE);
@@ -1621,6 +1681,20 @@ static BOOL CreateCarConDevFile (void)
 
 }
 
+
+static BOOL FileExists (const char *fileName)
+{
+    struct stat buffer;
+
+    if (stat (fileName, &buffer) == 0)
+    {
+        return (TRUE);
+    }
+
+    return (FALSE);
+}
+
+#ifdef CURRENTLY_UNUSED
 static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)
 {
     char buffer[FILE_READ_BUFFER_SIZE];
@@ -1660,4 +1734,5 @@ static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)
     return (0);
 
 }
+#endif
 

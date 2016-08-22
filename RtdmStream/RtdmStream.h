@@ -16,8 +16,8 @@
 #define RTDMSTREAM_H
 
 #ifndef TARGET_SIM_DLL
-#include "../RtdmStream/mwt_types.h"
-#include "../RtdmStream/usertypes.h"
+#include "mwt_types.h"
+#include "usertypes.h"
 #endif
 
 typedef struct dataBlock_RtdmStream
@@ -30,12 +30,12 @@ typedef struct dataBlock_RtdmStream
     MWT_STRING        VNC_CarData_X_DeviceID;                  /* input Device ID */
     MWT_BOOL          VNC_CarData_S_WhoAmISts;                 /* input Who Am I Status */
     UINT8             RTDMDataLogStop;                         /* input Stop the RTDM Data Log */
-    BOOL              ClearTrig;                               /* input */
+    BOOL              ClearTrig;                               /* input  */
     /* Group: OUTPUT */
     UINT8             RTDMDataLogState;                        /* output State of RTDM Data Log, RUN, STOP, RESTART, FULL */
     UINT16            RTDMMainBuffCount;                       /* output MD data stream message */
     UINT32            RTDM_Send_Counter;                       /* output counter for number of messages sent */
-    BOOL              RTDMSendMessage_trig;                    /* output trigger to send MD data stream */
+    BOOL              RTDMTriggerFileIOTask;                   /* output trigger to send MD data stream */
     UINT16            RTDMSignalCount;                         /* output number of signals read from config.xml */
     UINT16            RTDMSampleSize;                          /* output size of the current sample */
     UINT16            RTDMMainBuffSize;                        /* output Main buffer size [n] */

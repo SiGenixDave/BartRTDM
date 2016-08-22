@@ -21,9 +21,6 @@
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
 #include "rts_api.h"
-#include "../include/iptcom.h"
-#include "ptu.h"
-#include "fltinfo.h"
 #else
 #include <stdio.h>
 #include "../PcSrcFiles/MyTypes.h"
@@ -68,6 +65,24 @@
  *
  *******************************************************************/
 
+/*****************************************************************************/
+/**
+ * @brief       Responsible for initializing the RTDM functionality
+ *
+ *              This function is called at startup and executes on the event driven
+ *              file I/O task (low priority). It calls all functions required to initialize
+ *              the RTDM functionality. It is intentionally called on a low priority task due
+ *              to all of the file operations performed during initialization.
+ *
+ *  @param interface - pointer to the RTDM stream interface (MTPE tool creates this structure)
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface)
 {
 
@@ -84,6 +99,7 @@ void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface)
 
     InitializeFileIO (interface, rtdmXmlData);
 
+    /* Inform the 50 msec RTDM stream task that initialization is complete */
     SetRtdmInitFinished();
 
 }

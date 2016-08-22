@@ -318,6 +318,23 @@ char *GetXMLConfigFileBuffer (void)
     return m_ConfigXmlBufferPtr;
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Copies the XML configuration file.
+ *
+ *              This function copies the XML configuration file to the desired
+ *              location. This is done only to serve this file to the FTP
+ *              RTDM download program. That Windows application needs the file
+ *              to build a viewable DAN file.
+ *
+ *  @return UINT16 - NO_ERROR on success, other value if failure
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static UINT16 CopyXMLConfigFile (void)
 {
     const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
@@ -325,7 +342,7 @@ static UINT16 CopyXMLConfigFile (void)
 
     if (os_io_fopen (copyFileName, "wb+", &copyFile) == ERROR)
     {
-        debugPrintf(DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
+        debugPrintf(RTDM_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
                         __FILE__, __LINE__);
         /* TODO Error type */
         return 1;
@@ -468,7 +485,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         if (m_ConfigXmlBufferPtr == NULL)
         {
             os_io_fclose (filePtr);
-            debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+            debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
             /* TODO flag error */
 
@@ -486,7 +503,7 @@ static UINT16 OpenXMLConfigurationFile (void)
     /* File does not exist or internal error */
     else
     {
-        debugPrintf(DBG_ERROR, "%s",
+        debugPrintf(RTDM_DBG_ERROR, "%s",
                         "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
@@ -665,7 +682,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
     if (m_RtdmXmlData.signalDesription == NULL)
     {
-        debugPrintf(DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         /* TODO flag error */
     }
@@ -697,7 +714,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         sscanf (pStringLocation1, "%u", &signalId);
         m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId;
 
-        PrintIntegerContents(DBG_LOG,signalId);
+        PrintIntegerContents(RTDM_DBG_LOG,signalId);
 
         pStringLocation1 = pStringLocationSignal;
 
