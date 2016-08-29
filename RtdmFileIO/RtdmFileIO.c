@@ -45,23 +45,35 @@
  *
  *******************************************************************/
 
-/* TODO required for release
- #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24
- #define SINGLE_FILE_TIMESPAN_HOURS          0.25
- */
-
+#ifndef TODO
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      24.0
+#define SINGLE_FILE_TIMESPAN_HOURS          0.25
+#else
+/* Total time stream data is logged, old data will be overwritten */
 #define REQUIRED_NV_LOG_TIMESPAN_HOURS      (2.5/60.0)
+/* Each #.stream file contains this many hours worth of stream data */
 #define SINGLE_FILE_TIMESPAN_HOURS          (0.5/60.0)
+#endif
 
+/* Convert the above define to milliseconds */
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
+/* This will be the max total amount of stream files */
+#define MAX_NUMBER_OF_STREAM_FILES          (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
 
-#define MAX_NUMBER_OF_STREAM_FILES             (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
-
+/* If DELETE_ALL_STREAM_FILES_AT_BOOT is defined, all stream files will be removed after every
+ * power cycle or reset */
 /* #define DELETE_ALL_STREAM_FILES_AT_BOOT */
-#define CLEANUP_EXTRA_STREAM_FILES             (MAX_NUMBER_OF_STREAM_FILES + 100)
 
+/* If the maximum number of stream files decrease due to a software change, this ensures any extras
+ * remaining get deleted.
+ */
+#define CLEANUP_EXTRA_STREAM_FILES          (MAX_NUMBER_OF_STREAM_FILES + 100)
+
+/* Used to define the byte buffer size when reading files */
 #define FILE_READ_BUFFER_SIZE               1024
+/* Indicates an invalid file index or file doesn't exist */
 #define INVALID_FILE_INDEX                  0xFFFF
+/* Indicates an invalid time stamp or the file doesn't exist  */
 #define INVALID_TIME_STAMP                  0xFFFFFFFF
 
 /*******************************************************************
@@ -69,12 +81,12 @@
  *     E  N  U  M  S
  *
  *******************************************************************/
-/** @brief */
+/** @brief The current state of a stream file that is being updated */
 typedef enum
 {
-    /** */
+    /** Opens a new stream file */
     CREATE_NEW,
-    /** */
+    /** Appends to the end of an existing stream file */
     APPEND_TO_EXISTING
 } StreamFileState;
 
@@ -341,6 +353,7 @@ static void WriteStreamFile (void)
     INT32 timeDiff = 0;
     StreamHeaderStr streamHeader;
     char *fileName = NULL;
+    UINT32 checkFwriteCount = 0;
 
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
@@ -360,10 +373,20 @@ static void WriteStreamFile (void)
             if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
             {
                 /* Write the header */
-                fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
+                checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
+                if (checkFwriteCount != sizeof(streamHeader))
+                {
+                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                    __FILE__, __LINE__);
+                }
 
                 /* Write the stream */
-                fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
+                checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
+                if (checkFwriteCount != m_FileWrite.bytesInBuffer)
+                {
+                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                    __FILE__, __LINE__);
+                }
 
                 os_io_fclose (pFile);
             }
@@ -377,7 +400,8 @@ static void WriteStreamFile (void)
             s_StartTime = m_FileWrite.time;
             m_StreamFileState = APPEND_TO_EXISTING;
 
-            debugPrintf(RTDM_DBG_INFO, "FILEIO - CreateNew %s\n", CreateFileName (m_StreamFileIndex));
+            debugPrintf(RTDM_DBG_INFO, "FILEIO - CreateNew %s\n",
+                            CreateFileName (m_StreamFileIndex));
 
             break;
 
@@ -387,9 +411,20 @@ static void WriteStreamFile (void)
             if (os_io_fopen (fileName, "a+b", &pFile) != ERROR)
             {
                 /* Write the header */
-                fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
+                checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
+                if (checkFwriteCount != sizeof(streamHeader))
+                {
+                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                    __FILE__, __LINE__);
+                }
+
                 /* Write the stream */
-                fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
+                checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
+                if (checkFwriteCount != m_FileWrite.bytesInBuffer)
+                {
+                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                    __FILE__, __LINE__);
+                }
 
                 os_io_fclose (pFile);
 
@@ -1045,8 +1080,9 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     fileName = CreateFileName (fileIndex);
     if (os_io_fopen (fileName, "r+b", &pFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                        fileName, __FILE__, __LINE__);
+        debugPrintf(RTDM_DBG_ERROR,
+                        "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n", fileName,
+                        __FILE__, __LINE__);
         return;
     }
 
@@ -1160,6 +1196,11 @@ static UINT16 CountStreams (void)
                         sIndex = 0;
                     }
                 }
+                else if ((buffer[0] == m_StreamHeaderDelimiter[0]) && (sIndex == 1))
+                {
+                    /* This handles the case where at least 1 binary 'S' leads the "STRM" */
+                    sIndex = 1;
+                }
                 else
                 {
                     sIndex = 0;
@@ -1236,8 +1277,8 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
                 amount = fwrite (&buffer[0], amount, 1, ftpFilePtr);
                 if (amount != 1)
                 {
-                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                    __LINE__);
+                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                    __FILE__, __LINE__);
                 }
             }
         }
@@ -1326,7 +1367,8 @@ static BOOL VerifyFileIntegrity (const char *filename)
 
     if (os_io_fopen (filename, "r+b", &pFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_INFO, "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
+        debugPrintf(RTDM_DBG_INFO,
+                        "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
         return (FALSE);
     }
@@ -1449,7 +1491,8 @@ static UINT16 CreateVerifyStorageDirectory (void)
     else
     {
         /* This is an error condition */
-        debugPrintf(RTDM_DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME, DIRECTORY_NAME);
+        debugPrintf(RTDM_DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME,
+                        DIRECTORY_NAME);
         /* TODO need error code */
         errorCode = 0xFFFF;
     }
@@ -1473,7 +1516,6 @@ static UINT16 CreateVerifyStorageDirectory (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-
 static void CleanupDirectory (void)
 {
     INT32 osCallReturn = 0;
@@ -1488,7 +1530,7 @@ static void CleanupDirectory (void)
     for (; index < CLEANUP_EXTRA_STREAM_FILES; index++)
     {
         fileName = CreateFileName (index);
-        /* Check if the file exists, if it doesn't don't try t o delete it */
+        /* Check if the file exists, if it doesn't don't try to delete it and move on */
         if (!FileExists (fileName))
         {
             continue;
@@ -1498,6 +1540,11 @@ static void CleanupDirectory (void)
         {
             debugPrintf(RTDM_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n", fileName,
                             __FILE__, __LINE__);
+        }
+        else
+        {
+            debugPrintf(RTDM_DBG_INFO, "Removed file \"%s\" because it is o longer needed\n",
+                            fileName);
         }
     }
 }
@@ -1554,7 +1601,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
-        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         os_io_fclose (pWriteFile);
         os_io_fclose (pReadFile);
         return (FALSE);
@@ -1562,7 +1610,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
-        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__, __LINE__);
+        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
         os_io_fclose (pWriteFile);
         os_io_fclose (pReadFile);
         return (FALSE);
@@ -1681,7 +1730,6 @@ static BOOL CreateCarConDevFile (void)
 
 }
 
-
 static BOOL FileExists (const char *fileName)
 {
     struct stat buffer;
@@ -1726,7 +1774,7 @@ static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)
         {
             return (1);
         }
-    } while (bytesRead != 0);
+    }while (bytesRead != 0);
 
     os_io_fclose (pFileInput);
     os_io_fclose (pFileOutput);
