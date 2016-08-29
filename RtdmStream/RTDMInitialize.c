@@ -97,9 +97,10 @@ void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface)
 
     InitializeDataLog (rtdmXmlData);
 
-    InitializeFileIO (interface, rtdmXmlData);
+    InitializeFileIO (rtdmXmlData);
 
-    /* Inform the 50 msec RTDM stream task that initialization is complete */
+    /* Inform the 50 msec RTDM stream task that initialization is complete and stream
+     * data can now be collected. */
     SetRtdmInitFinished();
 
 }

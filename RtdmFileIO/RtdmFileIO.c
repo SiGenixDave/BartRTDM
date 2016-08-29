@@ -90,25 +90,25 @@ typedef enum
     APPEND_TO_EXISTING
 } StreamFileState;
 
-/** @brief */
+/** @brief Determines the type of time stamp to get from a #.stream file */
 typedef enum
 {
-    /** */
+    /** Used to get the oldest time stamp from a #.stream file */
     OLDEST_TIMESTAMP,
-    /** */
+    /** Used to get the newest time stamp from a #.stream file */
     NEWEST_TIMESTAMP
 } TimeStampAge;
 
-/** @brief */
+/** @brief Bit mask used to determine the function to be performed */
 typedef enum
 {
-    /** */
+    /** No function requested or all functions have been processed */
     NO_ACTION = 0x00,
-    /** */
+    /** Initialize the RTDM file I/O system */
     INIT_RTDM_SYSTEM = 0x01,
-    /** */
+    /** Writes to a #.stream file */
     WRITE_FILE = 0x02,
-    /** */
+    /** Used to compile, build and send a .dan file to the MDS only */
     COMPILE_FTP_FILE = 0x04,
 } FileAction;
 
@@ -120,40 +120,40 @@ typedef enum
 /** @brief Preamble of RTDM header, CRC IS NOT calculated on this section of data */
 typedef struct
 {
-    /** */
+    /** Holds the string delimiter for the RTDM header */
     char delimiter[4];
-    /** */
+    /** Determines whether the data is big or little endian */
     UINT8 endianness;
-    /** */
+    /** Holds the RTDM header size */
     UINT16 headerSize __attribute__ ((packed));
-    /** */
+    /** Calculated CRC checksum of the postamble portion of the RTDM header */
     UINT32 headerChecksum __attribute__ ((packed));
 } RtdmHeaderPreambleStr;
 
 /** @brief Postamble of RTDM header, CRC IS calculated on this section of data ONLY */
 typedef struct
 {
-    /** */
+    /** Holds the header version */
     UINT8 headerVersion;
-    /** */
+    /** String holds the consist ID, unused filled with NULL (0) */
     char consistId[16];
-    /** */
+    /** String holds the car ID, unused filled with NULL (0) */
     char carId[16];
-    /** */
+    /** String holds the device ID, unused filled with NULL (0) */
     char deviceId[16];
-    /** */
+    /** Holds the data recorder id */
     UINT16 dataRecordId __attribute__ ((packed));
-    /** */
+    /** Holds the data recorder version */
     UINT16 dataRecordVersion __attribute__ ((packed));
-    /** */
+    /** Holds the oldest time stamp seconds portion */
     UINT32 firstTimeStampSecs __attribute__ ((packed));
-    /** */
+    /** Holds the oldest time stamp msecs portion */
     UINT16 firstTimeStampMsecs __attribute__ ((packed));
-    /** */
+    /** Holds the newest time stamp seconds portion */
     UINT32 lastTimeStampSecs __attribute__ ((packed));
-    /** */
+    /** Holds the newest time stamp msecs portion */
     UINT16 lastTimeStampMsecs __attribute__ ((packed));
-    /** */
+    /** Holds the total number of streams in the file */
     UINT32 numStreams __attribute__ ((packed));
 
 } RtdmHeaderPostambleStr;
@@ -161,22 +161,25 @@ typedef struct
 /** @brief Structure to contain variables in the RTDM header of the message */
 typedef struct
 {
-    /** */
+    /** Non CRC portion of the RTDMM header */
     RtdmHeaderPreambleStr preamble;
-    /** */
+    /** CRC'ed portion of the RTDMM header */
     RtdmHeaderPostambleStr postamble;
 } RtdmHeaderStr;
 
-/** @brief */
+/** @brief Saved information used to write to a #.stream file. Since the act of writing
+ * to a #.stream file is asynchronous (spawned in an event driven task), the information
+ * must be saved until the event driven task is executed. */
 typedef struct
 {
-    /** */
+    /** Holds a pointer to the stream data to be written */
     UINT8 *buffer;
-    /** */
+    /** The number of bytes to be written */
     UINT32 bytesInBuffer;
-    /** */
+    /** The number of samples in the stream to be written */
     UINT16 sampleCount;
-    /** */
+    /** The time stamp to be used in the stream header. NOTE: each sample also has its own time stamp
+     * which is embedded in the "mini-header" for each sample */
     RTDMTimeStr time;
 
 } RtdmFileWrite;
@@ -188,21 +191,21 @@ typedef struct
  *******************************************************************/
 /** @brief Used to create file name of temporary stream file */
 static UINT16 m_StreamFileIndex = 0;
-/** @brief */
+/** @brief Holds a pointer to the MTPE stream interface structure */
 static TYPE_RTDMSTREAM_IF *m_StreamInterface = NULL;
-/** @brief */
+/** @brief Holds a pointer to the data from the XML configuration file */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
-/** @brief */
+/** @brief Holds a sorted list of #.stream files so that they are appended in the correct order. */
 static UINT16 m_ValidStreamFileListIndexes[MAX_NUMBER_OF_STREAM_FILES ];
-/** @brief */
+/** @brief Used to sort #.stream files */
 static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_STREAM_FILES ];
-/** @brief */
+/** @brief Determines whether to create or append to a #.stream file */
 static StreamFileState m_StreamFileState;
-/** @brief */
+/** @brief The header which delimits streams from each other */
 static const char *m_StreamHeaderDelimiter = "STRM";
-/** @brief */
+/** @brief Type of file action to be performed. */
 static FileAction m_FileAction = 0;
-/** @brief */
+/** @brief Holds information when about the stream to be written. */
 static RtdmFileWrite m_FileWrite;
 
 /*******************************************************************
@@ -232,12 +235,28 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
-static void BuildSendRtdmFtpFile (void);
+static void BuildSendRtdmFile (void);
 static BOOL FileExists (const char *fileName);
 
-void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
+/*****************************************************************************/
+/**
+ * @brief      Initializes the all File I/O
+ *
+ *              This function performs an initialization and verification
+ *              of RTDM files and directories.
+ *
+ *  @param rtdmXmlData - pointer to XML data retrieved from the configuration file
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
 {
-    m_StreamInterface = interface;
     m_RtdmXmlData = rtdmXmlData;
 
     CreateVerifyStorageDirectory ();
@@ -256,7 +275,7 @@ void InitializeFileIO (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData)
 /**
  * @brief       Function invoked by OS when trigger BOOL set TRUE
  *
- *              This function is "magically" invoked by the OS whenever the
+ *              This function is invoked by the OS whenever the
  *              specified BOOL flag (RTDMSendMessage_trig) is set TRUE. The OS
  *              effectively spawns this function as an event driven task so that
  *              the length of time to execute doesn't adversely affect (cause overflows)
@@ -295,13 +314,32 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
         }
         if ((m_FileAction & COMPILE_FTP_FILE) != 0)
         {
-            BuildSendRtdmFtpFile ();
+            BuildSendRtdmFile ();
             m_FileAction &= ~(COMPILE_FTP_FILE);
         }
     }
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief      Initializes the RTDM File I/O component
+ *
+ *              This function is used to invoke the initialization of the RTDM file
+ *              I/O. Due to the length of the time it takes, this operation
+ *              must be run in the event driven task.  No stream data is collected
+ *              until the operation that executes in the background is complete.
+ *
+ *  @param interface - pointer the RTDM STREAM data (not file I/O)
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 UINT32 RtdmSystemInitialize (TYPE_RTDMSTREAM_IF *interface)
 {
     m_StreamInterface = interface;
@@ -313,20 +351,46 @@ UINT32 RtdmSystemInitialize (TYPE_RTDMSTREAM_IF *interface)
     return (0);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Saves file write parameters and triggers OS File I/O operation
+ *
+ *              This function saves all of the necessary parameters to write
+ *              stream data to a file. If a previous file write hasn't finished
+ *              this function aborts.
+ *
+ *  @param logBuffer - pointer the stream data buffer
+ *  @param dataBytesInBuffer - the number of bytes in logBuffer
+ *  @param sampleCount - the number of samples in the current stream
+ *  @param currentTime - the current time
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime)
 {
     /* Error: File writing is in progress */
     if ((m_FileAction & WRITE_FILE) != 0)
     {
+        debugPrintf(RTDM_DBG_ERROR,
+                        "Attempt to write file prior to completion of previous write ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         return (1);
     }
 
+    /* Save all of the required parameters; to be used after OS triggers file I/O operation */
     m_FileWrite.buffer = logBuffer;
     m_FileWrite.bytesInBuffer = dataBytesInBuffer;
     m_FileWrite.sampleCount = sampleCount;
     m_FileWrite.time = *currentTime;
 
+    /* Indicate the type of background action to perform */
     m_FileAction |= WRITE_FILE;
 
     InitiateRtdmFileIOEventTask ();
@@ -334,26 +398,62 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
     return (0);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Causes the OS to trigger a File I/O operation
+ *
+ *              This function sets the OS BOOL flag to TRUE to trigger
+ *              the event driven file I/O task.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void InitiateRtdmFileIOEventTask (void)
 {
     /* Via OS event queue, spawns an event task and triggers call to RtdmFileIO() on that task */
     m_StreamInterface->RTDMTriggerFileIOTask = TRUE;
 
 #ifdef TEST_ON_PC
+    /* Since the PC used for testing has no real time issues, this can executed directly */
     RtdmFileIO (NULL);
 #endif
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Creates or appends a stream to a #.stream file
+ *
+ *              This function creates or appends a stream of data to a #.stream
+ *              file. It creates the stream header and writes to the file. It
+ *              then appends the stream data. Whether a file is created or
+ *              appended depends the amount of time allocated for each #.stream
+ *              file.
+ *              NOTE: This function is run in a event driven background task
+ *              and it is expected that the function PrepareForFileWrite()
+ *              has been called which effectively triggers this function.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void WriteStreamFile (void)
 {
 
-    FILE *pFile = NULL;
+    FILE *pFile = NULL; /* file pointer to the current stream file */
     static RTDMTimeStr s_StartTime =
-        { 0, 0 };
-    INT32 timeDiff = 0;
-    StreamHeaderStr streamHeader;
-    char *fileName = NULL;
-    UINT32 checkFwriteCount = 0;
+        { 0, 0 }; /* maintains the first time stamp in the current stream file */
+    INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
+    StreamHeaderStr streamHeader; /* holds the current stream header */
+    char *fileName = NULL; /* filename of the #.stream file */
+    UINT32 checkFwriteCount = 0; /* used to verify file writes */
 
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
@@ -361,9 +461,11 @@ static void WriteStreamFile (void)
         return;
     }
 
+    /* Create the stream header */
     PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &streamHeader, m_FileWrite.sampleCount,
                     m_FileWrite.buffer, m_FileWrite.bytesInBuffer, &m_FileWrite.time);
 
+    /* Get the file name */
     fileName = CreateFileName (m_StreamFileIndex);
     switch (m_StreamFileState)
     {
@@ -458,16 +560,35 @@ static void WriteStreamFile (void)
 
 }
 
-static void BuildSendRtdmFtpFile (void)
+/*****************************************************************************/
+/**
+ * @brief       Builds a valid .dan file and sends to FTP server
+ *
+ *              This function collects all the information necessary to
+ *              build a dan file. It first copies the XML configuration
+ *              file into it. It then creates and appends the RTDM header along
+ *              with all of the valid stream files. It then creates the
+ *              proper filename and then transmits the file via FTP over the
+ *              network. It then deletes the file.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void BuildSendRtdmFile (void)
 {
 
-    UINT16 newestStreamFileIndex = INVALID_FILE_INDEX;
-    UINT16 oldestStreamFileIndex = INVALID_FILE_INDEX;
-    FILE *ftpFilePtr = NULL;
-    TimeStampStr newestTimeStamp;
-    TimeStampStr oldestTimeStamp;
-    UINT16 streamCount = 0;
-    char *fileName = NULL;
+    UINT16 newestStreamFileIndex = INVALID_FILE_INDEX; /* newest stream file index */
+    UINT16 oldestStreamFileIndex = INVALID_FILE_INDEX; /* oldest stream file index */
+    FILE *ftpFilePtr = NULL; /* file pointer to the soon to be created .dan file */
+    TimeStampStr newestTimeStamp; /* newest time stamp (required for RTDM header) */
+    TimeStampStr oldestTimeStamp; /* oldest time stamp (required for RTDM header) */
+    UINT16 streamCount = 0; /* number of streams in all #.stream files */
+    char *fileName = NULL; /* filename of .dan file */
 
 #ifndef TEST_ON_PC
     INT16 ftpStatus = 0;
