@@ -237,7 +237,6 @@ static XmlElementDataStr m_OutputStreamCfg =
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static UINT16 CopyXMLConfigFile (void);
 static UINT16 ReadProcessXmlFile (void);
 static UINT16 OpenXMLConfigurationFile (void);
 static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr);
@@ -273,13 +272,6 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
     /* Read and process the XML file */
     errorCode = ReadProcessXmlFile ();
 
-    if (errorCode != NO_ERROR)
-    {
-        /* TODO if errorCode then need to log fault and inform that XML file read failed */
-        return (errorCode);
-    }
-
-    errorCode = CopyXMLConfigFile ();
     if (errorCode != NO_ERROR)
     {
         /* TODO if errorCode then need to log fault and inform that XML file read failed */
@@ -335,7 +327,7 @@ char *GetXMLConfigFileBuffer (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static UINT16 CopyXMLConfigFile (void)
+UINT16 CopyXMLConfigFile (void)
 {
     const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
     FILE *copyFile = NULL;

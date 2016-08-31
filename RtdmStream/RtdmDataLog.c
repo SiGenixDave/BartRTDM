@@ -232,12 +232,28 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
     }
 }
 
-/* Called when a request is made by the network to concatenate all .stream files
- into 1 file and send over network via FTP */
+/*****************************************************************************/
+/**
+ * @brief       Network request to download RTDM data log
+ *
+ *              This function is called whenever a request is made to download
+ *              the stream files to the MDs over the network. This function,
+ *              due to the amount of time it takes to execute, MUST be
+ *              executed on a low priority background task.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 void FTPDataLog (void)
 {
-    RTDMTimeStr currentTime;
+    RTDMTimeStr currentTime;    /* stores the system time */
 
+    /* Get the system time */
     GetEpochTime (&currentTime);
 
     /* Close existing datalog file */
@@ -248,12 +264,28 @@ void FTPDataLog (void)
 
     /* Spawn new task to concatenate all the previous 24 hours worth of streams
      * to a single file and then FTP that file to the FTP server */
-
     /* TODO Will need info about FTP server
     BuildSendRtdmFtpFile (); */
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Switches data log buffer pointer
+ *
+ *              This function switches the data log buffer pointer. Two buffers
+ *              are required because while one is being updated with real time
+ *              data, the other buffer's contents are being written to permanent
+ *              storage.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void SwapBuffers (void)
 {
     /* Swap the buffers by changing the pointer to either the ping or
@@ -272,6 +304,7 @@ static void SwapBuffers (void)
         debugPrintf(RTDM_DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
     }
 
+    /* Reset the index and sample count */
     m_RTDMDataLogIndex = 0;
     m_SampleCount = 0;
 

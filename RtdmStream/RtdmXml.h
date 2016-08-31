@@ -178,5 +178,6 @@ typedef struct
 
 UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData);
 char *GetXMLConfigFileBuffer (void);
+UINT16 CopyXMLConfigFile (void);
 
 #endif /* RTDMXML_H_ */

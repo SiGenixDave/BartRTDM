@@ -45,7 +45,7 @@
  *
  *******************************************************************/
 
-#ifndef TODO
+#ifdef TODO
 #define REQUIRED_NV_LOG_TIMESPAN_HOURS      24.0
 #define SINGLE_FILE_TIMESPAN_HOURS          0.25
 #else
@@ -237,7 +237,11 @@ static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
 static void BuildSendRtdmFile (void);
 static BOOL FileExists (const char *fileName);
+static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 wrtSize, BOOL creaetFile);
 
+#ifndef FOR_TEST_ONLY
+static char *CreateTFFS0FileName (UINT16 fileIndex);
+#endif
 /*****************************************************************************/
 /**
  * @brief      Initializes the all File I/O
@@ -257,9 +261,17 @@ static BOOL FileExists (const char *fileName);
  *****************************************************************************/
 void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
 {
+    UINT16 errorCode = NO_ERROR;
+
     m_RtdmXmlData = rtdmXmlData;
 
     CreateVerifyStorageDirectory ();
+
+    errorCode = CopyXMLConfigFile ();
+    if (errorCode != NO_ERROR)
+    {
+        /* TODO if errorCode then need to log fault and inform that XML file read failed */
+    }
 
     CleanupDirectory ();
 
@@ -447,13 +459,12 @@ static void InitiateRtdmFileIOEventTask (void)
 static void WriteStreamFile (void)
 {
 
-    FILE *pFile = NULL; /* file pointer to the current stream file */
     static RTDMTimeStr s_StartTime =
         { 0, 0 }; /* maintains the first time stamp in the current stream file */
     INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
     StreamHeaderStr streamHeader; /* holds the current stream header */
     char *fileName = NULL; /* filename of the #.stream file */
-    UINT32 checkFwriteCount = 0; /* used to verify file writes */
+    char *fileNameTFFS0 = NULL; /* filename of the #.stream file */
 
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
@@ -467,38 +478,112 @@ static void WriteStreamFile (void)
 
     /* Get the file name */
     fileName = CreateFileName (m_StreamFileIndex);
+    fileNameTFFS0 = CreateTFFS0FileName (m_StreamFileIndex);
+#ifdef INSERT_AFTER_CF_ISSUE_RESOLVED
     switch (m_StreamFileState)
     {
         default:
         case CREATE_NEW:
-            /* TODO handle file open error */
-            if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
+        /* TODO handle file open error */
+        if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
+        {
+            /* Write the header */
+            checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
+            if (checkFwriteCount != sizeof(streamHeader))
             {
-                /* Write the header */
-                checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
-                if (checkFwriteCount != sizeof(streamHeader))
-                {
-                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                    __FILE__, __LINE__);
-                }
-
-                /* Write the stream */
-                checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
-                if (checkFwriteCount != m_FileWrite.bytesInBuffer)
-                {
-                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                    __FILE__, __LINE__);
-                }
-
-                os_io_fclose (pFile);
-            }
-            else
-            {
-                debugPrintf(RTDM_DBG_ERROR,
-                                "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                                fileName, __FILE__, __LINE__);
+                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
             }
 
+            /* Write the stream */
+            checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
+            if (checkFwriteCount != m_FileWrite.bytesInBuffer)
+            {
+                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
+            }
+
+            os_io_fclose (pFile);
+        }
+        else
+        {
+            debugPrintf(RTDM_DBG_ERROR,
+                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
+        }
+
+        s_StartTime = m_FileWrite.time;
+        m_StreamFileState = APPEND_TO_EXISTING;
+
+        debugPrintf(RTDM_DBG_INFO, "FILEIO - CreateNew %s\n",
+                        CreateFileName (m_StreamFileIndex));
+
+        break;
+
+        case APPEND_TO_EXISTING:
+        /* Open the file for appending */
+        /* TODO handle file open error */
+        if (os_io_fopen (fileName, "a+b", &pFile) != ERROR)
+        {
+            /* Write the header */
+            checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
+            if (checkFwriteCount != sizeof(streamHeader))
+            {
+                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
+            }
+
+            /* Write the stream */
+            checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
+            if (checkFwriteCount != m_FileWrite.bytesInBuffer)
+            {
+                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
+            }
+
+            os_io_fclose (pFile);
+
+        }
+        else
+        {
+            debugPrintf(RTDM_DBG_ERROR,
+                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
+        }
+        debugPrintf(RTDM_DBG_INFO, "%s", "FILEIO - Append Existing\n");
+
+        /* determine if the time span of data saved to the current file has
+         * met or exceeded the desired amount. */
+        timeDiff = TimeDiff (&m_FileWrite.time, &s_StartTime);
+
+        if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
+        {
+            m_StreamFileState = CREATE_NEW;
+
+            m_StreamFileIndex++;
+            if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
+            {
+                m_StreamFileIndex = 0;
+            }
+        }
+
+        break;
+
+    }
+#else
+    switch (m_StreamFileState)
+    {
+        default:
+        case CREATE_NEW:
+            /* Write the header */
+            CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            /* Write the stream */
+            CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+
+#ifndef FOR_TEST_ONLY
+            CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+#endif
             s_StartTime = m_FileWrite.time;
             m_StreamFileState = APPEND_TO_EXISTING;
 
@@ -509,34 +594,16 @@ static void WriteStreamFile (void)
 
         case APPEND_TO_EXISTING:
             /* Open the file for appending */
-            /* TODO handle file open error */
-            if (os_io_fopen (fileName, "a+b", &pFile) != ERROR)
-            {
-                /* Write the header */
-                checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
-                if (checkFwriteCount != sizeof(streamHeader))
-                {
-                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                    __FILE__, __LINE__);
-                }
+            /* Write the header */
+            CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            /* Write the stream */
+            CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
-                /* Write the stream */
-                checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
-                if (checkFwriteCount != m_FileWrite.bytesInBuffer)
-                {
-                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                    __FILE__, __LINE__);
-                }
+#ifndef FOR_TEST_ONLY
+            CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+#endif
 
-                os_io_fclose (pFile);
-
-            }
-            else
-            {
-                debugPrintf(RTDM_DBG_ERROR,
-                                "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                                fileName, __FILE__, __LINE__);
-            }
             debugPrintf(RTDM_DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
             /* determine if the time span of data saved to the current file has
@@ -557,6 +624,8 @@ static void WriteStreamFile (void)
             break;
 
     }
+
+#endif
 
 }
 
@@ -1826,8 +1895,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
  *****************************************************************************/
 static BOOL CreateCarConDevFile (void)
 {
-    const char *ccdFileName = DRIVE_NAME DIRECTORY_NAME "CarConDev.dat";
-    FILE *pFile = NULL;
+    const char *ccdFileName = DRIVE_NAME DIRECTORY_NAME "CarConDev.dat"; /* Fully qualified file name */
+    FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
 
     /* Create the data file  */
     if (os_io_fopen (ccdFileName, "wb+", &pFile) == ERROR)
@@ -1851,9 +1920,26 @@ static BOOL CreateCarConDevFile (void)
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Determined if a file exists
+ *
+ *              This function determines if a file exists
+ *
+ *  @param fileName - the fully qualified file name (including path)
+ *
+ *  @return BOOL - TRUE if the file exists; FALSE otherwise
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static BOOL FileExists (const char *fileName)
 {
-    struct stat buffer;
+    struct stat buffer; /* Used to gather file attributes and required by stat() */
 
     if (stat (fileName, &buffer) == 0)
     {
@@ -1862,6 +1948,157 @@ static BOOL FileExists (const char *fileName)
 
     return (FALSE);
 }
+
+/*****************************************************************************/
+/**
+ * @brief       TODO may not need once problem is resolved; ergo no comments
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize, BOOL createFile)
+{
+    FILE *rdFile = NULL;
+    FILE *wrtFile = NULL;
+    const char *createFileArgs = "w+b";
+    const char *appendFileArgs = "r+b";
+    char *fopenArgString = NULL;
+
+    UINT8 rdBuffer[FILE_READ_BUFFER_SIZE];
+    UINT32 amountWritten = 0;
+    UINT32 attempts = 0;
+    BOOL success = FALSE;
+    UINT32 bytesRead = 0;
+    UINT32 wrtIndex = 0;
+    INT32 memCompareResult = 0;
+
+    while ((attempts < 3) && (success == FALSE))
+    {
+        if (createFile)
+        {
+            fopenArgString = (char *) createFileArgs;
+        }
+        else
+        {
+            fopenArgString = (char *) appendFileArgs;
+        }
+
+        if (os_io_fopen (fileName, fopenArgString, &wrtFile) == ERROR)
+        {
+            debugPrintf(RTDM_DBG_ERROR,
+                            "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
+            return FALSE;
+        }
+
+        if (!createFile)
+        {
+            if (attempts == 0)
+            {
+                fseek (wrtFile, 0, SEEK_END);
+            }
+            else
+            {
+                fseek (wrtFile, -wrtSize, SEEK_END);
+            }
+        }
+
+        amountWritten = fwrite (wrtBuffer, 1, wrtSize, wrtFile);
+        if (amountWritten != wrtSize)
+        {
+            debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                            __LINE__);
+
+            os_io_fclose (wrtFile);
+            attempts++;
+            continue;
+        }
+
+        fflush (wrtFile);
+#ifndef TEST_ON_PC
+        fsync (fileno (wrtFile));
+#endif
+        os_io_fclose (wrtFile);
+
+        if (os_io_fopen (fileName, "r+b", &rdFile) == ERROR)
+        {
+            debugPrintf(RTDM_DBG_ERROR,
+                            "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
+            return FALSE;
+        }
+
+        if (!createFile)
+        {
+            fseek (rdFile, -wrtSize, SEEK_END);
+        }
+
+        bytesRead = 0;
+        wrtIndex = 0;
+
+        /* Verify write was successful */
+        while (wrtIndex < wrtSize)
+        {
+
+            bytesRead = fread (&rdBuffer[0], 1, sizeof(rdBuffer), rdFile);
+
+            if (bytesRead == 0)
+            {
+                break;
+            }
+
+            memCompareResult = memcmp (&rdBuffer[0], &wrtBuffer[wrtIndex], bytesRead);
+
+            if (memCompareResult != 0)
+            {
+                debugPrintf(RTDM_DBG_WARNING,
+                                "Compact FLASH write failed ---> File: %s  Line#: %d\n", __FILE__,
+                                __LINE__);
+                break;
+            }
+
+            wrtIndex += bytesRead;
+        }
+
+        if (memCompareResult == 0)
+        {
+            debugPrintf(RTDM_DBG_INFO, "Compact FLASH success\n");
+            success = TRUE;
+        }
+        else
+        {
+            attempts++;
+        }
+
+        os_io_fclose (rdFile);
+    }
+
+    return success;
+}
+
+#ifndef FOR_TEST_ONLY
+static char *CreateTFFS0FileName (UINT16 fileIndex)
+{
+    static char s_FileName[100]; /* Stores the newly created filename */
+    const char *extension = ".stream"; /* Holds the extension for the file */
+
+    memset (s_FileName, 0, sizeof(s_FileName));
+
+    strcat (s_FileName, "/tffs0/");
+    strcat (s_FileName, DIRECTORY_NAME);
+
+    /* Append the file index to the drive and directory */
+    sprintf (&s_FileName[strlen (s_FileName)], "%u", fileIndex);
+    /* Append the extension */
+    strcat (s_FileName, extension);
+
+    return (s_FileName);
+}
+#endif
 
 #ifdef CURRENTLY_UNUSED
 static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)

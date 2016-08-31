@@ -174,13 +174,13 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
  *              is greater than time2, then a positive value will be returned.
  *              Otherwise, a negative value will be returned.
  *
- *  @param interface -
- *  @param rtdmXmlData -
- *  @param streamHeader -
- *  @param sampleCount -
- *  @param dataBuffer -
- *  @param dataSize -
- *  @param currentTime -
+ *  @param interface - pointer to the stream interface data
+ *  @param rtdmXmlData - pointer to the XML configuration data
+ *  @param streamHeader - pointer to the stream header (updated in this function)
+ *  @param sampleCount - the number of samples in the stream
+ *  @param dataBuffer - pointer to the stream data
+ *  @param dataSize - total amount of data bytes in the stream
+ *  @param currentTime - current time
  *
  *//*
  * Revision History:
