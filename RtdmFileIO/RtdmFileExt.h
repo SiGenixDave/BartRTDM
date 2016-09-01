@@ -25,6 +25,8 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
+/* Drive and directory where the stream files and other RTDM
+ * data file will be saved */
 #ifdef TEST_ON_PC
 #define DRIVE_NAME                          "D:\\"
 #define DIRECTORY_NAME                      "rtdm\\"

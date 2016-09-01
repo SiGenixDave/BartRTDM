@@ -36,17 +36,17 @@
  * allocate memory to store the signal */
 typedef enum
 {
-    /** */
+    /** attribute is UINT8 type */
     UINT8_XML_TYPE,
-    /** */
+    /** attribute is INT8 type */
     INT8_XML_TYPE,
-    /** */
+    /** attribute is UINT16 type */
     UINT16_XML_TYPE,
-    /** */
+    /** attribute is INT16 type */
     INT16_XML_TYPE,
-    /** */
+    /** attribute is UINT32 type */
     UINT32_XML_TYPE,
-    /** */
+    /** attribute is INT32 type */
     INT32_XML_TYPE
 } XmlSignalType;
 

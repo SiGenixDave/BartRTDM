@@ -307,7 +307,7 @@ UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
  *****************************************************************************/
 char *GetXMLConfigFileBuffer (void)
 {
-    return m_ConfigXmlBufferPtr;
+    return (m_ConfigXmlBufferPtr);
 }
 
 /*****************************************************************************/
@@ -337,7 +337,7 @@ UINT16 CopyXMLConfigFile (void)
         debugPrintf(RTDM_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
                         __FILE__, __LINE__);
         /* TODO Error type */
-        return 1;
+        return (1);
     }
 
     fwrite (m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, sizeof(char), copyFile);
@@ -405,7 +405,7 @@ static UINT16 ReadProcessXmlFile (void)
     if (m_RtdmXmlData.outputStreamCfg.bufferSize < 2000)
     {
         /* buffer size is not big enough, will overload the CPU */
-        free (m_ConfigXmlBufferPtr);
+        dm_free (0, m_ConfigXmlBufferPtr);
         return (NO_BUFFERSIZE);
     }
 
@@ -415,7 +415,7 @@ static UINT16 ReadProcessXmlFile (void)
     returnValue = ProcessXMLSignals (&signalCount);
     if (returnValue != NO_ERROR)
     {
-        return returnValue;
+        return (returnValue);
     }
     /***************************************************************************/
 
@@ -457,6 +457,7 @@ static UINT16 ReadProcessXmlFile (void)
 static UINT16 OpenXMLConfigurationFile (void)
 {
     FILE* filePtr = NULL; /* OS file pointer to XML configuration file */
+    INT32 returnValue = 0; /* return value from memory allocation function */
 
     /* open the existing configuration file for reading TEXT MODE ("rb" needed because if "r" only
      * \n gets discarded ) */
@@ -471,18 +472,12 @@ static UINT16 OpenXMLConfigurationFile (void)
 
         /* grab sufficient memory for the buffer to hold the text - clear all bytes. Add
          * an additional byte to ensure a NULL character (end of string) is encountered */
-        m_ConfigXmlBufferPtr = (char*) calloc ((size_t) (m_ConfigXmlFileSize + 1), sizeof(char));
-
-        /* memory error */
-        if (m_ConfigXmlBufferPtr == NULL)
+        returnValue = AllocateMemoryAndClear ((m_ConfigXmlFileSize + 1), (void **)&m_ConfigXmlBufferPtr);
+        if (returnValue != OK)
         {
             os_io_fclose (filePtr);
             debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
-            /* TODO flag error */
-
-            /* free the memory we used for the buffer */
-            free (m_ConfigXmlBufferPtr);
             return (BAD_READ_BUFFER);
         }
 
@@ -536,7 +531,7 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
         {
             /* DataRecorderCfg string not found */
             /* free the memory we used for the buffer */
-            free (m_ConfigXmlBufferPtr);
+            dm_free (0, m_ConfigXmlBufferPtr);
             return (NO_DATARECORDERCFG);
         }
         /* Search for the next XML attribute (configuration parameter name) */
@@ -588,7 +583,8 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
                     {
                         charCount++;
                     }
-                    stringPtr = (char *) calloc (charCount + 1, sizeof(UINT8));
+                    AllocateMemoryAndClear ((charCount + 1), (void **)&stringPtr);
+
                     /* NOTE Assume a 32 bit native address architecture */
                     *(UINT32 *) (xmlElementPtr->xmlAttibuteData[index].xmlData) = (UINT32) stringPtr;
                     strncpy ((char *) xmlElementPtr->xmlAttibuteData[index].xmlData,
@@ -655,6 +651,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     INT32 dataAllocationBytes = 0;
     UINT32 signalId = 0;
     UINT16 signalCount = 0;
+    INT32 returnValue = OK;
 
     pStringLocation1 = m_ConfigXmlBufferPtr;
 
@@ -669,10 +666,9 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     requiredMemorySize = sizeof(SignalDescriptionStr) * signalCount;
 
     /* allocate memory */
-    m_RtdmXmlData.signalDesription = (SignalDescriptionStr *) calloc (requiredMemorySize,
-                    sizeof(UINT8));
+    returnValue = AllocateMemoryAndClear (requiredMemorySize, (void **)&m_RtdmXmlData.signalDesription);
 
-    if (m_RtdmXmlData.signalDesription == NULL)
+    if (returnValue == ERROR)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);

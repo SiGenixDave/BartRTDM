@@ -39,6 +39,8 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
+/* comment out of floats/doubles are not allowed */
+#define DOUBLES_ALLOWED
 
 /*******************************************************************
  *
@@ -124,11 +126,15 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
 {
 #ifdef DOUBLES_ALLOWED
-    double time1d = time1->seconds + ((double)(time1->nanoseconds) / 1E+9);
-    double time2d = time2->seconds + ((double)(time2->nanoseconds) / 1E+9);
-    double timeDiff = (time1d - time2d) * 1000.0;
+    double time1d = 0.0;    /* Converted time1 to double */
+    double time2d = 0.0;    /* Converted time2 to double */
+    double timeDiff = 0.0;  /* time1 - time2 (msecs) */
 
-    return (INT32)(timeDiff);
+    time1d = time1->seconds + ((double)(time1->nanoseconds) / 1E+9);
+    time2d = time2->seconds + ((double)(time2->nanoseconds) / 1E+9);
+    timeDiff = (time1d - time2d) * 1000.0;
+
+    return ((INT32)(timeDiff));
 #else
 
     INT32 milliSeconds = 0;
@@ -167,12 +173,13 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
 
 /*****************************************************************************/
 /**
- * @brief       Calculates the difference between 2 stored times
+ * @brief       Populates the stream header
  *
- *              This function calculates the difference in time between the
- *              2 parameters and returns the difference in milliseconds. If time1
- *              is greater than time2, then a positive value will be returned.
- *              Otherwise, a negative value will be returned.
+ *              This function populates a stream header in preparation for either
+ *              sending a stream over the network or writing to a file. Each member
+ *              of the stream header is populated with the required information.
+ *              NOTE: The CRC or the payload must be calculated and populated prior
+ *              to calculating the CRC for the stream header.
  *
  *  @param interface - pointer to the stream interface data
  *  @param rtdmXmlData - pointer to the XML configuration data
@@ -193,14 +200,14 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime)
 {
-    const char *delimiter = "STRM";
-    UINT32 crc = 0;
-    UINT32 maxCopySize = 0;
+    const char *delimiter = "STRM";     /* Fixed stream header delimiter */
+    UINT32 crc = 0;                     /* CRC calculation result */
+    UINT32 maxCopySize = 0; /* used to ensure memory is not overflowed when copying strings */
 
     /* Zero the stream entire header */
     memset (streamHeader, 0, sizeof(StreamHeaderStr));
 
-    /* Calculate CRC for all samples, this needs done prior to populating and calculating the
+    /* Calculate CRC for all samples (payload), this needs done prior to populating and calculating the
      * stream header CRC. */
     streamHeader->content.postamble.numberOfSamples = htons (sampleCount);
     crc = 0;
@@ -250,16 +257,19 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
                     maxCopySize);
 
     /* Data Recorder ID - from .xml file */
-    streamHeader->content.postamble.dataRecorderId = htons((UINT16) rtdmXmlData->dataRecorderCfg.id);
+    streamHeader->content.postamble.dataRecorderId = htons (
+                    (UINT16) rtdmXmlData->dataRecorderCfg.id);
 
     /* Data Recorder Version - from .xml file */
-    streamHeader->content.postamble.dataRecorderVersion = htons((UINT16) rtdmXmlData->dataRecorderCfg.version);
+    streamHeader->content.postamble.dataRecorderVersion = htons (
+                    (UINT16) rtdmXmlData->dataRecorderCfg.version);
 
     /* timeStamp - Current time in Seconds */
-    streamHeader->content.postamble.timeStampUtcSecs = htonl(currentTime->seconds);
+    streamHeader->content.postamble.timeStampUtcSecs = htonl (currentTime->seconds);
 
     /* TimeStamp - mS */
-    streamHeader->content.postamble.timeStampUtcMsecs = htons((UINT16) (currentTime->nanoseconds / 1000000));
+    streamHeader->content.postamble.timeStampUtcMsecs = htons (
+                    (UINT16) (currentTime->nanoseconds / 1000000));
 
     /* TimeStamp - Accuracy - 0 = Accurate, 1 = Not Accurate */
     streamHeader->content.postamble.timeStampUtcAccuracy = (UINT8) interface->RTCTimeAccuracy;
@@ -271,21 +281,58 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
     streamHeader->content.postamble.mdsStreamReceiveMsecs = 0;
 
     /* Sample size - size of following content including this field */
-    /* Add this field plus checksum and # samples to size */
-    streamHeader->content.postamble.sampleSize = htons((UINT16) (sizeof(streamHeader->content.postamble.sampleSize)
-                    + sizeof(streamHeader->content.postamble.samplesChecksum)
-                    + sizeof(streamHeader->content.postamble.numberOfSamples) + dataSize));
+    streamHeader->content.postamble.sampleSize = htons (
+                    (UINT16) (sizeof(streamHeader->content.postamble.sampleSize)
+                                    + sizeof(streamHeader->content.postamble.samplesChecksum)
+                                    + sizeof(streamHeader->content.postamble.numberOfSamples)
+                                    + dataSize));
 
-    /* Number of Samples in current stream */
-    /* DO NOTHING: Populated above in order to create samples CRC */
 
-    /* crc = 0 is flipped in crc.c to 0xFFFFFFFF */
+    /* Calculate the header CRC */
     crc = 0;
     crc = crc32 (crc, ((UINT8 *) &streamHeader->content.postamble),
                     (INT32) (sizeof(StreamHeaderPostambleStr)));
 
-    streamHeader->content.preamble.headerChecksum = htonl(crc);
+    streamHeader->content.preamble.headerChecksum = htonl (crc);
 
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Allocates memory from the heap
+ *
+ *              This function allocates memory from the heap and then clears
+ *              the memory. This function should only be used when the amount
+ *              of memory required is not known at compile time and only called
+ *              during initialization
+ *
+ *  @param size - the requested number of bytes to allocate
+ *  @param memory - pointer to the newly allocated memory pointer
+ *
+ *  @return INT32 - OK if memory allocated successfully; ERROR otherwise
+
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+INT32 AllocateMemoryAndClear (UINT32 size, void **memory)
+{
+    INT32 returnValue = OK; /* return value from OS memory allocation call */
+
+    /* Attempt to allocate memory */
+    returnValue = (INT32) dm_malloc (0, size, memory);
+
+    /* Clear the memory if it was allocated successfully */
+    if (returnValue == OK)
+    {
+        memset (*memory, 0, size);
+    }
+
+    return (returnValue);
 }
 
 #ifdef FOR_UNIT_TEST_ONLY

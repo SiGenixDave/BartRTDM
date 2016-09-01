@@ -111,6 +111,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 {
 
     UINT32 rawDataLogAllocation = 0; /* amount of memory to allocate */
+    INT32 returnValue = OK; /* error code returned from dynamic allocation */
 
     /* Calculate the maximum amount of memory needed to store signal samples before
      * saving them to a file. This calculation assumes no compression or if compression
@@ -121,8 +122,8 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
                     * rtdmXmlData->metaData.maxStreamHeaderDataSize;
 
     /* Allocate memory to store the log data in the "ping" buffer */
-    m_RTDMDataLogPingPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
-    if (m_RTDMDataLogPingPtr == NULL)
+    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **)&m_RTDMDataLogPingPtr);
+    if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
@@ -130,8 +131,8 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     }
 
     /* Allocate memory to store the log data in the "pong" buffer */
-    m_RTDMDataLogPongPtr = (UINT8 *) calloc (rawDataLogAllocation, sizeof(UINT8));
-    if (m_RTDMDataLogPongPtr == NULL)
+    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **)&m_RTDMDataLogPongPtr);
+    if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
@@ -256,7 +257,7 @@ void FTPDataLog (void)
     /* Get the system time */
     GetEpochTime (&currentTime);
 
-    /* Close existing datalog file */
+    /* Close existing data log file */
     PrepareForFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
 
     /* Swap data stream memory buffers */

@@ -184,7 +184,6 @@ typedef struct
     StreamHeaderContent content;
 } StreamHeaderStr;
 
-
 /*******************************************************************
  *
  *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
@@ -201,4 +200,5 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime);
+INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
 #endif /* RTDMUTILS_H_ */

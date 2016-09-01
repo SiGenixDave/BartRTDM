@@ -119,6 +119,8 @@ static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* 
  *****************************************************************************/
 void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 {
+    INT32 returnValue = OK; /* return value from memory allocation function */
+
     m_RtdmXmlData = rtdmXmlData;
 
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
@@ -128,9 +130,9 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
 
     /* Allocate memory to store data according to buffer size from .xml file. This stores a streams
      * worth of signal id and signal data */
-    m_StreamData = (UINT8 *) calloc (rtdmXmlData->outputStreamCfg.bufferSize, sizeof(UINT8));
-
-    if (m_StreamData == NULL)
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->outputStreamCfg.bufferSize,
+                    (void **) &m_StreamData);
+    if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
@@ -142,24 +144,27 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     /* All of the following are used to store old signal id and data (previous sample), new signal
      * id and data (current sample), and changed signal id and data.
      */
-    m_NewSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
-    if (m_NewSignalData == NULL)
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxStreamDataSize,
+                    (void **) &m_NewSignalData);
+    if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
-    m_OldSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
-    if (m_OldSignalData == NULL)
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxStreamDataSize,
+                    (void **) &m_OldSignalData);
+    if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
-    m_ChangedSignalData = (UINT8 *) calloc (rtdmXmlData->metaData.maxStreamDataSize, sizeof(UINT8));
-    if (m_ChangedSignalData == NULL)
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxStreamDataSize,
+                    (void **) &m_ChangedSignalData);
+    if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
@@ -188,7 +193,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
  *****************************************************************************/
 void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
 {
-    static BOOL firstCall = TRUE;
+    static BOOL firstCall = TRUE; /* used to trigger initialization one time only */
 
     /* Always reset this flag on entry. Used to trigger OS Event to File IO event driven task. Flag is
      * recognized after this call exits. */
@@ -248,11 +253,11 @@ void SetRtdmInitFinished (void)
  *****************************************************************************/
 static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
 {
-    UINT16 errorCode = 0;
+    UINT16 errorCode = 0; /* Determines if network is available */
     UINT16 result = 0;
-    UINT32 bufferChangeAmount = 0;
-    RTDMTimeStr currentTime;
-    BOOL networkAvailable = FALSE;
+    UINT32 bufferChangeAmount = 0; /* Amount of bytes that need to be captured for sample */
+    RTDMTimeStr currentTime; /* current system time */
+    BOOL networkAvailable = FALSE; /* TRUE if netowrk is available */
 
     /* Get the system time */
     result = GetEpochTime (&currentTime);
@@ -263,14 +268,14 @@ static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
         return;
     }
 
+    errorCode = NetworkAvailable (interface, &networkAvailable);
+
     /* Get all of the latest sample of data */
     PopulateSignalsWithNewSamples ();
 
     /* Create a stream sample, amount will depend upon whether or not data compression
-     * is enabled and/or how much the data has changed from the previous sample */
+     * is enabled and/or how much the data has changed from the previous sample. */
     bufferChangeAmount = CreateSingleSampleStream (interface, &currentTime);
-
-    errorCode = NetworkAvailable (interface, &networkAvailable);
 
     /* Populate the stream buffer with the latest sample */
     ServiceStream (interface, networkAvailable, bufferChangeAmount, &currentTime);
@@ -282,6 +287,7 @@ static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
     result = Check_Fault (errorCode, &currentTime);
 
     /* Set for DCUTerm/PTU */
+    /* TODO */
     interface->RTDMStreamError = errorCode;
 
 }
@@ -437,8 +443,8 @@ static void ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
  *****************************************************************************/
 static UINT32 CreateSingleSampleStream (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime)
 {
-    UINT32 signalChangeBufferSize = 0;
-    UINT16 signalCount = 0;
+    UINT32 signalChangeBufferSize = 0;      /* number of bytes of signal data that has changed */
+    UINT16 signalCount = 0;     /* number of signals in the current sample */
 
     if (m_RtdmXmlData->dataRecorderCfg.compressionEnabled)
     {
@@ -713,6 +719,7 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 
 }
 
+/* TODO need header after function has been tested and verified */
 static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
                 UINT8 *streamBuffer, UINT32 streamBufferSize)
 {
@@ -748,6 +755,6 @@ static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* 
         errorCode = NO_ERROR;
     }
 
-    return errorCode;
+    return (errorCode);
 }
 

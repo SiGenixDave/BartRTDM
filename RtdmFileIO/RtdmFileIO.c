@@ -239,7 +239,7 @@ static void BuildSendRtdmFile (void);
 static BOOL FileExists (const char *fileName);
 static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 wrtSize, BOOL creaetFile);
 
-#ifndef FOR_TEST_ONLY
+#ifdef FOR_TEST_ONLY
 static char *CreateTFFS0FileName (UINT16 fileIndex);
 #endif
 /*****************************************************************************/
@@ -464,8 +464,9 @@ static void WriteStreamFile (void)
     INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
     StreamHeaderStr streamHeader; /* holds the current stream header */
     char *fileName = NULL; /* filename of the #.stream file */
+#ifdef FOR_TEST_ONLY
     char *fileNameTFFS0 = NULL; /* filename of the #.stream file */
-
+#endif
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
     {
@@ -478,99 +479,9 @@ static void WriteStreamFile (void)
 
     /* Get the file name */
     fileName = CreateFileName (m_StreamFileIndex);
+#ifdef FOR_TEST_ONLY
     fileNameTFFS0 = CreateTFFS0FileName (m_StreamFileIndex);
-#ifdef INSERT_AFTER_CF_ISSUE_RESOLVED
-    switch (m_StreamFileState)
-    {
-        default:
-        case CREATE_NEW:
-        /* TODO handle file open error */
-        if (os_io_fopen (fileName, "w+b", &pFile) != ERROR)
-        {
-            /* Write the header */
-            checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
-            if (checkFwriteCount != sizeof(streamHeader))
-            {
-                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                __FILE__, __LINE__);
-            }
-
-            /* Write the stream */
-            checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
-            if (checkFwriteCount != m_FileWrite.bytesInBuffer)
-            {
-                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                __FILE__, __LINE__);
-            }
-
-            os_io_fclose (pFile);
-        }
-        else
-        {
-            debugPrintf(RTDM_DBG_ERROR,
-                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                            fileName, __FILE__, __LINE__);
-        }
-
-        s_StartTime = m_FileWrite.time;
-        m_StreamFileState = APPEND_TO_EXISTING;
-
-        debugPrintf(RTDM_DBG_INFO, "FILEIO - CreateNew %s\n",
-                        CreateFileName (m_StreamFileIndex));
-
-        break;
-
-        case APPEND_TO_EXISTING:
-        /* Open the file for appending */
-        /* TODO handle file open error */
-        if (os_io_fopen (fileName, "a+b", &pFile) != ERROR)
-        {
-            /* Write the header */
-            checkFwriteCount = fwrite (&streamHeader, 1, sizeof(streamHeader), pFile);
-            if (checkFwriteCount != sizeof(streamHeader))
-            {
-                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                __FILE__, __LINE__);
-            }
-
-            /* Write the stream */
-            checkFwriteCount = fwrite (m_FileWrite.buffer, 1, m_FileWrite.bytesInBuffer, pFile);
-            if (checkFwriteCount != m_FileWrite.bytesInBuffer)
-            {
-                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
-                                __FILE__, __LINE__);
-            }
-
-            os_io_fclose (pFile);
-
-        }
-        else
-        {
-            debugPrintf(RTDM_DBG_ERROR,
-                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                            fileName, __FILE__, __LINE__);
-        }
-        debugPrintf(RTDM_DBG_INFO, "%s", "FILEIO - Append Existing\n");
-
-        /* determine if the time span of data saved to the current file has
-         * met or exceeded the desired amount. */
-        timeDiff = TimeDiff (&m_FileWrite.time, &s_StartTime);
-
-        if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
-        {
-            m_StreamFileState = CREATE_NEW;
-
-            m_StreamFileIndex++;
-            if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
-            {
-                m_StreamFileIndex = 0;
-            }
-        }
-
-        break;
-
-    }
-#else
+#endif
     switch (m_StreamFileState)
     {
         default:
@@ -580,7 +491,7 @@ static void WriteStreamFile (void)
             /* Write the stream */
             CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
-#ifndef FOR_TEST_ONLY
+#ifdef FOR_TEST_ONLY
             CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
             CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 #endif
@@ -595,12 +506,12 @@ static void WriteStreamFile (void)
         case APPEND_TO_EXISTING:
             /* Open the file for appending */
             /* Write the header */
-            CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
             /* Write the stream */
             CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
-#ifndef FOR_TEST_ONLY
-            CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+#ifdef FOR_TEST_ONLY
+            CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
             CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 #endif
 
@@ -624,8 +535,6 @@ static void WriteStreamFile (void)
             break;
 
     }
-
-#endif
 
 }
 
@@ -783,14 +692,10 @@ static void InitFileIndex (void)
     UINT16 fileIndex = 0; /* Used to index through all possible stream files */
     BOOL fileOK = FALSE; /* TRUE if file exists and is a valid stream file */
     TimeStampStr timeStamp; /* Used to get the oldest stream time stamp from a file */
-    RTDMTimeStr newestTimeStamp; /* Holds the newest stream time stamp from the newest file */
-    RTDMTimeStr oldestTimeStamp; /* Holds the oldest stream time stamp from the newest file */
     UINT32 newestTimestampSeconds = 0; /* Used to check a file with for a newer stream */
     UINT16 newestFileIndex = INVALID_FILE_INDEX; /* will hold the newest file index */
 
     memset (&timeStamp, 0, sizeof(timeStamp));
-    memset (&newestTimeStamp, 0, sizeof(newestTimeStamp));
-    memset (&oldestTimeStamp, 0, sizeof(oldestTimeStamp));
 
     /* Find the most recent valid file and point to the next file for writing */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
@@ -989,7 +894,7 @@ static UINT16 GetNewestStreamFileIndex (void)
 
     if (m_ValidStreamFileListIndexes[0] == INVALID_FILE_INDEX)
     {
-        return INVALID_FILE_INDEX;
+        return (INVALID_FILE_INDEX);
     }
 
     while ((m_ValidStreamFileListIndexes[streamIndex] != INVALID_FILE_INDEX)
@@ -1992,7 +1897,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
             debugPrintf(RTDM_DBG_ERROR,
                             "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
-            return FALSE;
+            return (FALSE);
         }
 
         if (!createFile)
@@ -2029,7 +1934,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
             debugPrintf(RTDM_DBG_ERROR,
                             "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
-            return FALSE;
+            return (FALSE);
         }
 
         if (!createFile)
@@ -2077,10 +1982,10 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
         os_io_fclose (rdFile);
     }
 
-    return success;
+    return (success);
 }
 
-#ifndef FOR_TEST_ONLY
+#ifdef FOR_TEST_ONLY
 static char *CreateTFFS0FileName (UINT16 fileIndex)
 {
     static char s_FileName[100]; /* Stores the newly created filename */

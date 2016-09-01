@@ -8,6 +8,7 @@
 
 #include <sys\timeb.h>
 #include <time.h>
+#include <stdlib.h>
 #include "../PcSrcFiles/MyTypes.h"
 
 void GetTimeDate (char *dateTime, UINT16 arraySize)
@@ -48,6 +49,23 @@ int os_c_get (OS_STR_TIME_POSIX *sys_posix_time)
     return OK;
 }
 
+INT16 dm_free (UINT8 identity, void* p_block)
+{
+    free (p_block);
+    return OK;
+}
+
+INT16 dm_malloc (UINT8 identity, UINT32 n_bytes, void** pp_block)
+{
+    *pp_block = malloc(n_bytes);
+    if (*pp_block)
+    {
+        return OK;
+    }
+    return ERROR;
+}
+
+
 int MDComAPI_putMsgQ (UINT32 comId, /* ComId */
 const char *RTDMStream_ptr, /* Data buffer */
 UINT32 actual_buffer_size, /* Number of data to be send */
@@ -62,12 +80,12 @@ UINT32 d) /* No overriding of source URI */
 
 UINT16 ntohs (UINT16 num)
 {
-    return ((num>>8) | (num<<8));
+    return ((num >> 8) | (num << 8));
 }
 
 UINT16 htons (UINT16 num)
 {
-    return ((num>>8) | (num<<8));
+    return ((num >> 8) | (num << 8));
 }
 
 UINT32 htonl (UINT32 num)
