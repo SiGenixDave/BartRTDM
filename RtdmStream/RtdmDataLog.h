@@ -8,7 +8,7 @@
  *
  * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
  *
- * Project    : Communication Controller (Embedded)
+ * Project    : BART VCU (Embedded)
  *//**
  * @file RtdmDataLog.h
  *//*
