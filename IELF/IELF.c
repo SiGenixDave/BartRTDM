@@ -30,17 +30,47 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
+#include "../IELF/IELF.h"
+#include "../RtdmStream/RtdmStream.h"
+#include "../RtdmStream/RtdmXml.h"
+#include "../RtdmStream/RtdmUtils.h"
+
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
+/* Drive and directory where the IELF will be saved */
+#ifdef TEST_ON_PC
+#define DRIVE_NAME                          "D:\\"
+#define DIRECTORY_NAME                      "ielf\\"
+#else
+#define DRIVE_NAME                          "/ata0/"
+#define DIRECTORY_NAME                      "ielf/"
+#endif
+
+#define IELF_VERSION                        0x30000000
+
+#define MAX_NUMBER_OF_EVENTS                1024
+#define MAX_RECORDS                         2100
+
+#define PENDING_EVENT_QUEUE_SIZE            32
+#define POSTED_EVENT_QUEUE_SIZE             128
+
+#define EVENT_QUEUE_ENTRY_EMPTY             0
 
 /*******************************************************************
  *
  *     E  N  U  M  S
  *
  *******************************************************************/
+typedef enum
+{
+    RESET_BY_PTU = 0x01,
+
+    RESET_AFTER_DOWNLOAD = 0x02,
+
+} ResetReasonEnum;
 
 /*******************************************************************
  *
@@ -50,8 +80,8 @@
 typedef struct
 {
     UINT8 subsystemId;
-    UINT16 eventId;
-    UINT16 eventCount;
+    UINT16 id __attribute__ ((packed));
+    UINT16 count __attribute__ ((packed));
     UINT8 overflowFlag;
     UINT8 rateLimitFlag;
     UINT8 _reserved[3];
@@ -59,10 +89,10 @@ typedef struct
 
 typedef struct
 {
-    UINT32 failureBeginning;
-    UINT32 failureEnd;
+    UINT32 failureBeginning __attribute__ ((packed));
+    UINT32 failureEnd __attribute__ ((packed));
     UINT8 subsystemId;
-    UINT16 eventId;
+    UINT16 eventId __attribute__ ((packed));
     UINT8 timeInacuurate;
     UINT8 dstFlag;
     UINT8 _reserved[2];
@@ -72,29 +102,51 @@ typedef struct
 {
     char version[4];
     UINT8 systemId;
-    UINT16 numberOfRecords;
-    INT16 firstRecordIndex;
-    INT16 lastRecordIndex;
-    UINT32 timeOfLastReset;
+    UINT16 numberOfRecords __attribute__ ((packed));
+    INT16 firstRecordIndex __attribute__ ((packed));
+    INT16 lastRecordIndex __attribute__ ((packed));
+    UINT32 timeOfLastReset __attribute__ ((packed));
     UINT8 reasonForReset;
-    UINT32 _reserved;
-    EventCounterStr eventCounter[1024];
-    EventStr event[2100];
-};
+    UINT32 _reserved __attribute__ ((packed));
+    EventCounterStr eventCounter[MAX_NUMBER_OF_EVENTS];
+    EventStr event[MAX_RECORDS];
+} IelfStr;
+
+typedef struct
+{
+    UINT16 id;
+    EventOverCallback callback;
+    UINT32 time;
+} PendingEventQueueStr;
+
+typedef struct
+{
+    UINT16 id;
+    EventOverCallback callback;
+    UINT16 logIndex;
+    UINT32 time;
+} PostedEventQueueStr;
 
 /*******************************************************************
  *
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
-/** @brief Holds the current sample count; incremented every 50 msecs if data has been placed in the stream buffer */
-static UINT16 m_X = 0;
+/** @brief TODO */
+static IelfStr m_FileOverlay;
+
+static PendingEventQueueStr m_PendingEvent[PENDING_EVENT_QUEUE_SIZE];
+static PostedEventQueueStr m_PostedEvent[POSTED_EVENT_QUEUE_SIZE];
+
+static UINT16 m_LogIndex;
 
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+static INT32 CreateNewIELF (UINT8 systemId);
+static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent);
 
 /*****************************************************************************/
 /**
@@ -109,19 +161,173 @@ static UINT16 m_X = 0;
  * Description   : Original Release
  *
  *****************************************************************************/
-void IelfInit(void)
+void IelfInit (UINT8 systemId)
 {
-    // Determine if IELF file exists;
+    memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
+    memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
+
+    /* Determine if IELF file exists */
 
     // If not, create it using default values
-
     // If it does, verify contents
+}
+
+/* This function can be called from any priority task. Assumption that any task
+ * that invokes this function is higher than the event driven task
+ */
+INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
+{
+    UINT16 index = 0;
+    RTDMTimeStr currentTime;
+    UINT16 errorCode = NO_ERROR;
+
+    /* Get the system time the event occurred */
+    memset (&currentTime, 0, sizeof(currentTime));
+    errorCode = GetEpochTime (&currentTime);
+    if (errorCode != NO_ERROR)
+    {
+        return (errorCode);
+    }
+
+    /***************************************************************************/
+    /**************************** TODO Block OS ********************************/
+    /***************************************************************************/
+    /* Add event to the pending event queue */
+    while (index < PENDING_EVENT_QUEUE_SIZE)
+    {
+        if (m_PendingEvent[index].id == EVENT_QUEUE_ENTRY_EMPTY)
+        {
+            m_PendingEvent[index].id = eventId;
+            m_PendingEvent[index].callback = callback;
+            m_PendingEvent[index].time = currentTime.seconds;
+            /* TODO Fire Event to indicate to the background task that an event is pending */
+            break;
+        }
+        index++;
+    }
+    /***************************************************************************/
+    /*************************** TODO Un-Block OS *******************************/
+    /***************************************************************************/
+
+    if (index == PENDING_EVENT_QUEUE_SIZE)
+    {
+        return (-1);
+    }
+
+    return (0);
+}
+
+/* This function is executed in a low priority event driven task */
+INT32 DequeuePendingEvents(void)
+{
+    UINT16 pendingEventIndex = 0;
+    INT32 errorCode = 0;
+
+    while (pendingEventIndex < PENDING_EVENT_QUEUE_SIZE)
+    {
+        if (m_PendingEvent[pendingEventIndex].id != EVENT_QUEUE_ENTRY_EMPTY)
+        {
+            errorCode = PostNewEvent(&m_PendingEvent[pendingEventIndex]);
+            if (errorCode != NO_ERROR)
+            {
+                return (errorCode);
+            }
+            /* Reset the index to look for new events in case a new event was logged */
+            pendingEventIndex = 0;
+        }
+        else
+        {
+            pendingEventIndex++;
+        }
+
+    }
 
 }
 
-INT32 InsertEvent(UINT16 eventId)
+static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent)
+{
+    UINT16 index = 0;
+
+    /* Copy the new event into posted event */
+    while (index < POSTED_EVENT_QUEUE_SIZE)
+    {
+        if (m_PostedEvent[index].id != EVENT_QUEUE_ENTRY_EMPTY)
+        {
+            break;
+        }
+
+        index++;
+    }
+
+    if (index >= POSTED_EVENT_QUEUE_SIZE)
+    {
+        return (-1);
+    }
+
+
+    /* TODO Block OS */
+    m_PostedEvent[index].id = pendingEvent->id;
+    m_PostedEvent[index].callback = pendingEvent->callback;
+    m_PostedEvent[index].time = pendingEvent->time;
+    m_PostedEvent[index].logIndex = m_LogIndex;
+    m_LogIndex++;
+    if (m_LogIndex >= MAX_RECORDS)
+    {
+        m_LogIndex = 0;
+    }
+    /* Allow new events to be added to this location */
+    memset (pendingEvent, 0, sizeof(PendingEventQueueStr));
+    /* TODO Un-Block OS */
+
+    /* Update the overlay and write the file */
+
+    return (0);
+}
+
+/* Executed in a cyclic task */
+void ServicePostedEvents(void)
 {
 
+}
+
+static INT32 CreateNewIELF (UINT8 systemId)
+{
+    UINT16 errorCode = NO_ERROR;
+    RTDMTimeStr currentTime;
+    UINT16 index = 0;
+
+    memset (&currentTime, 0, sizeof(currentTime));
+    memset (&m_FileOverlay, 0, sizeof(m_FileOverlay));
+
+    /* Update entries that are non-zero */
+    m_FileOverlay.version[0] = (IELF_VERSION >> 24) & 0xFF;
+    m_FileOverlay.version[1] = (IELF_VERSION >> 16) & 0xFF;
+    m_FileOverlay.version[2] = (IELF_VERSION >> 8) & 0xFF;
+    m_FileOverlay.version[3] = IELF_VERSION & 0xFF;
+
+    m_FileOverlay.systemId = systemId;
+    m_FileOverlay.numberOfRecords = MAX_RECORDS;
+    m_FileOverlay.firstRecordIndex = -1;
+    m_FileOverlay.lastRecordIndex = -1;
+
+    errorCode = GetEpochTime (&currentTime);
+    if (errorCode != NO_ERROR)
+    {
+        return (errorCode);
+    }
+
+    m_FileOverlay.timeOfLastReset = currentTime.seconds;
+    m_FileOverlay.reasonForReset = (UINT8) RESET_AFTER_DOWNLOAD;
+
+    for (index = 0; index < MAX_NUMBER_OF_EVENTS; index++)
+    {
+        m_FileOverlay.eventCounter[index].id = index;
+        m_FileOverlay.eventCounter[index].subsystemId = 0; /* TODO TBD Assigned by Bombardier */
+    }
+
+#if TODO
+    Create new file
+#endif
 
 }
 

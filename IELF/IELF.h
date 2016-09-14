@@ -25,7 +25,8 @@
 #include "usertypes.h"
 #endif
 
-void IelfInit(void);
+typedef BOOL (*EventOverCallback) (void);
+
 
 
 #endif /* IELF_H */
