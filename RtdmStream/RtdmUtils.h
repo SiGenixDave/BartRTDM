@@ -88,7 +88,7 @@
  */
 /* #define RTDM_DEBUG_EXCLUSIVE_LEVEL     RTDM_DBG_INFO */
 
-#define RTDM_DEBUG_ABOVE_EQUAL_LEVEL     RTDM_DBG_INFO
+#define RTDM_DEBUG_ABOVE_EQUAL_LEVEL     RTDM_DBG_LOG
 
 #ifdef RTDM_DEBUG_EXCLUSIVE_LEVEL
 #define debugPrintf(debugLevel, fmt, args...)  \

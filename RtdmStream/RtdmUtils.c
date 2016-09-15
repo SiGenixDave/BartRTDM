@@ -250,10 +250,10 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
     memcpy (&streamHeader->content.postamble.carId[0], interface->VNC_CarData_X_CarID, maxCopySize);
 
     maxCopySize = sizeof(streamHeader->content.postamble.deviceId)
-                    > strlen (interface->VNC_CarData_X_DeviceID) ?
-                    strlen (interface->VNC_CarData_X_DeviceID) :
+                    > strlen (rtdmXmlData->dataRecorderCfg.deviceId) ?
+                    strlen (rtdmXmlData->dataRecorderCfg.deviceId) :
                     sizeof(streamHeader->content.postamble.deviceId);
-    memcpy (&streamHeader->content.postamble.deviceId[0], interface->VNC_CarData_X_DeviceID,
+    memcpy (&streamHeader->content.postamble.deviceId[0], rtdmXmlData->dataRecorderCfg.deviceId,
                     maxCopySize);
 
     /* Data Recorder ID - from .xml file */

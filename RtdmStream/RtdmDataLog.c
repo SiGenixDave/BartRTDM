@@ -83,6 +83,10 @@ static UINT32 m_RTDMDataLogIndex = 0;
 /** @brief Maintains the number of periodic samples */
 static UINT32 m_SampleCount = 0;
 
+/** @brief Becomes TRUE when a new stream of data is started in the data log. Forces, the data
+ * log to capture all samples and not just changed ones if compression is enabled. */
+static BOOL m_NewStreamStarted = TRUE;
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
@@ -122,7 +126,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
                     * rtdmXmlData->metaData.maxStreamHeaderDataSize;
 
     /* Allocate memory to store the log data in the "ping" buffer */
-    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **)&m_RTDMDataLogPingPtr);
+    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPingPtr);
     if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
@@ -131,7 +135,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     }
 
     /* Allocate memory to store the log data in the "pong" buffer */
-    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **)&m_RTDMDataLogPongPtr);
+    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPongPtr);
     if (returnValue != OK)
     {
         debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
@@ -173,12 +177,13 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
  * Description   : Original Release
  *
  *****************************************************************************/
-void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr *dataSample,
-                RTDMTimeStr *currentTime)
+void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 dataAmount,
+                DataSampleStr *dataSample, RTDMTimeStr *currentTime)
 {
     static RTDMTimeStr s_SaveFileTime =
         { 0, 0 }; /* Maintains the current time when data log was last saved */
     INT32 timeDiff = 0; /* Time difference between current and saved */
+    UINT16 tempCount = 0; /* Temporary storage for a sample signal count */
 
     /* First call to function so save current time */
     if ((s_SaveFileTime.seconds == 0) && (s_SaveFileTime.nanoseconds == 0))
@@ -188,7 +193,35 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
 
     /* Fill m_RtdmSampleArray with samples of data if data changed or the amount of time
      * between captures exceeds the allowed amount */
-    if (dataAmount != 0)
+    if (m_NewStreamStarted)
+    {
+        m_NewStreamStarted = FALSE;
+
+        /* Save the original signal count */
+        tempCount = dataSample->count;
+
+        /* Count needs to be modified in case compression was enabled */
+        dataSample->count = htons(m_RtdmXmlData->metaData.signalCount);
+
+        /* Copy the time stamp and signal count into main buffer */
+        memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], dataSample, sizeof(DataSampleStr));
+
+        /* Restore the original signal count */
+        dataSample->count = tempCount;
+
+        m_RTDMDataLogIndex += sizeof(DataSampleStr);
+
+        /* Copy the changed data into main buffer */
+        memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], newSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
+
+        m_RTDMDataLogIndex += m_RtdmXmlData->metaData.maxStreamDataSize;
+
+        m_SampleCount++;
+
+        debugPrintf(RTDM_DBG_LOG, "m_NewStreamStarted - Data Log Sample Populated %d\n", m_SampleCount);
+
+    }
+    else if (dataAmount != 0)
     {
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], dataSample, sizeof(DataSampleStr));
@@ -214,8 +247,8 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
                     || (timeDiff >= (INT32) m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
     {
 
-        debugPrintf(RTDM_DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n", m_SampleCount,
-                        timeDiff);
+        debugPrintf(RTDM_DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n",
+                        m_SampleCount, timeDiff);
 
         /* Write the data in the current buffer to the .stream file. The file write
          * is performed in another task to prevent task overruns due to the amount
@@ -252,7 +285,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT32 dataAmount, DataSampleStr 
  *****************************************************************************/
 void FTPDataLog (void)
 {
-    RTDMTimeStr currentTime;    /* stores the system time */
+    RTDMTimeStr currentTime; /* stores the system time */
 
     /* Get the system time */
     GetEpochTime (&currentTime);
@@ -266,7 +299,7 @@ void FTPDataLog (void)
     /* Spawn new task to concatenate all the previous 24 hours worth of streams
      * to a single file and then FTP that file to the FTP server */
     /* TODO Will need info about FTP server
-    BuildSendRtdmFtpFile (); */
+     BuildSendRtdmFtpFile (); */
 
 }
 
@@ -305,9 +338,10 @@ static void SwapBuffers (void)
         debugPrintf(RTDM_DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
     }
 
-    /* Reset the index and sample count */
+    /* Reset the index and sample count and also inform that a new stream is about to start */
     m_RTDMDataLogIndex = 0;
     m_SampleCount = 0;
+    m_NewStreamStarted = TRUE;
 
 }
 

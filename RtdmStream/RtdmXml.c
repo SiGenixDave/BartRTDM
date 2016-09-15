@@ -585,9 +585,10 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
                     }
                     AllocateMemoryAndClear ((charCount + 1), (void **)&stringPtr);
 
-                    /* NOTE Assume a 32 bit native address architecture */
-                    *(UINT32 *) (xmlElementPtr->xmlAttibuteData[index].xmlData) = (UINT32) stringPtr;
-                    strncpy ((char *) xmlElementPtr->xmlAttibuteData[index].xmlData,
+                    /* NOTE Assume a 32 bit native address architecture, xmlData now contains the
+                     * address of the dynamically allocated memory */
+                    *(UINT32 *)xmlElementPtr->xmlAttibuteData[index].xmlData = (UINT32)(stringPtr);
+                    strncpy ((char *)(*(UINT32 *)xmlElementPtr->xmlAttibuteData[index].xmlData),
                                     pStringLocation2, charCount);
                     break;
 

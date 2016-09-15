@@ -281,7 +281,7 @@ static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
     ServiceStream (interface, networkAvailable, bufferChangeAmount, &currentTime);
 
     /* Populate the data log buffer with the latest sample */
-    ServiceDataLog (m_ChangedSignalData, bufferChangeAmount, &m_SampleHeader, &currentTime);
+    ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &m_SampleHeader, &currentTime);
 
     /* TODO Fault Logging */
     result = Check_Fault (errorCode, &currentTime);

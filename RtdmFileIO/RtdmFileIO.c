@@ -985,9 +985,9 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
                     strlen (m_StreamInterface->VNC_CarData_X_CarID) : sizeof(carId) - 1;
     memcpy (carId, m_StreamInterface->VNC_CarData_X_CarID, maxCopySize);
 
-    maxCopySize = sizeof(deviceId) - 1 > strlen (m_StreamInterface->VNC_CarData_X_DeviceID) ?
-                    strlen (m_StreamInterface->VNC_CarData_X_DeviceID) : sizeof(deviceId) - 1;
-    memcpy (deviceId, m_StreamInterface->VNC_CarData_X_DeviceID, maxCopySize);
+    maxCopySize = sizeof(deviceId) - 1 > strlen (m_RtdmXmlData->dataRecorderCfg.deviceId) ?
+                    strlen (m_RtdmXmlData->dataRecorderCfg.deviceId) : sizeof(deviceId) - 1;
+    memcpy (deviceId, m_RtdmXmlData->dataRecorderCfg.deviceId, maxCopySize);
 
     memset (dateTime, 0, sizeof(dateTime));
 
@@ -1107,7 +1107,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     /* Consist ID */
     strcpy (&rtdmHeader.postamble.consistId[0], m_StreamInterface->VNC_CarData_X_ConsistID);
     strcpy (&rtdmHeader.postamble.carId[0], m_StreamInterface->VNC_CarData_X_CarID);
-    strcpy (&rtdmHeader.postamble.deviceId[0], m_StreamInterface->VNC_CarData_X_DeviceID);
+    strcpy (&rtdmHeader.postamble.deviceId[0], m_RtdmXmlData->dataRecorderCfg.deviceId);
 
     /* Data Recorder ID - from .xml file */
     rtdmHeader.postamble.dataRecordId = htons ((UINT16) m_RtdmXmlData->dataRecorderCfg.id);
@@ -1817,7 +1817,7 @@ static BOOL CreateCarConDevFile (void)
     fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
     fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
     fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
-    fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_DeviceID);
+    fprintf (pFile, "%s\n", m_RtdmXmlData->dataRecorderCfg.deviceId);
 
     os_io_fclose (pFile);
 
