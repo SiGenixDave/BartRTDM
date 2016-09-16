@@ -147,6 +147,8 @@ static UINT16 m_LogIndex;
  *******************************************************************/
 static INT32 CreateNewIELF (UINT8 systemId);
 static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent);
+static UINT16 CreateVerifyStorageDirectory (void);
+static BOOL FileExists (void);
 
 /*****************************************************************************/
 /**
@@ -163,13 +165,29 @@ static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent);
  *****************************************************************************/
 void IelfInit (UINT8 systemId)
 {
+    BOOL fileExists = FALSE;
+
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
 
     /* Determine if IELF file exists */
+    CreateVerifyStorageDirectory ();
 
-    // If not, create it using default values
-    // If it does, verify contents
+#if TODO
+    fileExists = FileExists ();
+#endif
+
+    if (!fileExists)
+    {
+        CreateNewIELF(systemId);
+    }
+    else
+    {
+        // LOok for "open" events (no end time) from the previous cycle and add them
+        // to the postQueue
+    }
+
+
 }
 
 /* This function can be called from any priority task. Assumption that any task
@@ -200,7 +218,6 @@ INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
             m_PendingEvent[index].id = eventId;
             m_PendingEvent[index].callback = callback;
             m_PendingEvent[index].time = currentTime.seconds;
-            /* TODO Fire Event to indicate to the background task that an event is pending */
             break;
         }
         index++;
@@ -218,7 +235,7 @@ INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
 }
 
 /* This function is executed in a low priority event driven task */
-INT32 DequeuePendingEvents(void)
+INT32 DequeuePendingEvents (void)
 {
     UINT16 pendingEventIndex = 0;
     INT32 errorCode = 0;
@@ -227,7 +244,7 @@ INT32 DequeuePendingEvents(void)
     {
         if (m_PendingEvent[pendingEventIndex].id != EVENT_QUEUE_ENTRY_EMPTY)
         {
-            errorCode = PostNewEvent(&m_PendingEvent[pendingEventIndex]);
+            errorCode = PostNewEvent (&m_PendingEvent[pendingEventIndex]);
             if (errorCode != NO_ERROR)
             {
                 return (errorCode);
@@ -264,7 +281,6 @@ static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent)
         return (-1);
     }
 
-
     /* TODO Block OS */
     m_PostedEvent[index].id = pendingEvent->id;
     m_PostedEvent[index].callback = pendingEvent->callback;
@@ -285,7 +301,7 @@ static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent)
 }
 
 /* Executed in a cyclic task */
-void ServicePostedEvents(void)
+void ServicePostedEvents (void)
 {
 
 }
@@ -329,5 +345,54 @@ static INT32 CreateNewIELF (UINT8 systemId)
     Create new file
 #endif
 
+    return (0);
+
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Verifies the storage directory exists and creates it if it doesn't
+ *
+ *              This function reads, processes and stores the XML configuration file.
+ *              attributes. It updates all desired parameters into the Rtdm Data
+ *              Structure.
+ *
+ *
+ *  @return UINT16 - error code (NO_ERROR if all's well)
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static UINT16 CreateVerifyStorageDirectory (void)
+{
+    const char *dirDriveName = DRIVE_NAME DIRECTORY_NAME; /* Concatenate drive and directory */
+    UINT16 errorCode = NO_ERROR; /* returned error code */
+    INT32 mkdirErrorCode = -1; /* mkdir() returned error code */
+
+    /* Zero indicates directory created successfully */
+    mkdirErrorCode = mkdir (dirDriveName);
+
+    if (mkdirErrorCode == 0)
+    {
+        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s created\n", DRIVE_NAME, DIRECTORY_NAME);
+    }
+    else if ((mkdirErrorCode == -1) && (errno == 17))
+    {
+        /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
+        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s exists\n", DRIVE_NAME, DIRECTORY_NAME);
+    }
+    else
+    {
+        /* This is an error condition */
+        debugPrintf(RTDM_DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME,
+                        DIRECTORY_NAME);
+        /* TODO need error code */
+        errorCode = 0xFFFF;
+    }
+
+    return (errorCode);
 }
 

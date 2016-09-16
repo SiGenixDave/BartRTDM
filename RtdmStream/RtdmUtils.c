@@ -87,6 +87,7 @@
  *****************************************************************************/
 UINT16 GetEpochTime (RTDMTimeStr* currentTime)
 {
+#ifndef FIXED_TIME_CYCLE_NS
     /* For system time */
     OS_STR_TIME_POSIX sys_posix_time;
     UINT16 errorCode = BAD_TIME;
@@ -98,6 +99,24 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
         currentTime->nanoseconds = sys_posix_time.nanosec;
         errorCode = NO_ERROR;
     }
+#else
+    static INT32 seconds = 1577854800;   /* January 1, 2020 00:00:00 */
+    static INT32 nanoSeconds = 0;
+    UINT16 errorCode = BAD_TIME;
+
+    nanoSeconds += FIXED_TIME_CYCLE_NS;
+
+    if (nanoSeconds >= 1000000000)
+    {
+        seconds++;
+        nanoSeconds %= 1000000000;
+    }
+
+    currentTime->seconds = seconds;
+    currentTime->nanoseconds = nanoSeconds;
+
+    errorCode = NO_ERROR;
+#endif
 
     return (errorCode);
 

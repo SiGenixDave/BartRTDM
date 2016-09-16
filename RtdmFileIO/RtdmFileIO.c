@@ -387,6 +387,7 @@ UINT32 RtdmSystemInitialize (TYPE_RTDMSTREAM_IF *interface)
 UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime)
 {
+
     /* Error: File writing is in progress */
     if ((m_FileAction & WRITE_FILE) != 0)
     {
@@ -467,6 +468,16 @@ static void WriteStreamFile (void)
 #ifdef FOR_TEST_ONLY
     char *fileNameTFFS0 = NULL; /* filename of the #.stream file */
 #endif
+
+#ifdef FIXED_TIME_CYCLE_NS
+    static BOOL oneFileWriteComplete = FALSE;
+
+    if (oneFileWriteComplete)
+    {
+        return;
+    }
+#endif
+
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
     {
@@ -524,12 +535,19 @@ static void WriteStreamFile (void)
             if (timeDiff >= (INT32) SINGLE_FILE_TIMESPAN_MSECS)
             {
                 m_StreamFileState = CREATE_NEW;
-
                 m_StreamFileIndex++;
                 if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
                 {
                     m_StreamFileIndex = 0;
                 }
+
+#ifdef FIXED_TIME_CYCLE_NS
+                oneFileWriteComplete = TRUE;
+                printf ("EXITING APPLICATION\n");
+                exit(0);
+#endif
+
+
             }
 
             break;
