@@ -22,6 +22,8 @@
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RTDMInitialize.h"
 
+#include "../IELF/IELF.h"
+
 
 TYPE_RTDMSTREAM_IF mStreamInfo;
 
@@ -57,11 +59,13 @@ int main (void)
     //DAS can't single step debug when another thread is spawned
     //CreateUIThread();
 
+    IelfInit (0x12);
+
     while (TRUE)
     {
         RtdmStream (&mStreamInfo);
         MySleep (50);
-        //mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+        mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
     }
 
     puts ("!!!Shouldn't get here!!"); /* prints !!!Hello World!!! */

@@ -25,8 +25,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <io.h>
-#include <sys/stat.h>
 #include "../PcSrcFiles/MyTypes.h"
 #include "../PcSrcFiles/MyFuncs.h"
 #include "../PcSrcFiles/usertypes.h"
@@ -229,14 +227,12 @@ static UINT16 CountStreams (void);
 static void IncludeStreamFiles (FILE *ftpFilePtr);
 static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
-static UINT16 CreateVerifyStorageDirectory (void);
 static void CleanupDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
 static void BuildSendRtdmFile (void);
-static BOOL FileExists (const char *fileName);
 static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 wrtSize, BOOL creaetFile);
 
 #ifdef FOR_TEST_ONLY
@@ -265,7 +261,7 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
 
     m_RtdmXmlData = rtdmXmlData;
 
-    CreateVerifyStorageDirectory ();
+    CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
 
     errorCode = CopyXMLConfigFile ();
     if (errorCode != NO_ERROR)
@@ -391,7 +387,7 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
     /* Error: File writing is in progress */
     if ((m_FileAction & WRITE_FILE) != 0)
     {
-        debugPrintf(RTDM_DBG_ERROR,
+        debugPrintf(RTDM_IELF_DBG_ERROR,
                         "Attempt to write file prior to completion of previous write ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
         return (1);
@@ -509,7 +505,7 @@ static void WriteStreamFile (void)
             s_StartTime = m_FileWrite.time;
             m_StreamFileState = APPEND_TO_EXISTING;
 
-            debugPrintf(RTDM_DBG_INFO, "FILEIO - CreateNew %s\n",
+            debugPrintf(RTDM_IELF_DBG_INFO, "FILEIO - CreateNew %s\n",
                             CreateFileName (m_StreamFileIndex));
 
             break;
@@ -526,7 +522,7 @@ static void WriteStreamFile (void)
             CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 #endif
 
-            debugPrintf(RTDM_DBG_INFO, "%s", "FILEIO - Append Existing\n");
+            debugPrintf(RTDM_IELF_DBG_INFO, "%s", "FILEIO - Append Existing\n");
 
             /* determine if the time span of data saved to the current file has
              * met or exceeded the desired amount. */
@@ -593,7 +589,7 @@ static void BuildSendRtdmFile (void)
 
     /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
-    debugPrintf(RTDM_DBG_INFO, "%s\n", "SpawSpawnFTPDatalog() invoked");
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s\n", "SpawSpawnFTPDatalog() invoked");
 
     /* Determine all current valid stream files */
     PopulateValidStreamFileList ();
@@ -604,12 +600,12 @@ static void BuildSendRtdmFile (void)
 
     /* Determine the newest file index */
     newestStreamFileIndex = GetNewestStreamFileIndex ();
-    PrintIntegerContents(RTDM_DBG_LOG, newestStreamFileIndex);
+    PrintIntegerContents(RTDM_IELF_DBG_LOG, newestStreamFileIndex);
 
     if (newestStreamFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
-        debugPrintf(RTDM_DBG_ERROR, "%s\n",
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s\n",
                         "No valid .stream files exist to build compilation DAN file (newestStreamFileIndex not found)\n");
         return;
     }
@@ -619,12 +615,12 @@ static void BuildSendRtdmFile (void)
 
     /* Determine the oldest file index */
     oldestStreamFileIndex = GetOldestStreamFileIndex ();
-    PrintIntegerContents(RTDM_DBG_LOG, oldestStreamFileIndex);
+    PrintIntegerContents(RTDM_IELF_DBG_LOG, oldestStreamFileIndex);
 
     if (oldestStreamFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
-        debugPrintf(RTDM_DBG_ERROR, "%s\n",
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s\n",
                         "No valid .stream files exist to build compilation DAN file (oldestStreamFileIndex not found)\n");
         return;
     }
@@ -636,17 +632,17 @@ static void BuildSendRtdmFile (void)
      * RTDM header */
     streamCount = CountStreams ();
 
-    PrintIntegerContents(RTDM_DBG_LOG, streamCount);
+    PrintIntegerContents(RTDM_IELF_DBG_LOG, streamCount);
 
     /* Create filename and open it for writing */
     fileName = CreateFTPFileName (&ftpFilePtr);
 
-    debugPrintf(RTDM_DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
+    debugPrintf(RTDM_IELF_DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
 
     if (ftpFilePtr == NULL)
     {
         /* TODO handle error */
-        debugPrintf(RTDM_DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
         return;
     }
 
@@ -677,7 +673,7 @@ static void BuildSendRtdmFile (void)
 
     if (ftpStatus != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
     }
 #endif
 #endif
@@ -1024,7 +1020,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
 #endif
 
-    debugPrintf(RTDM_DBG_INFO, "ANSI Date time = %s\n", dateTime);
+    debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 
     /* Create the filename by concatenating in the proper order */
     strcat (s_FileName, DRIVE_NAME);
@@ -1039,7 +1035,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     /* Try opening the file for writing and leave open */
     if (os_io_fopen (s_FileName, "wb+", ftpFilePtr) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         *ftpFilePtr = NULL;
     }
@@ -1193,7 +1189,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     fileName = CreateFileName (fileIndex);
     if (os_io_fopen (fileName, "r+b", &pFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR,
+        debugPrintf(RTDM_IELF_DBG_ERROR,
                         "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n", fileName,
                         __FILE__, __LINE__);
         return;
@@ -1281,7 +1277,7 @@ static UINT16 CountStreams (void)
         /* Open the stream file for reading */
         if (os_io_fopen (fileName, "r+b", &streamFilePtr) == ERROR)
         {
-            debugPrintf(RTDM_DBG_ERROR,
+            debugPrintf(RTDM_IELF_DBG_ERROR,
                             "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
         }
@@ -1367,7 +1363,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
         /* Open the stream file for reading */
         if (os_io_fopen (fileName, "r+b", &streamFilePtr) == ERROR)
         {
-            debugPrintf(RTDM_DBG_ERROR,
+            debugPrintf(RTDM_IELF_DBG_ERROR,
                             "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
         }
@@ -1390,7 +1386,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
                 amount = fwrite (&buffer[0], amount, 1, ftpFilePtr);
                 if (amount != 1)
                 {
-                    debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                    debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
                                     __FILE__, __LINE__);
                 }
             }
@@ -1472,7 +1468,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     /* Check if the file exists */
     if (!FileExists (filename))
     {
-        debugPrintf(RTDM_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO,
                         "VerifyFileIntegrity(): File %s doesn't exist ---> File: %s  Line#: %d\n",
                         filename, __FILE__, __LINE__);
         return (FALSE);
@@ -1480,7 +1476,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
 
     if (os_io_fopen (filename, "r+b", &pFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO,
                         "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
         return (FALSE);
@@ -1527,7 +1523,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
      */
     if (lastStrmIndex == -1)
     {
-        debugPrintf(RTDM_DBG_WARNING, "%s", "No STRMs found in file\n");
+        debugPrintf(RTDM_IELF_DBG_WARNING, "%s", "No STRMs found in file\n");
         os_io_fclose (pFile);
         return (FALSE);
     }
@@ -1544,7 +1540,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     sampleSize = ntohs (streamHeader.content.postamble.sampleSize);
     if ((sampleSize != expectedBytesRemaining) || (amountRead != sizeof(streamHeader)))
     {
-        debugPrintf(RTDM_DBG_WARNING, "%s",
+        debugPrintf(RTDM_IELF_DBG_WARNING, "%s",
                         "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
         os_io_fclose (pFile);
 
@@ -1566,52 +1562,6 @@ static BOOL VerifyFileIntegrity (const char *filename)
     return (TRUE);
 }
 
-/*****************************************************************************/
-/**
- * @brief       Verifies the storage directory exists and creates it if it doesn't
- *
- *              This function reads, processes and stores the XML configuration file.
- *              attributes. It updates all desired parameters into the Rtdm Data
- *              Structure.
- *
- *
- *  @return UINT16 - error code (NO_ERROR if all's well)
- *//*
- * Revision History:
- *
- * Date & Author : 01SEP2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static UINT16 CreateVerifyStorageDirectory (void)
-{
-    const char *dirDriveName = DRIVE_NAME DIRECTORY_NAME; /* Concatenate drive and directory */
-    UINT16 errorCode = NO_ERROR; /* returned error code */
-    INT32 mkdirErrorCode = -1; /* mkdir() returned error code */
-
-    /* Zero indicates directory created successfully */
-    mkdirErrorCode = mkdir (dirDriveName);
-
-    if (mkdirErrorCode == 0)
-    {
-        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s created\n", DRIVE_NAME, DIRECTORY_NAME);
-    }
-    else if ((mkdirErrorCode == -1) && (errno == 17))
-    {
-        /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
-        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s exists\n", DRIVE_NAME, DIRECTORY_NAME);
-    }
-    else
-    {
-        /* This is an error condition */
-        debugPrintf(RTDM_DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME,
-                        DIRECTORY_NAME);
-        /* TODO need error code */
-        errorCode = 0xFFFF;
-    }
-
-    return (errorCode);
-}
 
 /*****************************************************************************/
 /**
@@ -1651,12 +1601,12 @@ static void CleanupDirectory (void)
         osCallReturn = remove (fileName);
         if (osCallReturn != 0)
         {
-            debugPrintf(RTDM_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n", fileName,
+            debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n", fileName,
                             __FILE__, __LINE__);
         }
         else
         {
-            debugPrintf(RTDM_DBG_INFO, "Removed file \"%s\" because it is o longer needed\n",
+            debugPrintf(RTDM_IELF_DBG_INFO, "Removed file \"%s\" because it is o longer needed\n",
                             fileName);
         }
     }
@@ -1696,7 +1646,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     /* Open the file to be truncated for reading */
     if (os_io_fopen (fileName, "rb", &pReadFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         return (FALSE);
     }
@@ -1704,7 +1654,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     /* Open the temporary file where the first "desiredFileSize" bytes will be written */
     if (os_io_fopen (tempFileName, "wb+", &pWriteFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         os_io_fclose (pReadFile);
         return (FALSE);
@@ -1714,7 +1664,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
-        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         os_io_fclose (pWriteFile);
         os_io_fclose (pReadFile);
@@ -1723,7 +1673,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
     if (osCallReturn != 0)
     {
-        debugPrintf(RTDM_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         os_io_fclose (pWriteFile);
         os_io_fclose (pReadFile);
@@ -1751,7 +1701,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = (INT32) fwrite (buffer, sizeof(UINT8), sizeof(buffer), pWriteFile);
             if (osCallReturn != (INT32) sizeof(buffer))
             {
-                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 os_io_fclose (pWriteFile);
                 os_io_fclose (pReadFile);
@@ -1768,7 +1718,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = (INT32) fwrite (buffer, 1, remainingBytesToWrite, pWriteFile);
             if (osCallReturn != (INT32) remainingBytesToWrite)
             {
-                debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 os_io_fclose (pWriteFile);
                 os_io_fclose (pReadFile);
@@ -1782,7 +1732,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = remove (fileName);
             if (osCallReturn != 0)
             {
-                debugPrintf(RTDM_DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_IELF_DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 return (FALSE);
             }
@@ -1790,7 +1740,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             rename (tempFileName, fileName);
             if (osCallReturn != 0)
             {
-                debugPrintf(RTDM_DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
+                debugPrintf(RTDM_IELF_DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 return (FALSE);
             }
@@ -1824,7 +1774,7 @@ static BOOL CreateCarConDevFile (void)
     /* Create the data file  */
     if (os_io_fopen (ccdFileName, "wb+", &pFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         os_io_fclose (pFile);
         return (FALSE);
@@ -1841,35 +1791,6 @@ static BOOL CreateCarConDevFile (void)
 
     return (TRUE);
 
-}
-
-/*****************************************************************************/
-/**
- * @brief       Determined if a file exists
- *
- *              This function determines if a file exists
- *
- *  @param fileName - the fully qualified file name (including path)
- *
- *  @return BOOL - TRUE if the file exists; FALSE otherwise
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01SEP2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static BOOL FileExists (const char *fileName)
-{
-    struct stat buffer; /* Used to gather file attributes and required by stat() */
-
-    if (stat (fileName, &buffer) == 0)
-    {
-        return (TRUE);
-    }
-
-    return (FALSE);
 }
 
 /*****************************************************************************/
@@ -1912,7 +1833,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
 
         if (os_io_fopen (fileName, fopenArgString, &wrtFile) == ERROR)
         {
-            debugPrintf(RTDM_DBG_ERROR,
+            debugPrintf(RTDM_IELF_DBG_ERROR,
                             "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
             return (FALSE);
@@ -1933,7 +1854,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
         amountWritten = fwrite (wrtBuffer, 1, wrtSize, wrtFile);
         if (amountWritten != wrtSize)
         {
-            debugPrintf(RTDM_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+            debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
 
             os_io_fclose (wrtFile);
@@ -1949,7 +1870,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
 
         if (os_io_fopen (fileName, "r+b", &rdFile) == ERROR)
         {
-            debugPrintf(RTDM_DBG_ERROR,
+            debugPrintf(RTDM_IELF_DBG_ERROR,
                             "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
                             fileName, __FILE__, __LINE__);
             return (FALSE);
@@ -1978,7 +1899,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
 
             if (memCompareResult != 0)
             {
-                debugPrintf(RTDM_DBG_WARNING,
+                debugPrintf(RTDM_IELF_DBG_WARNING,
                                 "Compact FLASH write failed ---> File: %s  Line#: %d\n", __FILE__,
                                 __LINE__);
                 break;
@@ -1989,7 +1910,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
 
         if (memCompareResult == 0)
         {
-            debugPrintf(RTDM_DBG_INFO, "Compact FLASH success\n");
+            debugPrintf(RTDM_IELF_DBG_INFO, "Compact FLASH success\n");
             success = TRUE;
         }
         else

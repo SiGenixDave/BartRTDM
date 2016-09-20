@@ -17,13 +17,11 @@
  *
  *****************************************************************************/
 
-#ifndef IELF_H
-#define IELF_H
-
-typedef BOOL (*EventOverCallback) (void);
+#ifndef IELFCALLBACK_H
+#define IELFCALLBACK_H
 
 
-void IelfInit (UINT8 systemId);
+EventOverCallback GetIELFCallback (UINT16 eventCode);
 
-#endif /* IELF_H */
+#endif /* IELFCALLBACK_H */
 

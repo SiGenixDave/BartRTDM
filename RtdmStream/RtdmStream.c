@@ -126,7 +126,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
     /* Set buffer arrays to zero - has nothing to do with the network so do now */
     memset (&m_SampleHeader, 0, sizeof(m_SampleHeader));
 
-    PrintIntegerContents(RTDM_DBG_LOG, rtdmXmlData->outputStreamCfg.bufferSize);
+    PrintIntegerContents(RTDM_IELF_DBG_LOG, rtdmXmlData->outputStreamCfg.bufferSize);
 
     /* Allocate memory to store data according to buffer size from .xml file. This stores a streams
      * worth of signal id and signal data */
@@ -134,12 +134,12 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_StreamData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
-    PrintIntegerContents(RTDM_DBG_LOG, rtdmXmlData->metaData.maxStreamDataSize);
+    PrintIntegerContents(RTDM_IELF_DBG_LOG, rtdmXmlData->metaData.maxStreamDataSize);
 
     /* All of the following are used to store old signal id and data (previous sample), new signal
      * id and data (current sample), and changed signal id and data.
@@ -148,7 +148,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_NewSignalData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         m_MemoryAllocationError = TRUE;
     }
@@ -157,7 +157,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_OldSignalData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         m_MemoryAllocationError = TRUE;
     }
@@ -166,7 +166,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_ChangedSignalData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         m_MemoryAllocationError = TRUE;
     }
@@ -264,7 +264,7 @@ static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
 
     if (result != NO_ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "%s", "Error reading read real time clock\n");
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "Error reading read real time clock\n");
         return;
     }
 
@@ -368,7 +368,7 @@ static void ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
         s_StreamBufferIndex += newChangedDataBytes;
         m_SampleCount++;
 
-        debugPrintf(RTDM_DBG_LOG, "Stream Sample Populated %d\n", interface->RTDMSampleCount);
+        debugPrintf(RTDM_IELF_DBG_LOG, "Stream Sample Populated %d\n", interface->RTDMSampleCount);
 
     }
 
@@ -400,7 +400,7 @@ static void ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
         /* Save the transmit time */
         s_PreviousSendTime = *currentTime;
 
-        debugPrintf(RTDM_DBG_LOG, "STREAM SENT %d\n", m_SampleCount);
+        debugPrintf(RTDM_IELF_DBG_LOG, "STREAM SENT %d\n", m_SampleCount);
 
         /* Reset the sample count and the buffer index */
         m_SampleCount = 0;

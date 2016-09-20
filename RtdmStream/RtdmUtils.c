@@ -24,6 +24,10 @@
 #else
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <io.h>
+#include <sys/stat.h>
+
 #include "../PcSrcFiles/MyTypes.h"
 #include "../PcSrcFiles/MyFuncs.h"
 #include "../PcSrcFiles/usertypes.h"
@@ -315,6 +319,81 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
     streamHeader->content.preamble.headerChecksum = htonl (crc);
 
 }
+
+/*****************************************************************************/
+/**
+ * @brief       Verifies the storage directory exists and creates it if it doesn't
+ *
+ *              This function reads, processes and stores the XML configuration file.
+ *              attributes. It updates all desired parameters into the Rtdm Data
+ *              Structure.
+ *
+ *
+ *  @return UINT16 - error code (NO_ERROR if all's well)
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+UINT16 CreateVerifyStorageDirectory (char *pathName)
+{
+    UINT16 errorCode = NO_ERROR; /* returned error code */
+    INT32 mkdirErrorCode = -1; /* mkdir() returned error code */
+
+    /* Zero indicates directory created successfully */
+    mkdirErrorCode = mkdir (pathName);
+
+    if (mkdirErrorCode == 0)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Drive/Directory %s created\n", pathName);
+    }
+    else if ((mkdirErrorCode == -1) && (errno == 17))
+    {
+        /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
+        debugPrintf(RTDM_IELF_DBG_INFO, "Drive/Directory %s exists\n", pathName);
+    }
+    else
+    {
+        /* This is an error condition */
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Can't create storage directory %s\n", pathName);
+        /* TODO need error code */
+        errorCode = 0xFFFF;
+    }
+
+    return (errorCode);
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Determined if a file exists
+ *
+ *              This function determines if a file exists
+ *
+ *  @param fileName - the fully qualified file name (including path)
+ *
+ *  @return BOOL - TRUE if the file exists; FALSE otherwise
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01SEP2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+BOOL FileExists (const char *fileName)
+{
+    struct stat buffer; /* Used to gather file attributes and required by stat() */
+
+    if (stat (fileName, &buffer) == 0)
+    {
+        return (TRUE);
+    }
+
+    return (FALSE);
+}
+
 
 /*****************************************************************************/
 /**

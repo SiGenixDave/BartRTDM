@@ -49,6 +49,8 @@ int os_c_get (OS_STR_TIME_POSIX *sys_posix_time)
     return OK;
 }
 
+
+
 INT16 dm_free (UINT8 identity, void* p_block)
 {
     free (p_block);

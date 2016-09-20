@@ -129,7 +129,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPingPtr);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         /* TODO flag error */
     }
@@ -138,7 +138,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPongPtr);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         /* TODO flag error */
     }
@@ -218,7 +218,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
 
         m_SampleCount++;
 
-        debugPrintf(RTDM_DBG_LOG, "m_NewStreamStarted - Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(RTDM_IELF_DBG_LOG, "m_NewStreamStarted - Data Log Sample Populated %d\n", m_SampleCount);
 
     }
     else if (dataAmount != 0)
@@ -235,7 +235,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
 
         m_SampleCount++;
 
-        debugPrintf(RTDM_DBG_LOG, "Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(RTDM_IELF_DBG_LOG, "Data Log Sample Populated %d\n", m_SampleCount);
     }
 
     /* Get the time difference between the saved time & the current time */
@@ -247,7 +247,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
                     || (timeDiff >= (INT32) m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
     {
 
-        debugPrintf(RTDM_DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n",
+        debugPrintf(RTDM_IELF_DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n",
                         m_SampleCount, timeDiff);
 
         /* Write the data in the current buffer to the .stream file. The file write
@@ -330,12 +330,12 @@ static void SwapBuffers (void)
     if (m_RTDMDataLogPingPongPtr == m_RTDMDataLogPingPtr)
     {
         m_RTDMDataLogPingPongPtr = m_RTDMDataLogPongPtr;
-        debugPrintf(RTDM_DBG_LOG, "%s", "Data Log writes will occur to PONG buffer\n");
+        debugPrintf(RTDM_IELF_DBG_LOG, "%s", "Data Log writes will occur to PONG buffer\n");
     }
     else
     {
         m_RTDMDataLogPingPongPtr = m_RTDMDataLogPingPtr;
-        debugPrintf(RTDM_DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
+        debugPrintf(RTDM_IELF_DBG_LOG, "%s", "Data Log writes will occur to PING buffer\n");
     }
 
     /* Reset the index and sample count and also inform that a new stream is about to start */

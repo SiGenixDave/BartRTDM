@@ -31,6 +31,8 @@
 #endif
 
 #include "../IELF/IELF.h"
+#include "../IELF/IELFCallback.h"
+
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
@@ -49,15 +51,18 @@
 #define DIRECTORY_NAME                      "ielf/"
 #endif
 
+#define FILENAME                            "ielf.dat"
+
 #define IELF_VERSION                        0x30000000
 
 #define MAX_NUMBER_OF_EVENTS                1024
 #define MAX_RECORDS                         2100
 
-#define PENDING_EVENT_QUEUE_SIZE            32
+#define PENDING_EVENT_QUEUE_SIZE            16
 #define POSTED_EVENT_QUEUE_SIZE             128
 
-#define EVENT_QUEUE_ENTRY_EMPTY             0
+#define EVENT_QUEUE_ENTRY_EMPTY             -1
+#define EVENT_ACTIVE                        0xFFFFFFFF
 
 /*******************************************************************
  *
@@ -100,7 +105,7 @@ typedef struct
 
 typedef struct
 {
-    char version[4];
+    UINT8 version[4];
     UINT8 systemId;
     UINT16 numberOfRecords __attribute__ ((packed));
     INT16 firstRecordIndex __attribute__ ((packed));
@@ -114,17 +119,15 @@ typedef struct
 
 typedef struct
 {
-    UINT16 id;
-    EventOverCallback callback;
+    INT16 id;
     UINT32 time;
 } PendingEventQueueStr;
 
 typedef struct
 {
-    UINT16 id;
-    EventOverCallback callback;
+    BOOL eventActive;
     UINT16 logIndex;
-    UINT32 time;
+    EventOverCallback eventOverCallback;
 } PostedEventQueueStr;
 
 /*******************************************************************
@@ -140,15 +143,19 @@ static PostedEventQueueStr m_PostedEvent[POSTED_EVENT_QUEUE_SIZE];
 
 static UINT16 m_LogIndex;
 
+#ifndef TEST_ON_PC
+static INT32 m_SemaphoreId = 0;
+#endif
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
 static INT32 CreateNewIELF (UINT8 systemId);
-static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent);
-static UINT16 CreateVerifyStorageDirectory (void);
-static BOOL FileExists (void);
+static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent);
+static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
+
 
 /*****************************************************************************/
 /**
@@ -166,16 +173,17 @@ static BOOL FileExists (void);
 void IelfInit (UINT8 systemId)
 {
     BOOL fileExists = FALSE;
+#ifndef TEST_ON_PC
+    INT16 osReturn = OK;
+#endif
 
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
 
     /* Determine if IELF file exists */
-    CreateVerifyStorageDirectory ();
+    CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
 
-#if TODO
-    fileExists = FileExists ();
-#endif
+    fileExists = FileExists (DRIVE_NAME DIRECTORY_NAME FILENAME);
 
     if (!fileExists)
     {
@@ -183,12 +191,76 @@ void IelfInit (UINT8 systemId)
     }
     else
     {
-        // LOok for "open" events (no end time) from the previous cycle and add them
-        // to the postQueue
+        /* TODO Look for "open" events (no end time) from the previous cycle and add them
+           to the postQueue */
     }
 
+#ifndef TEST_ON_PC
+    osReturn = os_sb_create(OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
+    if (osReturn != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,"IELF semaphore could not be created\n");
+    }
+#endif
 
 }
+
+/* Executed in a cyclic task */
+void ServicePostedEvents (void)
+{
+    UINT16 index = 0;
+    BOOL eventOver = FALSE;
+    RTDMTimeStr currentTime;
+    UINT16 errorCode = NO_ERROR;
+    BOOL fileWriteNecessary = FALSE;
+    INT32 semaAcquired = 0;
+
+    /* Get any new events just logged; copy from Pending to Posted. If semaphore couldn't be acquired, any
+     * pending events will have to be copied from Pending to Posted on the next cycle. If fileWriteNecessary
+     * becomes TRUE, at least 1 new event has been logged. */
+    semaAcquired = DequeuePendingEvents (&fileWriteNecessary);
+    if (semaAcquired != 0)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in ServicePostedEvents()\n");
+    }
+
+    /* Get the current time in case an event has become inactive */
+    memset (&currentTime, 0, sizeof(currentTime));
+    errorCode = GetEpochTime (&currentTime);
+    /* Getting a correct time is imperative; therefore abort this function if
+     * a correct time can't be gotten from the OS.
+     */
+    if (errorCode != NO_ERROR)
+    {
+        return;
+    }
+
+    for (index = 0; index < POSTED_EVENT_QUEUE_SIZE; index++)
+    {
+        if (m_PostedEvent[index].eventActive)
+        {
+            eventOver = m_PostedEvent[index].eventOverCallback();
+            if (eventOver)
+            {
+                m_FileOverlay.event[m_PostedEvent[index].logIndex].failureEnd = currentTime.seconds;
+
+                /* Make this position available for new events */
+                memset(&m_PostedEvent[index], 0, sizeof(PostedEventQueueStr));
+
+                /* At least 1 event is over so ensure that the ielf file is updated */
+                fileWriteNecessary =  TRUE;
+            }
+        }
+
+    }
+
+    if (fileWriteNecessary)
+    {
+        /* TODO: spawn background task to update the IELF file */
+    }
+
+}
+
 
 /* This function can be called from any priority task. Assumption that any task
  * that invokes this function is higher than the event driven task
@@ -198,81 +270,117 @@ INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
     UINT16 index = 0;
     RTDMTimeStr currentTime;
     UINT16 errorCode = NO_ERROR;
+#ifndef TEST_ON_PC
+    INT16 osReturn = OK;
+#endif
 
     /* Get the system time the event occurred */
     memset (&currentTime, 0, sizeof(currentTime));
     errorCode = GetEpochTime (&currentTime);
     if (errorCode != NO_ERROR)
     {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't read RTC in LogIELFEvent()\n");
         return (errorCode);
     }
 
-    /***************************************************************************/
-    /**************************** TODO Block OS ********************************/
-    /***************************************************************************/
+#ifndef TEST_ON_PC
+    /* Try to acquire the semaphore, do not wait, let the calling function decide if it wants
+     * to retry, since we are constrained by a real time system.
+     */
+    osReturn = os_s_take(m_SemaphoreId, OS_NO_WAIT);
+    if (osReturn != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in LogIELFEvent()\n");
+        return (-1);
+    }
+#endif
     /* Add event to the pending event queue */
     while (index < PENDING_EVENT_QUEUE_SIZE)
     {
         if (m_PendingEvent[index].id == EVENT_QUEUE_ENTRY_EMPTY)
         {
             m_PendingEvent[index].id = eventId;
-            m_PendingEvent[index].callback = callback;
             m_PendingEvent[index].time = currentTime.seconds;
             break;
         }
         index++;
     }
-    /***************************************************************************/
-    /*************************** TODO Un-Block OS *******************************/
-    /***************************************************************************/
+#ifndef TEST_ON_PC
+    osReturn = os_s_give(m_SemaphoreId);
+    if (osReturn != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't return semaphore in LogIELFEvent()\n");
+        return (-2);
+    }
+#endif
 
     if (index == PENDING_EVENT_QUEUE_SIZE)
     {
-        return (-1);
+        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't insert event into pending event queue... its FULL\n");
+        return (-3);
     }
 
     return (0);
 }
 
-/* This function is executed in a low priority event driven task */
-INT32 DequeuePendingEvents (void)
+static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
 {
     UINT16 pendingEventIndex = 0;
     INT32 errorCode = 0;
+#ifndef TEST_ON_PC
+    INT16 osReturn = OK;
+#endif
 
+#ifndef TEST_ON_PC
+    osReturn = os_s_take(m_SemaphoreId, OS_NO_WAIT);
+    if (osReturn != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in DequeuePendingEvents()\n");
+        return (-1);
+    }
+#endif
     while (pendingEventIndex < PENDING_EVENT_QUEUE_SIZE)
     {
         if (m_PendingEvent[pendingEventIndex].id != EVENT_QUEUE_ENTRY_EMPTY)
         {
-            errorCode = PostNewEvent (&m_PendingEvent[pendingEventIndex]);
+            *fileUpdateRequired = TRUE;
+            errorCode = UpdatePostedEvents (&m_PendingEvent[pendingEventIndex]);
             if (errorCode != NO_ERROR)
             {
                 return (errorCode);
             }
-            /* Reset the index to look for new events in case a new event was logged */
-            pendingEventIndex = 0;
+            /* Free up this location for new events */
+            m_PendingEvent[pendingEventIndex].id = EVENT_QUEUE_ENTRY_EMPTY;
         }
-        else
-        {
-            pendingEventIndex++;
-        }
-
+        pendingEventIndex++;
     }
+#ifndef TEST_ON_PC
+    osReturn = os_s_give(m_SemaphoreId);
+    if (osReturn != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't return semaphore in DequeuePendingEvents()\n");
+        return (-2);
+    }
+#endif
+
+    return (0);
 
 }
 
-static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent)
+/* No need for semaphore acquiring here because the semaphore has been acquired successfully in calling
+ * function */
+static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent)
 {
     UINT16 index = 0;
 
     /* Copy the new event into posted event */
     while (index < POSTED_EVENT_QUEUE_SIZE)
     {
-        if (m_PostedEvent[index].id != EVENT_QUEUE_ENTRY_EMPTY)
+        /* The entry in the posted event list is free if eventActive is FALSE */
+        if (!m_PostedEvent[index].eventActive)
         {
             break;
         }
-
         index++;
     }
 
@@ -281,11 +389,20 @@ static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent)
         return (-1);
     }
 
-    /* TODO Block OS */
-    m_PostedEvent[index].id = pendingEvent->id;
-    m_PostedEvent[index].callback = pendingEvent->callback;
-    m_PostedEvent[index].time = pendingEvent->time;
+    m_PostedEvent[index].eventActive = TRUE;
+
+    /* TODO Look up the callback based on the event Id and insert the callback */
+    m_PostedEvent[index].eventOverCallback = NULL;
+
+    /* Save this so when the event is over, the code know where to insert the end time in the
+     * event structure
+     */
     m_PostedEvent[index].logIndex = m_LogIndex;
+
+    m_FileOverlay.event[m_LogIndex].failureBeginning = pendingEvent->time;
+
+    /* TODO Fill out remainder of structure (dst, clock inaccurate, etc) */
+
     m_LogIndex++;
     if (m_LogIndex >= MAX_RECORDS)
     {
@@ -293,24 +410,21 @@ static INT32 PostNewEvent (PendingEventQueueStr *pendingEvent)
     }
     /* Allow new events to be added to this location */
     memset (pendingEvent, 0, sizeof(PendingEventQueueStr));
-    /* TODO Un-Block OS */
 
-    /* Update the overlay and write the file */
 
     return (0);
 }
 
-/* Executed in a cyclic task */
-void ServicePostedEvents (void)
-{
 
-}
 
 static INT32 CreateNewIELF (UINT8 systemId)
 {
     UINT16 errorCode = NO_ERROR;
     RTDMTimeStr currentTime;
     UINT16 index = 0;
+    const char *fileName = DRIVE_NAME DIRECTORY_NAME FILENAME;
+    FILE *pFile = NULL;
+    INT32 amountWritten = 0;
 
     memset (&currentTime, 0, sizeof(currentTime));
     memset (&m_FileOverlay, 0, sizeof(m_FileOverlay));
@@ -338,61 +452,31 @@ static INT32 CreateNewIELF (UINT8 systemId)
     for (index = 0; index < MAX_NUMBER_OF_EVENTS; index++)
     {
         m_FileOverlay.eventCounter[index].id = index;
-        m_FileOverlay.eventCounter[index].subsystemId = 0; /* TODO TBD Assigned by Bombardier */
+        m_FileOverlay.eventCounter[index].subsystemId = 0x55; /* TODO TBD Assigned by Bombardier */
     }
 
-#if TODO
-    Create new file
-#endif
+    if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
+                        fileName, __FILE__, __LINE__);
+        return (-1);
+    }
+
+    amountWritten = fwrite (&m_FileOverlay, 1, sizeof(m_FileOverlay), pFile);
+    if (amountWritten != sizeof(m_FileOverlay))
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
+
+        os_io_fclose (pFile);
+        return (-1);
+    }
 
     return (0);
 
 }
 
-/*****************************************************************************/
-/**
- * @brief       Verifies the storage directory exists and creates it if it doesn't
- *
- *              This function reads, processes and stores the XML configuration file.
- *              attributes. It updates all desired parameters into the Rtdm Data
- *              Structure.
- *
- *
- *  @return UINT16 - error code (NO_ERROR if all's well)
- *//*
- * Revision History:
- *
- * Date & Author : 01SEP2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static UINT16 CreateVerifyStorageDirectory (void)
-{
-    const char *dirDriveName = DRIVE_NAME DIRECTORY_NAME; /* Concatenate drive and directory */
-    UINT16 errorCode = NO_ERROR; /* returned error code */
-    INT32 mkdirErrorCode = -1; /* mkdir() returned error code */
 
-    /* Zero indicates directory created successfully */
-    mkdirErrorCode = mkdir (dirDriveName);
 
-    if (mkdirErrorCode == 0)
-    {
-        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s created\n", DRIVE_NAME, DIRECTORY_NAME);
-    }
-    else if ((mkdirErrorCode == -1) && (errno == 17))
-    {
-        /* Directory exists.. all's good. NOTE check errno 17 = EEXIST which indicates the directory already exists */
-        debugPrintf(RTDM_DBG_INFO, "Drive/Directory %s%s exists\n", DRIVE_NAME, DIRECTORY_NAME);
-    }
-    else
-    {
-        /* This is an error condition */
-        debugPrintf(RTDM_DBG_ERROR, "Can't create storage directory %s%s\n", DRIVE_NAME,
-                        DIRECTORY_NAME);
-        /* TODO need error code */
-        errorCode = 0xFFFF;
-    }
-
-    return (errorCode);
-}
 

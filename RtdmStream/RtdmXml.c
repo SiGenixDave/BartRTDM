@@ -334,7 +334,7 @@ UINT16 CopyXMLConfigFile (void)
 
     if (os_io_fopen (copyFileName, "wb+", &copyFile) == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
                         __FILE__, __LINE__);
         /* TODO Error type */
         return (1);
@@ -476,7 +476,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         if (returnValue != OK)
         {
             os_io_fclose (filePtr);
-            debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+            debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
             return (BAD_READ_BUFFER);
         }
@@ -490,7 +490,7 @@ static UINT16 OpenXMLConfigurationFile (void)
     /* File does not exist or internal error */
     else
     {
-        debugPrintf(RTDM_DBG_ERROR, "%s",
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s",
                         "Can't Open RTDMConfiguration_PCU.xml or file doesn't exist\n");
         return (NO_XML_INPUT_FILE);
     }
@@ -671,7 +671,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
     if (returnValue == ERROR)
     {
-        debugPrintf(RTDM_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
         /* TODO flag error */
     }
@@ -703,7 +703,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         sscanf (pStringLocation1, "%u", &signalId);
         m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId;
 
-        PrintIntegerContents(RTDM_DBG_LOG,signalId);
+        PrintIntegerContents(RTDM_IELF_DBG_LOG,signalId);
 
         pStringLocation1 = pStringLocationSignal;
 

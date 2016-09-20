@@ -73,27 +73,27 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-/* NOTE: undefine RTDM_DEBUG_STATEMENTS_ON to "turn off" all printfs() */
-#define RTDM_DEBUG_STATEMENTS_ON
+/* NOTE: undefine RTDM_IELF_DEBUG_STATEMENTS_ON to "turn off" all printfs() */
+#define RTDM_IELF_DEBUG_STATEMENTS_ON
 
 /*****************************************************************/
-#ifdef RTDM_DEBUG_STATEMENTS_ON
-#define RTDM_DBG_LOG             1
-#define RTDM_DBG_INFO            2
-#define RTDM_DBG_WARNING         3
-#define RTDM_DBG_ERROR           4
+#ifdef RTDM_IELF_DEBUG_STATEMENTS_ON
+#define RTDM_IELF_DBG_LOG             1
+#define RTDM_IELF_DBG_INFO            2
+#define RTDM_IELF_DBG_WARNING         3
+#define RTDM_IELF_DBG_ERROR           4
 
 /* NOTE: If the developer only wants to see printfs set at one level, enable this #define (DEBUG_EXCLUSIVE_LEVEL) and
  * set it to the desired debug level. Otherwise all printfs equal or above DEBUG_ABOVE_EQUAL_LEVEL will be enabled
  */
-/* #define RTDM_DEBUG_EXCLUSIVE_LEVEL     RTDM_DBG_INFO */
+/* #define RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL     RTDM_IELF_DBG_INFO */
 
-#define RTDM_DEBUG_ABOVE_EQUAL_LEVEL     RTDM_DBG_LOG
+#define RTDM_IELF_DEBUG_ABOVE_EQUAL_LEVEL     RTDM_IELF_DBG_INFO
 
-#ifdef RTDM_DEBUG_EXCLUSIVE_LEVEL
+#ifdef RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL
 #define debugPrintf(debugLevel, fmt, args...)  \
     do { \
-        if (debugLevel == RTDM_DEBUG_EXCLUSIVE_LEVEL) \
+        if (debugLevel == RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL) \
         {   \
             printf("%s: ",#debugLevel); \
             printf(fmt, ## args); \
@@ -102,7 +102,7 @@
 #else
 #define debugPrintf(debugLevel, fmt, args...)  \
     do { \
-        if (debugLevel >= RTDM_DEBUG_ABOVE_EQUAL_LEVEL) \
+        if (debugLevel >= RTDM_IELF_DEBUG_ABOVE_EQUAL_LEVEL) \
         {   \
             printf("%s: ",#debugLevel); \
             printf(fmt, ## args); \
@@ -200,5 +200,7 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime);
+UINT16 CreateVerifyStorageDirectory (char *pathName);
+BOOL FileExists (const char *fileName);
 INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
 #endif /* RTDMUTILS_H_ */
