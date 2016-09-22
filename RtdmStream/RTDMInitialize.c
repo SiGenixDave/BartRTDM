@@ -27,9 +27,9 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
-#include "../RtdmStream/RtdmStream.h"
-#include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RtdmXml.h"
+
 #include "../RtdmStream/RtdmDataLog.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 #include "../RtdmStream/RtdmStreamExt.h"

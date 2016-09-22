@@ -33,8 +33,6 @@
 #include "../IELF/IELF.h"
 #include "../IELF/IELFCallback.h"
 
-#include "../RtdmStream/RtdmStream.h"
-#include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
 
 /*******************************************************************
@@ -191,8 +189,22 @@ void IelfInit (UINT8 systemId)
     }
     else
     {
-        /* TODO Look for "open" events (no end time) from the previous cycle and add them
-           to the postQueue */
+        /* TODO determine if "ielfcrc.dat" file exists. If it does, get the CRC */
+
+        /* open the existing file and calculate the CRC and verify with stored CRC */
+
+        /* if (CRC OK)
+         * {
+         *      copy contents into memory
+         *
+         *      Look for "open" events (no end time) from the previous cycle and add them to the postQueue
+         * }
+         * else
+         * {
+         *      CreateNewIELF(systemId);
+         * }
+         */
+
     }
 
 #ifndef TEST_ON_PC
@@ -256,7 +268,8 @@ void ServicePostedEvents (void)
 
     if (fileWriteNecessary)
     {
-        /* TODO: spawn background task to update the IELF file */
+        /* TODO: spawn background task to update the IELF file: Assumption is made that a file write will
+         * complete before the next attempt to write a file is made. If not, a BOOL will have to be used */
     }
 
 }

@@ -17,9 +17,10 @@
 #include "../PcSrcFiles/MyFuncs.h"
 #include "../PcSrcFiles/usertypes.h"
 #include "../PcSrcFiles/MySleep.h"
+
+#include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"
-#include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RTDMInitialize.h"
 
 #include "../IELF/IELF.h"

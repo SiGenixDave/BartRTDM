@@ -33,9 +33,9 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
-#include "../RtdmStream/RtdmStream.h"
-#include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RtdmStream.h"
+
 #include "RtdmCrc32.h"
 
 /*******************************************************************

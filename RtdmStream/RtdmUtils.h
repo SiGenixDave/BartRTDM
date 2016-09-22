@@ -124,6 +124,25 @@
  *     E  N  U  M  S
  *
  *******************************************************************/
+/** @brief Signal data types from XML file. Each signal has a data type attribute
+ * that describes the type (signed, unsigned) and size 8, 16, or 32 bits. Used to
+ * allocate memory to store the signal */
+typedef enum
+{
+    /** attribute is UINT8 type */
+    UINT8_XML_TYPE,
+    /** attribute is INT8 type */
+    INT8_XML_TYPE,
+    /** attribute is UINT16 type */
+    UINT16_XML_TYPE,
+    /** attribute is INT16 type */
+    INT16_XML_TYPE,
+    /** attribute is UINT32 type */
+    UINT32_XML_TYPE,
+    /** attribute is INT32 type */
+    INT32_XML_TYPE
+} XmlSignalType;
+
 
 /*******************************************************************
  *
@@ -184,6 +203,117 @@ typedef struct
     StreamHeaderContent content;
 } StreamHeaderStr;
 
+
+/** @brief */
+typedef struct RTDMTimeStr
+{
+    /** */
+    UINT32 seconds;
+    /** */
+    UINT32 nanoseconds;
+} RTDMTimeStr;
+
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT16 id;
+    /** */
+    void *variableAddr;
+    /** */
+    XmlSignalType signalType;
+    /** */
+    RTDMTimeStr signalUpdateTime;
+} SignalDescriptionStr;
+
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT32 id;
+    /** */
+    UINT32 version;
+    /** */
+    char *deviceId;
+    /** */
+    char *name;
+    /** */
+    char *description;
+    /** */
+    char *type;
+    /** */
+    UINT32 samplingRate;
+    /** */
+    BOOL compressionEnabled;
+    /** */
+    UINT32 minRecordingRate;
+    /** */
+    UINT32 noChangeFailurePeriod;
+
+} XmlDataRecorderCfgStr;
+
+/** @brief */
+typedef struct
+{
+    /** */
+    BOOL enabled;
+    /** */
+    UINT32 filesCount;
+    /** */
+    UINT32 numberSamplesInFile;
+    /** */
+    char *filesFullPolicy;
+    /** */
+    UINT32 numberSamplesBeforeSave;
+    /** */
+    UINT32 maxTimeBeforeSaveMs;
+    /** */
+    char *folderPath;
+
+} XmlDataLogFileCfgStr;
+
+/** @brief */
+typedef struct
+{
+    /** */
+    BOOL enabled;
+    /** */
+    UINT32 comId;
+    /** */
+    UINT32 bufferSize;
+    /** */
+    UINT32 maxTimeBeforeSendMs;
+} XmlOutputStreamCfgStr;
+
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT32 maxStreamHeaderDataSize;
+    /** */
+    UINT32 maxStreamDataSize;
+    /** */
+    UINT32 signalCount;
+
+} XmlMetaDataStr;
+
+/** @brief */
+typedef struct
+{
+    /** */
+    XmlDataRecorderCfgStr dataRecorderCfg;
+    /** */
+    XmlDataLogFileCfgStr dataLogFileCfg;
+    /** */
+    XmlOutputStreamCfgStr outputStreamCfg;
+    /** */
+    XmlMetaDataStr metaData;
+    /** allocated at runtime based on the number of signals discovered in the configuration file */
+    SignalDescriptionStr *signalDesription;
+
+} RtdmXmlStr;
+
+
 /*******************************************************************
  *
  *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
@@ -195,6 +325,8 @@ typedef struct
  *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+typedef struct dataBlock_RtdmStream TYPE_RTDMSTREAM_IF;
+
 UINT16 GetEpochTime (RTDMTimeStr* currentTime);
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
 void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
