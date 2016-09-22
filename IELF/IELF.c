@@ -34,6 +34,7 @@
 #include "../IELF/IELFCallback.h"
 
 #include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmStream/RtdmCrc32.h"
 
 /*******************************************************************
  *
@@ -49,7 +50,8 @@
 #define DIRECTORY_NAME                      "ielf/"
 #endif
 
-#define FILENAME                            "ielf.dat"
+#define IELF_DATA_FILENAME                  "ielf.dat"
+#define IELF_CRC_FILENAME                   "ielf.crc"
 
 #define IELF_VERSION                        0x30000000
 
@@ -153,7 +155,8 @@ static INT32 m_SemaphoreId = 0;
 static INT32 CreateNewIELF (UINT8 systemId);
 static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
-
+static UINT32 MemoryOverlayCRCCalc (void);
+static INT32 WriteIelfCRCFile (UINT32 crc);
 
 /*****************************************************************************/
 /**
@@ -170,7 +173,17 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
  *****************************************************************************/
 void IelfInit (UINT8 systemId)
 {
-    BOOL fileExists = FALSE;
+    BOOL fileDataExists = FALSE;
+    BOOL fileCrcExists = FALSE;
+    UINT32 crc = 0;
+    FILE *dataFile = NULL;
+    FILE *crcFile = NULL;
+    UINT32 calculatedCRC = 0;
+    UINT32 storedCRC = 0;
+    char *dataFileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
+    char *crcFileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME;
+    UINT32 amountRead = 0;
+
 #ifndef TEST_ON_PC
     INT16 osReturn = OK;
 #endif
@@ -178,34 +191,72 @@ void IelfInit (UINT8 systemId)
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
 
-    /* Determine if IELF file exists */
+    /* Determine if IELF data file and crc exists */
     CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
 
-    fileExists = FileExists (DRIVE_NAME DIRECTORY_NAME FILENAME);
+    fileDataExists = FileExists (dataFileName);
+    fileCrcExists = FileExists (crcFileName);
 
-    if (!fileExists)
+    if (!fileDataExists || !fileCrcExists)
     {
-        CreateNewIELF(systemId);
+        CreateNewIELF (systemId);
+        crc = MemoryOverlayCRCCalc ();
+        (void) WriteIelfCRCFile (crc);
+        return;
     }
-    else
+
+    if (os_io_fopen (dataFileName, "r+b", &dataFile) == ERROR)
     {
-        /* TODO determine if "ielfcrc.dat" file exists. If it does, get the CRC */
-
-        /* open the existing file and calculate the CRC and verify with stored CRC */
-
-        /* if (CRC OK)
-         * {
-         *      copy contents into memory
-         *
-         *      Look for "open" events (no end time) from the previous cycle and add them to the postQueue
-         * }
-         * else
-         * {
-         *      CreateNewIELF(systemId);
-         * }
-         */
-
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
+                        dataFileName, __FILE__, __LINE__);
+        return;
     }
+
+    if (os_io_fopen (crcFileName, "r+b", &crcFile) == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
+                        crcFileName, __FILE__, __LINE__);
+        return;
+    }
+
+    amountRead = fread (&storedCRC, 1, sizeof(storedCRC), crcFile);
+    if (amountRead != sizeof(storedCRC))
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "fread() failed: file name = %s ---> File: %s  Line#: %d\n", crcFileName,
+                        __FILE__, __LINE__);
+
+        os_io_fclose (crcFile);
+        os_io_fclose (dataFile);
+        return;
+    }
+
+    amountRead = fread (&m_FileOverlay, 1, sizeof(m_FileOverlay), dataFile);
+    if (amountRead != sizeof(m_FileOverlay))
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "fread() failed: file name = %s ---> File: %s  Line#: %d\n", dataFileName,
+                        __FILE__, __LINE__);
+        os_io_fclose (crcFile);
+        os_io_fclose (dataFile);
+        return;
+    }
+
+    calculatedCRC = 0;
+    calculatedCRC = crc32 (calculatedCRC, (const UINT8 *) &m_FileOverlay, sizeof(m_FileOverlay));
+
+    if (calculatedCRC != storedCRC)
+    {
+        CreateNewIELF (systemId);
+        crc = MemoryOverlayCRCCalc ();
+        (void) WriteIelfCRCFile (crc);
+        os_io_fclose (crcFile);
+        return;
+    }
+
+    /* Look for "open" events (no end time) from the previous cycle and add them to the postQueue */
 
 #ifndef TEST_ON_PC
     osReturn = os_sb_create(OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
@@ -251,16 +302,16 @@ void ServicePostedEvents (void)
     {
         if (m_PostedEvent[index].eventActive)
         {
-            eventOver = m_PostedEvent[index].eventOverCallback();
+            eventOver = m_PostedEvent[index].eventOverCallback ();
             if (eventOver)
             {
                 m_FileOverlay.event[m_PostedEvent[index].logIndex].failureEnd = currentTime.seconds;
 
                 /* Make this position available for new events */
-                memset(&m_PostedEvent[index], 0, sizeof(PostedEventQueueStr));
+                memset (&m_PostedEvent[index], 0, sizeof(PostedEventQueueStr));
 
                 /* At least 1 event is over so ensure that the ielf file is updated */
-                fileWriteNecessary =  TRUE;
+                fileWriteNecessary = TRUE;
             }
         }
 
@@ -273,7 +324,6 @@ void ServicePostedEvents (void)
     }
 
 }
-
 
 /* This function can be called from any priority task. Assumption that any task
  * that invokes this function is higher than the event driven task
@@ -329,7 +379,8 @@ INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
 
     if (index == PENDING_EVENT_QUEUE_SIZE)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't insert event into pending event queue... its FULL\n");
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "Couldn't insert event into pending event queue... its FULL\n");
         return (-3);
     }
 
@@ -424,18 +475,15 @@ static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent)
     /* Allow new events to be added to this location */
     memset (pendingEvent, 0, sizeof(PendingEventQueueStr));
 
-
     return (0);
 }
-
-
 
 static INT32 CreateNewIELF (UINT8 systemId)
 {
     UINT16 errorCode = NO_ERROR;
     RTDMTimeStr currentTime;
     UINT16 index = 0;
-    const char *fileName = DRIVE_NAME DIRECTORY_NAME FILENAME;
+    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
     FILE *pFile = NULL;
     INT32 amountWritten = 0;
 
@@ -471,8 +519,8 @@ static INT32 CreateNewIELF (UINT8 systemId)
     if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
-                        fileName, __FILE__, __LINE__);
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
+                        __FILE__, __LINE__);
         return (-1);
     }
 
@@ -486,10 +534,45 @@ static INT32 CreateNewIELF (UINT8 systemId)
         return (-1);
     }
 
+    os_io_fclose (pFile);
     return (0);
 
 }
 
+static UINT32 MemoryOverlayCRCCalc (void)
+{
+    UINT32 crc = 0;
 
+    crc = crc32 (crc, (const UINT8 *) &m_FileOverlay, sizeof(m_FileOverlay));
 
+    return (crc);
+}
+
+static INT32 WriteIelfCRCFile (UINT32 crc)
+{
+    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME;
+    UINT32 amountWritten = 0;
+    FILE *pFile = NULL;
+
+    if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
+                        __FILE__, __LINE__);
+        return (-1);
+    }
+
+    amountWritten = fwrite (&crc, 1, sizeof(crc), pFile);
+    if (amountWritten != sizeof(crc))
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
+                        __LINE__);
+
+        os_io_fclose (pFile);
+        return (-1);
+    }
+
+    os_io_fclose (pFile);
+    return (0);
+}
 
