@@ -143,9 +143,7 @@ static PostedEventQueueStr m_PostedEvent[POSTED_EVENT_QUEUE_SIZE];
 
 static UINT16 m_LogIndex;
 
-#ifndef TEST_ON_PC
 static INT32 m_SemaphoreId = 0;
-#endif
 
 /*******************************************************************
  *
@@ -183,13 +181,16 @@ void IelfInit (UINT8 systemId)
     char *dataFileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
     char *crcFileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME;
     UINT32 amountRead = 0;
-
-#ifndef TEST_ON_PC
+    UINT16 index = 0;
     INT16 osReturn = OK;
-#endif
 
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
+
+    for (index = 0; index < PENDING_EVENT_QUEUE_SIZE; index++)
+    {
+        m_PendingEvent[index].id = EVENT_QUEUE_ENTRY_EMPTY;
+    }
 
     /* Determine if IELF data file and crc exists */
     CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
@@ -258,13 +259,11 @@ void IelfInit (UINT8 systemId)
 
     /* Look for "open" events (no end time) from the previous cycle and add them to the postQueue */
 
-#ifndef TEST_ON_PC
-    osReturn = os_sb_create(OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
+    osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,"IELF semaphore could not be created\n");
+        debugPrintf(RTDM_IELF_DBG_ERROR, "IELF semaphore could not be created\n");
     }
-#endif
 
 }
 
@@ -328,14 +327,12 @@ void ServicePostedEvents (void)
 /* This function can be called from any priority task. Assumption that any task
  * that invokes this function is higher than the event driven task
  */
-INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
+INT32 LogIELFEvent (UINT16 eventId)
 {
     UINT16 index = 0;
     RTDMTimeStr currentTime;
     UINT16 errorCode = NO_ERROR;
-#ifndef TEST_ON_PC
     INT16 osReturn = OK;
-#endif
 
     /* Get the system time the event occurred */
     memset (&currentTime, 0, sizeof(currentTime));
@@ -346,17 +343,15 @@ INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
         return (errorCode);
     }
 
-#ifndef TEST_ON_PC
     /* Try to acquire the semaphore, do not wait, let the calling function decide if it wants
      * to retry, since we are constrained by a real time system.
      */
-    osReturn = os_s_take(m_SemaphoreId, OS_NO_WAIT);
+    osReturn = os_s_take (m_SemaphoreId, OS_NO_WAIT);
     if (osReturn != OK)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in LogIELFEvent()\n");
         return (-1);
     }
-#endif
     /* Add event to the pending event queue */
     while (index < PENDING_EVENT_QUEUE_SIZE)
     {
@@ -368,14 +363,13 @@ INT32 LogIELFEvent (UINT16 eventId, EventOverCallback callback)
         }
         index++;
     }
-#ifndef TEST_ON_PC
-    osReturn = os_s_give(m_SemaphoreId);
+
+    osReturn = os_s_give (m_SemaphoreId);
     if (osReturn != OK)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't return semaphore in LogIELFEvent()\n");
         return (-2);
     }
-#endif
 
     if (index == PENDING_EVENT_QUEUE_SIZE)
     {
@@ -391,18 +385,15 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
 {
     UINT16 pendingEventIndex = 0;
     INT32 errorCode = 0;
-#ifndef TEST_ON_PC
     INT16 osReturn = OK;
-#endif
 
-#ifndef TEST_ON_PC
-    osReturn = os_s_take(m_SemaphoreId, OS_NO_WAIT);
+    osReturn = os_s_take (m_SemaphoreId, OS_NO_WAIT);
     if (osReturn != OK)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in DequeuePendingEvents()\n");
         return (-1);
     }
-#endif
+
     while (pendingEventIndex < PENDING_EVENT_QUEUE_SIZE)
     {
         if (m_PendingEvent[pendingEventIndex].id != EVENT_QUEUE_ENTRY_EMPTY)
@@ -418,14 +409,13 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
         }
         pendingEventIndex++;
     }
-#ifndef TEST_ON_PC
-    osReturn = os_s_give(m_SemaphoreId);
+
+    osReturn = os_s_give (m_SemaphoreId);
     if (osReturn != OK)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't return semaphore in DequeuePendingEvents()\n");
         return (-2);
     }
-#endif
 
     return (0);
 
@@ -455,14 +445,15 @@ static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent)
 
     m_PostedEvent[index].eventActive = TRUE;
 
-    /* TODO Look up the callback based on the event Id and insert the callback */
-    m_PostedEvent[index].eventOverCallback = NULL;
+    /* Look up the callback based on the event Id and insert the callback */
+    m_PostedEvent[index].eventOverCallback = GetIELFCallback (pendingEvent->id);
 
     /* Save this so when the event is over, the code know where to insert the end time in the
      * event structure
      */
     m_PostedEvent[index].logIndex = m_LogIndex;
 
+    m_FileOverlay.event[m_LogIndex].eventId = pendingEvent->id;
     m_FileOverlay.event[m_LogIndex].failureBeginning = pendingEvent->time;
 
     /* TODO Fill out remainder of structure (dst, clock inaccurate, etc) */
@@ -471,6 +462,7 @@ static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent)
     if (m_LogIndex >= MAX_RECORDS)
     {
         m_LogIndex = 0;
+        /* TODO set overflow flag */
     }
     /* Allow new events to be added to this location */
     memset (pendingEvent, 0, sizeof(PendingEventQueueStr));

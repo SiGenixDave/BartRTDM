@@ -34,12 +34,15 @@ typedef struct
 #if !TEST_ON_PC
 static IELFCallbackMap ielfCallbackMap[] =
 {
-    {   0, x},
+    {   1, x},
 
 };
 #else
 static IELFCallbackMap ielfCallbackMap[] =
-    { };
+    {
+        { 1, Sim1EventOver },
+          { 2, Sim2EventOver },
+    };
 #endif
 
 EventOverCallback GetIELFCallback (UINT16 eventCode)
@@ -47,7 +50,7 @@ EventOverCallback GetIELFCallback (UINT16 eventCode)
     EventOverCallback callback = NULL;
     UINT16 index = 0;
 
-    while (index < sizeof(ielfCallbackMap)/sizeof(IELFCallbackMap))
+    while (index < sizeof(ielfCallbackMap) / sizeof(IELFCallbackMap))
     {
         if (ielfCallbackMap[index].eventCode == eventCode)
         {

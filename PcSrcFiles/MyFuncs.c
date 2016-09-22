@@ -20,6 +20,52 @@ void GetTimeDate (char *dateTime, UINT16 arraySize)
 
 }
 
+BOOL Sim1EventOver (void)
+{
+    static UINT32 count = 0;
+
+    count++;
+    if (count >= 20)
+    {
+        count = 0;
+        return TRUE;
+    }
+
+    return FALSE;
+
+}
+
+BOOL Sim2EventOver (void)
+{
+    static UINT32 count = 0;
+
+    count++;
+    if (count >= 40)
+    {
+        count = 0;
+        return TRUE;
+    }
+
+    return FALSE;
+
+}
+
+int os_s_take (int sema, int options)
+{
+    return OK;
+}
+
+int os_s_give (int sema)
+{
+    return OK;
+}
+
+int os_sb_create (int opt1, int opt2, int *sema)
+{
+    *sema = 1;
+    return OK;
+}
+
 int os_io_fopen (const char *fileName, char *arg, FILE **fp)
 {
     *fp = fopen (fileName, arg);
@@ -49,8 +95,6 @@ int os_c_get (OS_STR_TIME_POSIX *sys_posix_time)
     return OK;
 }
 
-
-
 INT16 dm_free (UINT8 identity, void* p_block)
 {
     free (p_block);
@@ -59,14 +103,13 @@ INT16 dm_free (UINT8 identity, void* p_block)
 
 INT16 dm_malloc (UINT8 identity, UINT32 n_bytes, void** pp_block)
 {
-    *pp_block = malloc(n_bytes);
+    *pp_block = malloc (n_bytes);
     if (*pp_block)
     {
         return OK;
     }
     return ERROR;
 }
-
 
 int MDComAPI_putMsgQ (UINT32 comId, /* ComId */
 const char *RTDMStream_ptr, /* Data buffer */

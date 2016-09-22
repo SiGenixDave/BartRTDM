@@ -24,6 +24,10 @@ static void UserInterfaceMain ()
     {
         FTPDataLog ();
     }
+    else if (ch == '1')
+    {
+        LogIELFEvent(1);
+    }
     fflush (stdin);
 }
 

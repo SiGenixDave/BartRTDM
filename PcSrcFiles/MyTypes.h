@@ -22,6 +22,10 @@ typedef UINT32 DWORD;
 typedef UINT16 WORD;
 typedef UINT8 OS_TIMEDATE48[6];
 
+#define OS_SEM_Q_PRIORITY   1
+#define OS_SEM_EMPTY        1
+#define OS_NO_WAIT          1
+
 typedef struct
 {
     UINT32 sec;

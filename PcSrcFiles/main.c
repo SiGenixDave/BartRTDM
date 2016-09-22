@@ -31,7 +31,7 @@ TYPE_RTDMSTREAM_IF mStreamInfo;
 
 
 extern void CreateUIThread (void);
-
+int debug;
 
 int main (void)
 {
@@ -65,8 +65,13 @@ int main (void)
     while (TRUE)
     {
         RtdmStream (&mStreamInfo);
+        ServicePostedEvents();
         MySleep (50);
         mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+        if (debug)
+        {
+            LogIELFEvent(debug);
+        }
     }
 
     puts ("!!!Shouldn't get here!!"); /* prints !!!Hello World!!! */

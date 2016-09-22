@@ -11,6 +11,11 @@
 struct OS_STR_TIME_POSIX;
 
 void GetTimeDate (char *dateTime, UINT16 arraySize);
+BOOL Sim1EventOver (void);
+BOOL Sim2EventOver (void);
+int os_s_take (int sema, int options);
+int os_s_give (int sema);
+int os_sb_create (int opt1, int opt2, int *sema);
 int os_io_fopen (const char *fileName, char *arg, FILE **fp);
 int os_io_fclose (FILE *fp);
 int os_c_get (OS_STR_TIME_POSIX *sys_posix_time);
