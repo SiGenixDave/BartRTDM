@@ -20,14 +20,25 @@ void GetTimeDate (char *dateTime, UINT16 arraySize)
 
 }
 
+static BOOL sim1, sim2;
+
+void ForceSim1EventOver (void)
+{
+    sim1 = TRUE;
+}
+
+void ForceSim2EventOver (void)
+{
+    sim2 = TRUE;
+}
+
+
 BOOL Sim1EventOver (void)
 {
-    static UINT32 count = 0;
 
-    count++;
-    if (count >= 20)
+    if (sim1 == TRUE)
     {
-        count = 0;
+        sim1 = FALSE;
         return TRUE;
     }
 
@@ -37,12 +48,9 @@ BOOL Sim1EventOver (void)
 
 BOOL Sim2EventOver (void)
 {
-    static UINT32 count = 0;
-
-    count++;
-    if (count >= 40)
+    if (sim2 == TRUE)
     {
-        count = 0;
+        sim2 = FALSE;
         return TRUE;
     }
 

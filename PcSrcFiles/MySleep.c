@@ -20,13 +20,27 @@ static void UserInterfaceMain ()
 
     printf ("UI Thread\n");
     ch = getchar ();
-    if (ch == '0')
+    switch (ch)
     {
-        FTPDataLog ();
-    }
-    else if (ch == '1')
-    {
-        LogIELFEvent(1);
+        case '0':
+            FTPDataLog ();
+            break;
+        case '1':
+        case '2':
+        case '3':
+            LogIELFEvent(ch - '0');
+            break;
+
+        case '4':
+            ForceSim1EventOver();
+            break;
+
+        case '5':
+            ForceSim2EventOver();
+            break;
+
+        default:
+            break;
     }
     fflush (stdin);
 }

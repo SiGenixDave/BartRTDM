@@ -544,7 +544,6 @@ static void WriteStreamFile (void)
                 exit(0);
 #endif
 
-
             }
 
             break;
@@ -1036,8 +1035,8 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     /* Try opening the file for writing and leave open */
     if (os_io_fopen (s_FileName, "wb+", ftpFilePtr) == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         *ftpFilePtr = NULL;
     }
 
@@ -1070,8 +1069,9 @@ static void IncludeXMLFile (FILE *ftpFilePtr)
 
     /* Assume file is opened and go the beginning of the file */
     fseek (ftpFilePtr, 0L, SEEK_END);
+
     /* Write the XML configuration file to the FTP file */
-    fwrite (xmlConfigFile, 1, strlen (xmlConfigFile), ftpFilePtr);
+    (void) FileWrite (ftpFilePtr, xmlConfigFile, strlen (xmlConfigFile), FALSE, __FILE__, __LINE__);
 
 }
 
@@ -1152,7 +1152,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     rtdmHeader.preamble.headerChecksum = htonl (rtdmHeaderCrc);
 
     /* Update the FTP file with the RTDM header */
-    fwrite (&rtdmHeader, sizeof(rtdmHeader), 1, ftpFilePtr);
+    FileWrite (ftpFilePtr, &rtdmHeader, sizeof(rtdmHeader), FALSE, __FILE__, __LINE__);
 
 }
 
@@ -1563,7 +1563,6 @@ static BOOL VerifyFileIntegrity (const char *filename)
     return (TRUE);
 }
 
-
 /*****************************************************************************/
 /**
  * @brief       Responsible for removing excess #.stream files
@@ -1602,8 +1601,8 @@ static void CleanupDirectory (void)
         osCallReturn = remove (fileName);
         if (osCallReturn != 0)
         {
-            debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n", fileName,
-                            __FILE__, __LINE__);
+            debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n",
+                            fileName, __FILE__, __LINE__);
         }
         else
         {
@@ -1647,16 +1646,16 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     /* Open the file to be truncated for reading */
     if (os_io_fopen (fileName, "rb", &pReadFile) == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         return (FALSE);
     }
 
     /* Open the temporary file where the first "desiredFileSize" bytes will be written */
     if (os_io_fopen (tempFileName, "wb+", &pWriteFile) == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         os_io_fclose (pReadFile);
         return (FALSE);
     }
@@ -1702,8 +1701,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = (INT32) fwrite (buffer, sizeof(UINT8), sizeof(buffer), pWriteFile);
             if (osCallReturn != (INT32) sizeof(buffer))
             {
-                debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                __LINE__);
+                debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
                 os_io_fclose (pWriteFile);
                 os_io_fclose (pReadFile);
                 return (FALSE);
@@ -1719,8 +1718,8 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = (INT32) fwrite (buffer, 1, remainingBytesToWrite, pWriteFile);
             if (osCallReturn != (INT32) remainingBytesToWrite)
             {
-                debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                __LINE__);
+                debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
                 os_io_fclose (pWriteFile);
                 os_io_fclose (pReadFile);
                 return (FALSE);
@@ -1733,16 +1732,16 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             osCallReturn = remove (fileName);
             if (osCallReturn != 0)
             {
-                debugPrintf(RTDM_IELF_DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                __LINE__);
+                debugPrintf(RTDM_IELF_DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
                 return (FALSE);
             }
             /* Rename the temporary file to the fileName */
             rename (tempFileName, fileName);
             if (osCallReturn != 0)
             {
-                debugPrintf(RTDM_IELF_DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n", __FILE__,
-                                __LINE__);
+                debugPrintf(RTDM_IELF_DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n",
+                                __FILE__, __LINE__);
                 return (FALSE);
             }
 
@@ -1775,8 +1774,8 @@ static BOOL CreateCarConDevFile (void)
     /* Create the data file  */
     if (os_io_fopen (ccdFileName, "wb+", &pFile) == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         os_io_fclose (pFile);
         return (FALSE);
     }

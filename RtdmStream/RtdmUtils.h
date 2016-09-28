@@ -335,4 +335,6 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
 UINT16 CreateVerifyStorageDirectory (char *pathName);
 BOOL FileExists (const char *fileName);
 INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
+BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
+                char *calledFromFile, UINT32 lineNumber);
 #endif /* RTDMUTILS_H_ */

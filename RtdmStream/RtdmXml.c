@@ -339,9 +339,7 @@ UINT16 CopyXMLConfigFile (void)
         return (1);
     }
 
-    fwrite (m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, sizeof(char), copyFile);
-
-    os_io_fclose (copyFile);
+    FileWrite (copyFile, &m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE, __FILE__, __LINE__);
 
     return (NO_ERROR);
 

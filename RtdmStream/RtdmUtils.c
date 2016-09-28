@@ -104,7 +104,7 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
         errorCode = NO_ERROR;
     }
 #else
-    static INT32 seconds = 1577854800;   /* January 1, 2020 00:00:00 */
+    static INT32 seconds = 1577854800; /* January 1, 2020 00:00:00 */
     static INT32 nanoSeconds = 0;
     UINT16 errorCode = BAD_TIME;
 
@@ -149,15 +149,15 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
 {
 #ifdef DOUBLES_ALLOWED
-    double time1d = 0.0;    /* Converted time1 to double */
-    double time2d = 0.0;    /* Converted time2 to double */
-    double timeDiff = 0.0;  /* time1 - time2 (msecs) */
+    double time1d = 0.0; /* Converted time1 to double */
+    double time2d = 0.0; /* Converted time2 to double */
+    double timeDiff = 0.0; /* time1 - time2 (msecs) */
 
-    time1d = time1->seconds + ((double)(time1->nanoseconds) / 1E+9);
-    time2d = time2->seconds + ((double)(time2->nanoseconds) / 1E+9);
+    time1d = time1->seconds + ((double) (time1->nanoseconds) / 1E+9);
+    time2d = time2->seconds + ((double) (time2->nanoseconds) / 1E+9);
     timeDiff = (time1d - time2d) * 1000.0;
 
-    return ((INT32)(timeDiff));
+    return ((INT32) (timeDiff));
 #else
 
     INT32 milliSeconds = 0;
@@ -223,8 +223,8 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime)
 {
-    const char *delimiter = "STRM";     /* Fixed stream header delimiter */
-    UINT32 crc = 0;                     /* CRC calculation result */
+    const char *delimiter = "STRM"; /* Fixed stream header delimiter */
+    UINT32 crc = 0; /* CRC calculation result */
     UINT32 maxCopySize = 0; /* used to ensure memory is not overflowed when copying strings */
 
     /* Zero the stream entire header */
@@ -310,7 +310,6 @@ void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlDat
                                     + sizeof(streamHeader->content.postamble.numberOfSamples)
                                     + dataSize));
 
-
     /* Calculate the header CRC */
     crc = 0;
     crc = crc32 (crc, ((UINT8 *) &streamHeader->content.postamble),
@@ -394,7 +393,6 @@ BOOL FileExists (const char *fileName)
     return (FALSE);
 }
 
-
 /*****************************************************************************/
 /**
  * @brief       Allocates memory from the heap
@@ -431,6 +429,30 @@ INT32 AllocateMemoryAndClear (UINT32 size, void **memory)
     }
 
     return (returnValue);
+}
+
+BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
+                char *calledFromFile, UINT32 lineNumber)
+{
+    UINT32 amountWritten = 0;
+    BOOL success = TRUE;
+
+    amountWritten = fwrite (buffer, 1, bytesToWrite, filePtr);
+
+    if (amountWritten != bytesToWrite)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Write to file failed: Called from File: %s - Line#: %d\n",
+                        calledFromFile, lineNumber);
+        success = FALSE;
+    }
+
+    if (closeFile)
+    {
+        os_io_fclose (filePtr);
+    }
+
+    return (success);
+
 }
 
 #ifdef FOR_UNIT_TEST_ONLY

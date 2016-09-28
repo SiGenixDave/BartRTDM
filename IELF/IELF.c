@@ -52,17 +52,25 @@
 
 #define IELF_DATA_FILENAME                  "ielf.dat"
 #define IELF_CRC_FILENAME                   "ielf.crc"
+#define IELF_DAILY_EVENT_COUNTER_FILENAME   "ielfevnt.dat"
 
 #define IELF_VERSION                        0x30000000
 
+#define SECONDS_PER_DAY                     86400
+
 #define MAX_NUMBER_OF_EVENTS                1024
 #define MAX_RECORDS                         2100
+#define FILE_EMPTY                          -1
 
 #define PENDING_EVENT_QUEUE_SIZE            16
 #define POSTED_EVENT_QUEUE_SIZE             128
 
 #define EVENT_QUEUE_ENTRY_EMPTY             -1
 #define EVENT_ACTIVE                        0xFFFFFFFF
+
+/* The same event can only be logged MAX_ALLOWED_EVENTS_PER_DAY this many times per day. However,
+ * if the same event occurs more per day, the event counter is incremented regardless. */
+#define MAX_ALLOWED_EVENTS_PER_DAY          10
 
 /*******************************************************************
  *
@@ -125,10 +133,19 @@ typedef struct
 
 typedef struct
 {
+    UINT16 id;
     BOOL eventActive;
     UINT16 logIndex;
     EventOverCallback eventOverCallback;
 } PostedEventQueueStr;
+
+typedef struct
+{
+    UINT16 count[MAX_NUMBER_OF_EVENTS] __attribute__ ((packed));
+    UINT32 utcSeconds __attribute__ ((packed));
+    UINT32 crc __attribute__ ((packed));
+
+} DailyEventCounter;
 
 /*******************************************************************
  *
@@ -145,16 +162,26 @@ static UINT16 m_LogIndex;
 
 static INT32 m_SemaphoreId = 0;
 
+static DailyEventCounter m_DailyEventCounterOverlay;
+
+static BOOL m_NewEventActive = FALSE;
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static INT32 CreateNewIELF (UINT8 systemId);
-static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent);
+static INT32 CreateNewIELFOverlay (UINT8 systemId);
+static INT32 UpdatePostedEventQueue (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
 static UINT32 MemoryOverlayCRCCalc (void);
+static INT32 WriteIelfDataFile (void);
 static INT32 WriteIelfCRCFile (UINT32 crc);
+static BOOL BothTimesToday (UINT32 time1, UINT32 time2);
+static void InitDailyEventCounter (void);
+static INT32 WriteIelfEventCounterFile (UINT32 utcSeconds);
+static void ServiceEventCounter (UINT32 currentTimeSecs);
+static void UpdateRecordIndexes (void);
 
 /*****************************************************************************/
 /**
@@ -186,6 +213,7 @@ void IelfInit (UINT8 systemId)
 
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
+    memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
 
     for (index = 0; index < PENDING_EVENT_QUEUE_SIZE; index++)
     {
@@ -200,8 +228,9 @@ void IelfInit (UINT8 systemId)
 
     if (!fileDataExists || !fileCrcExists)
     {
-        CreateNewIELF (systemId);
+        CreateNewIELFOverlay (systemId);
         crc = MemoryOverlayCRCCalc ();
+        (void) WriteIelfDataFile ();
         (void) WriteIelfCRCFile (crc);
         return;
     }
@@ -250,20 +279,24 @@ void IelfInit (UINT8 systemId)
 
     if (calculatedCRC != storedCRC)
     {
-        CreateNewIELF (systemId);
+        CreateNewIELFOverlay (systemId);
         crc = MemoryOverlayCRCCalc ();
+        (void) WriteIelfDataFile ();
         (void) WriteIelfCRCFile (crc);
-        os_io_fclose (crcFile);
         return;
     }
 
-    /* Look for "open" events (no end time) from the previous cycle and add them to the postQueue */
+    /* TODO Look for "open" events (no end time) from the previous cycle and add them to the postQueue */
+    /* TODO Set starting event log index by examining firstRecordIndex and lastRecordIndex */
 
     osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
     if (osReturn != OK)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "IELF semaphore could not be created\n");
     }
+
+    /* Verify daily event counter file */
+    InitDailyEventCounter ();
 
 }
 
@@ -276,6 +309,7 @@ void ServicePostedEvents (void)
     UINT16 errorCode = NO_ERROR;
     BOOL fileWriteNecessary = FALSE;
     INT32 semaAcquired = 0;
+    UINT32 crc = 0;
 
     /* Get any new events just logged; copy from Pending to Posted. If semaphore couldn't be acquired, any
      * pending events will have to be copied from Pending to Posted on the next cycle. If fileWriteNecessary
@@ -306,6 +340,9 @@ void ServicePostedEvents (void)
             {
                 m_FileOverlay.event[m_PostedEvent[index].logIndex].failureEnd = currentTime.seconds;
 
+                debugPrintf(RTDM_IELF_DBG_INFO, "Event detected as over; ID = %d\n",
+                                m_PostedEvent[index].id);
+
                 /* Make this position available for new events */
                 memset (&m_PostedEvent[index], 0, sizeof(PostedEventQueueStr));
 
@@ -320,7 +357,12 @@ void ServicePostedEvents (void)
     {
         /* TODO: spawn background task to update the IELF file: Assumption is made that a file write will
          * complete before the next attempt to write a file is made. If not, a BOOL will have to be used */
+        crc = MemoryOverlayCRCCalc ();
+        (void) WriteIelfDataFile ();
+        (void) WriteIelfCRCFile (crc);
     }
+
+    ServiceEventCounter (currentTime.seconds);
 
 }
 
@@ -384,7 +426,6 @@ INT32 LogIELFEvent (UINT16 eventId)
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
 {
     UINT16 pendingEventIndex = 0;
-    INT32 errorCode = 0;
     INT16 osReturn = OK;
 
     osReturn = os_s_take (m_SemaphoreId, OS_NO_WAIT);
@@ -398,12 +439,11 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
     {
         if (m_PendingEvent[pendingEventIndex].id != EVENT_QUEUE_ENTRY_EMPTY)
         {
+
             *fileUpdateRequired = TRUE;
-            errorCode = UpdatePostedEvents (&m_PendingEvent[pendingEventIndex]);
-            if (errorCode != NO_ERROR)
-            {
-                return (errorCode);
-            }
+            (void) UpdatePostedEventQueue (&m_PendingEvent[pendingEventIndex]);
+            /* Allow new events to be added to this location */
+            memset (&m_PendingEvent[pendingEventIndex], 0, sizeof(PendingEventQueueStr));
             /* Free up this location for new events */
             m_PendingEvent[pendingEventIndex].id = EVENT_QUEUE_ENTRY_EMPTY;
         }
@@ -423,9 +463,10 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
 
 /* No need for semaphore acquiring here because the semaphore has been acquired successfully in calling
  * function */
-static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent)
+static INT32 UpdatePostedEventQueue (PendingEventQueueStr *pendingEvent)
 {
     UINT16 index = 0;
+    EventOverCallback evOverCallback = NULL;
 
     /* Copy the new event into posted event */
     while (index < POSTED_EVENT_QUEUE_SIZE)
@@ -440,44 +481,84 @@ static INT32 UpdatePostedEvents (PendingEventQueueStr *pendingEvent)
 
     if (index >= POSTED_EVENT_QUEUE_SIZE)
     {
+        debugPrintf(RTDM_IELF_DBG_WARNING,
+                        "IELF Event Log full, could not log event with id = %d\n",
+                        pendingEvent->id);
         return (-1);
     }
 
-    m_PostedEvent[index].eventActive = TRUE;
-
-    /* Look up the callback based on the event Id and insert the callback */
-    m_PostedEvent[index].eventOverCallback = GetIELFCallback (pendingEvent->id);
-
-    /* Save this so when the event is over, the code know where to insert the end time in the
-     * event structure
-     */
-    m_PostedEvent[index].logIndex = m_LogIndex;
-
-    m_FileOverlay.event[m_LogIndex].eventId = pendingEvent->id;
-    m_FileOverlay.event[m_LogIndex].failureBeginning = pendingEvent->time;
-
-    /* TODO Fill out remainder of structure (dst, clock inaccurate, etc) */
-
-    m_LogIndex++;
-    if (m_LogIndex >= MAX_RECORDS)
+    /* Increment the specific event log counter */
+    if (pendingEvent->id < MAX_NUMBER_OF_EVENTS)
     {
-        m_LogIndex = 0;
-        /* TODO set overflow flag */
+
+        evOverCallback = GetIELFCallback (pendingEvent->id);
+
+        if (evOverCallback == NULL)
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR,
+                            "IELF Event: NO CALLBACK PRESENT for event id = %d ... Event not logged\n",
+                            pendingEvent->id);
+            return (-2);
+        }
+
+        debugPrintf(RTDM_IELF_DBG_INFO, "IELF Event Logged with event id = %d\n", pendingEvent->id);
+
+        m_FileOverlay.eventCounter[pendingEvent->id].count++;
+        /* Check for overflow */
+        if (m_FileOverlay.eventCounter[pendingEvent->id].count == 0)
+        {
+            m_FileOverlay.eventCounter[pendingEvent->id].overflowFlag++;
+        }
+
+        /* Determine that the maximum allowed events per day hasn't been exceeded */
+        if (m_DailyEventCounterOverlay.count[pendingEvent->id] < MAX_ALLOWED_EVENTS_PER_DAY)
+        {
+            m_NewEventActive = TRUE;
+
+            m_DailyEventCounterOverlay.count[pendingEvent->id]++;
+
+            m_PostedEvent[index].id = pendingEvent->id;
+            m_PostedEvent[index].eventActive = TRUE;
+
+            /* Look up the callback based on the event Id and insert the callback */
+            m_PostedEvent[index].eventOverCallback = GetIELFCallback (pendingEvent->id);
+
+            /* Save this so when the event is over, the code know where to insert the end time in the
+             * event structure
+             */
+            m_PostedEvent[index].logIndex = m_LogIndex;
+
+            m_FileOverlay.event[m_LogIndex].eventId = pendingEvent->id;
+            m_FileOverlay.event[m_LogIndex].failureBeginning = pendingEvent->time;
+
+            /* TODO Fill out remainder of structure (dst, clock inaccurate, etc) */
+
+            m_LogIndex++;
+            if (m_LogIndex >= MAX_RECORDS)
+            {
+                m_LogIndex = 0;
+            }
+
+            UpdateRecordIndexes ();
+
+        }
+
     }
-    /* Allow new events to be added to this location */
-    memset (pendingEvent, 0, sizeof(PendingEventQueueStr));
+    else
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "Event id = %d; Id's value is larger than maximum allowed value\n",
+                        pendingEvent->id);
+    }
 
     return (0);
 }
 
-static INT32 CreateNewIELF (UINT8 systemId)
+static INT32 CreateNewIELFOverlay (UINT8 systemId)
 {
     UINT16 errorCode = NO_ERROR;
     RTDMTimeStr currentTime;
     UINT16 index = 0;
-    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
-    FILE *pFile = NULL;
-    INT32 amountWritten = 0;
 
     memset (&currentTime, 0, sizeof(currentTime));
     memset (&m_FileOverlay, 0, sizeof(m_FileOverlay));
@@ -490,8 +571,8 @@ static INT32 CreateNewIELF (UINT8 systemId)
 
     m_FileOverlay.systemId = systemId;
     m_FileOverlay.numberOfRecords = MAX_RECORDS;
-    m_FileOverlay.firstRecordIndex = -1;
-    m_FileOverlay.lastRecordIndex = -1;
+    m_FileOverlay.firstRecordIndex = FILE_EMPTY;
+    m_FileOverlay.lastRecordIndex = FILE_EMPTY;
 
     errorCode = GetEpochTime (&currentTime);
     if (errorCode != NO_ERROR)
@@ -508,6 +589,16 @@ static INT32 CreateNewIELF (UINT8 systemId)
         m_FileOverlay.eventCounter[index].subsystemId = 0x55; /* TODO TBD Assigned by Bombardier */
     }
 
+    return (0);
+
+}
+
+static INT32 WriteIelfDataFile (void)
+{
+    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
+    FILE *pFile = NULL;
+    BOOL fileWriteSuccess = FALSE;
+
     if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
@@ -516,17 +607,13 @@ static INT32 CreateNewIELF (UINT8 systemId)
         return (-1);
     }
 
-    amountWritten = fwrite (&m_FileOverlay, 1, sizeof(m_FileOverlay), pFile);
-    if (amountWritten != sizeof(m_FileOverlay))
+    fileWriteSuccess = FileWrite (pFile, &m_FileOverlay, sizeof(m_FileOverlay), TRUE, __FILE__,
+    __LINE__);
+    if (!fileWriteSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
-
-        os_io_fclose (pFile);
         return (-1);
     }
 
-    os_io_fclose (pFile);
     return (0);
 
 }
@@ -543,8 +630,8 @@ static UINT32 MemoryOverlayCRCCalc (void)
 static INT32 WriteIelfCRCFile (UINT32 crc)
 {
     char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME;
-    UINT32 amountWritten = 0;
     FILE *pFile = NULL;
+    BOOL fileWriteSuccess = FALSE;
 
     if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
     {
@@ -554,17 +641,188 @@ static INT32 WriteIelfCRCFile (UINT32 crc)
         return (-1);
     }
 
-    amountWritten = fwrite (&crc, 1, sizeof(crc), pFile);
-    if (amountWritten != sizeof(crc))
+    fileWriteSuccess = FileWrite (pFile, &crc, sizeof(crc), TRUE, __FILE__, __LINE__);
+    if (!fileWriteSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "fwrite() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
-
-        os_io_fclose (pFile);
         return (-1);
     }
 
-    os_io_fclose (pFile);
     return (0);
+}
+
+/* TODO May have to adjust this algorithm to account for PST / PDT and when midnight occurs. Algorithm
+ * current is geared for GMT */
+static BOOL BothTimesToday (UINT32 time1, UINT32 time2)
+{
+    UINT32 daysSinceEpochTime1 = 0;
+    UINT32 daysSinceEpochTime2 = 0;
+
+    daysSinceEpochTime1 = time1 / SECONDS_PER_DAY;
+    daysSinceEpochTime2 = time2 / SECONDS_PER_DAY;
+
+    if (daysSinceEpochTime1 == daysSinceEpochTime2)
+    {
+        return (TRUE);
+    }
+
+    return (FALSE);
+
+}
+
+static void InitDailyEventCounter (void)
+{
+    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME;
+    FILE *pFile = NULL;
+    BOOL fileExists = FALSE;
+    BOOL fileLastUpdateWasToday = FALSE;
+    UINT32 amountRead = 0;
+    UINT32 crc = 0;
+    RTDMTimeStr currentTime;
+
+    memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+
+    memset (&currentTime, 0, sizeof(currentTime));
+    GetEpochTime (&currentTime);
+
+    fileExists = FileExists (fileName);
+    if (!fileExists)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "IELF Event counter file doesn't exist; creating new file\n");
+        WriteIelfEventCounterFile (currentTime.seconds);
+        return;
+    }
+
+    /* File does exist, so attempt to open it */
+    if (os_io_fopen (fileName, "r+b", &pFile) == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
+                        __FILE__, __LINE__);
+
+        /* Couldn't open the file for reading so just createe a new one. */
+        WriteIelfEventCounterFile (currentTime.seconds);
+        return;
+    }
+
+    amountRead = fread (&m_DailyEventCounterOverlay, 1, sizeof(m_DailyEventCounterOverlay), pFile);
+    if (amountRead != sizeof(m_DailyEventCounterOverlay))
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "Couldn't read the correct # of bytes from IELF Event counter file; creating new file\n");
+        WriteIelfEventCounterFile (currentTime.seconds);
+        return;
+    }
+
+    /* Verify file's CRC */
+    crc = crc32 (0, (const UINT8 *) &m_DailyEventCounterOverlay,
+                    sizeof(m_DailyEventCounterOverlay) - sizeof(m_DailyEventCounterOverlay.crc));
+
+    if (crc != m_DailyEventCounterOverlay.crc)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "IELF Event counter file CRC verification failed; creating new file\n");
+        WriteIelfEventCounterFile (currentTime.seconds);
+        return;
+    }
+
+    /* Determine when this file was last updated; if updated yesterday, clear overlay */
+    fileLastUpdateWasToday = BothTimesToday (currentTime.seconds,
+                    m_DailyEventCounterOverlay.utcSeconds);
+    if (!fileLastUpdateWasToday)
+    {
+        memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "IELF Event counter file last updated yesterday; resetting counters and updating file\n");
+        WriteIelfEventCounterFile (currentTime.seconds);
+        return;
+    }
+
+}
+
+static INT32 WriteIelfEventCounterFile (UINT32 utcSeconds)
+{
+    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME;
+    FILE *pFile = NULL;
+    BOOL fileWriteSuccess = FALSE;
+    UINT32 crc = 0;
+
+    if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
+                        __FILE__, __LINE__);
+        return (-1);
+    }
+
+    m_DailyEventCounterOverlay.utcSeconds = utcSeconds;
+    crc = crc32 (crc, (const UINT8 *) &m_DailyEventCounterOverlay,
+                    sizeof(m_DailyEventCounterOverlay) - sizeof(m_DailyEventCounterOverlay.crc));
+    m_DailyEventCounterOverlay.crc = crc;
+
+    fileWriteSuccess = FileWrite (pFile, &m_DailyEventCounterOverlay,
+                    sizeof(m_DailyEventCounterOverlay), TRUE, __FILE__, __LINE__);
+    if (!fileWriteSuccess)
+    {
+        return (-1);
+    }
+
+    return (0);
+}
+
+static void ServiceEventCounter (UINT32 currentTimeSecs)
+{
+    BOOL sameDay = FALSE;
+
+    sameDay = BothTimesToday (currentTimeSecs, m_DailyEventCounterOverlay.utcSeconds);
+
+    if (!sameDay)
+    {
+        memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+        debugPrintf(RTDM_IELF_DBG_INFO, "IELF Event counter resetting because of day transition\n");
+        WriteIelfEventCounterFile (currentTimeSecs);
+        return;
+    }
+
+    /* Whenever there is an event active, update the event counter file.*/
+    if (m_NewEventActive)
+    {
+        m_NewEventActive = FALSE;
+        WriteIelfEventCounterFile (currentTimeSecs);
+    }
+}
+
+static void UpdateRecordIndexes (void)
+{
+    /* Indicates that the event log is completely empty */
+    if (m_FileOverlay.firstRecordIndex == FILE_EMPTY && m_FileOverlay.lastRecordIndex == FILE_EMPTY)
+    {
+        m_FileOverlay.firstRecordIndex = 0;
+        m_FileOverlay.lastRecordIndex = 1;
+    }
+    /* Indicates the FIFO hasn't overflowed yet (i.e. new events are not yet overwriting older events) */
+    else if (m_FileOverlay.firstRecordIndex == 0)
+    {
+        m_FileOverlay.lastRecordIndex++;
+        if (m_FileOverlay.lastRecordIndex > MAX_RECORDS)
+        {
+            m_FileOverlay.firstRecordIndex = 1;
+            m_FileOverlay.lastRecordIndex = 0;
+        }
+    }
+    /* Indicates that the FIFO has overflowed and newer events are overwriting older events */
+    else
+    {
+        m_FileOverlay.firstRecordIndex++;
+        if (m_FileOverlay.lastRecordIndex > MAX_RECORDS)
+        {
+            m_FileOverlay.firstRecordIndex = 1;
+        }
+    }
+
+    debugPrintf(RTDM_IELF_DBG_INFO,
+                    "IELF File Info: First Record Index = %d; Last Record Index = %d\n",
+                    m_FileOverlay.firstRecordIndex, m_FileOverlay.lastRecordIndex);
+
 }
 
