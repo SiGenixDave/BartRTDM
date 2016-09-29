@@ -331,7 +331,7 @@ UINT16 CopyXMLConfigFile (void)
     const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
     FILE *copyFile = NULL;
 
-    if (os_io_fopen (copyFileName, "wb+", &copyFile) == ERROR)
+    if (FileOpen ((char *)copyFileName, "wb+", &copyFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
                         __FILE__, __LINE__);
@@ -458,7 +458,7 @@ static UINT16 OpenXMLConfigurationFile (void)
 
     /* open the existing configuration file for reading TEXT MODE ("rb" needed because if "r" only
      * \n gets discarded ) */
-    if (os_io_fopen (RTDM_XML_FILE, "rb", &filePtr) != ERROR)
+    if (FileOpen (RTDM_XML_FILE, "rb", &filePtr, __FILE__, __LINE__) != ERROR)
     {
         /* Get the number of bytes */
         fseek (filePtr, 0L, SEEK_END);
@@ -472,7 +472,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         returnValue = AllocateMemoryAndClear ((m_ConfigXmlFileSize + 1), (void **)&m_ConfigXmlBufferPtr);
         if (returnValue != OK)
         {
-            os_io_fclose (filePtr);
+            FileClose (filePtr, __FILE__, __LINE__);
             debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                             __LINE__);
             return (BAD_READ_BUFFER);
@@ -482,7 +482,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t) m_ConfigXmlFileSize, filePtr);
 
         /* Close the file, no longer needed */
-        os_io_fclose (filePtr);
+        FileClose (filePtr, __FILE__, __LINE__);
     }
     /* File does not exist or internal error */
     else

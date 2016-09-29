@@ -130,7 +130,6 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
-        /* TODO flag error */
     }
 
     /* Allocate memory to store the log data in the "pong" buffer */
@@ -139,7 +138,6 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
                         __LINE__);
-        /* TODO flag error */
     }
 
     /* Set the pointer initially to the "ping" buffer. This pointer is toggled when

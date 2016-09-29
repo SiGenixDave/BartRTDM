@@ -201,15 +201,16 @@ void IelfInit (UINT8 systemId)
     BOOL fileDataExists = FALSE;
     BOOL fileCrcExists = FALSE;
     UINT32 crc = 0;
-    FILE *dataFile = NULL;
-    FILE *crcFile = NULL;
+    FILE *dataFilePtr = NULL;
+    FILE *crcFilePtr = NULL;
     UINT32 calculatedCRC = 0;
     UINT32 storedCRC = 0;
     char *dataFileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
     char *crcFileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME;
     UINT32 amountRead = 0;
     UINT16 index = 0;
-    INT16 osReturn = OK;
+    BOOL fileSuccess = FALSE;
+    INT16 osReturn = ERROR;
 
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_PostedEvent, 0, sizeof(m_PostedEvent));
@@ -235,59 +236,52 @@ void IelfInit (UINT8 systemId)
         return;
     }
 
-    if (os_io_fopen (dataFileName, "r+b", &dataFile) == ERROR)
+    fileSuccess = FileOpen (dataFileName, "r+b", &dataFilePtr, __FILE__, __LINE__);
+
+    if (fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
-                        dataFileName, __FILE__, __LINE__);
-        return;
+        fileSuccess = FileOpen (crcFileName, "r+b", &crcFilePtr, __FILE__, __LINE__);
     }
 
-    if (os_io_fopen (crcFileName, "r+b", &crcFile) == ERROR)
+    if (fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n",
-                        crcFileName, __FILE__, __LINE__);
-        return;
+        amountRead = fread (&storedCRC, 1, sizeof(storedCRC), crcFilePtr);
+        if (amountRead != sizeof(storedCRC))
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR,
+                            "fread() failed: file name = %s ---> File: %s  Line#: %d\n",
+                            crcFileName, __FILE__, __LINE__);
+
+            osReturn = ERROR;
+        }
     }
 
-    amountRead = fread (&storedCRC, 1, sizeof(storedCRC), crcFile);
-    if (amountRead != sizeof(storedCRC))
+    if (osReturn == OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "fread() failed: file name = %s ---> File: %s  Line#: %d\n", crcFileName,
-                        __FILE__, __LINE__);
-
-        os_io_fclose (crcFile);
-        os_io_fclose (dataFile);
-        return;
+        amountRead = fread (&m_FileOverlay, 1, sizeof(m_FileOverlay), dataFilePtr);
+        if (amountRead != sizeof(m_FileOverlay))
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR,
+                            "fread() failed: file name = %s ---> File: %s  Line#: %d\n",
+                            dataFileName, __FILE__, __LINE__);
+            osReturn = ERROR;
+        }
     }
 
-    amountRead = fread (&m_FileOverlay, 1, sizeof(m_FileOverlay), dataFile);
-    if (amountRead != sizeof(m_FileOverlay))
+    if (osReturn == OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "fread() failed: file name = %s ---> File: %s  Line#: %d\n", dataFileName,
-                        __FILE__, __LINE__);
-        os_io_fclose (crcFile);
-        os_io_fclose (dataFile);
-        return;
+        calculatedCRC = 0;
+        calculatedCRC = crc32 (calculatedCRC, (const UINT8 *) &m_FileOverlay,
+                        sizeof(m_FileOverlay));
+
+        if (calculatedCRC != storedCRC)
+        {
+            CreateNewIELFOverlay (systemId);
+            crc = MemoryOverlayCRCCalc ();
+            (void) WriteIelfDataFile ();
+            (void) WriteIelfCRCFile (crc);
+        }
     }
-
-    calculatedCRC = 0;
-    calculatedCRC = crc32 (calculatedCRC, (const UINT8 *) &m_FileOverlay, sizeof(m_FileOverlay));
-
-    if (calculatedCRC != storedCRC)
-    {
-        CreateNewIELFOverlay (systemId);
-        crc = MemoryOverlayCRCCalc ();
-        (void) WriteIelfDataFile ();
-        (void) WriteIelfCRCFile (crc);
-        return;
-    }
-
-    /* TODO Look for "open" events (no end time) from the previous cycle and add them to the postQueue */
-    /* TODO Set starting event log index by examining firstRecordIndex and lastRecordIndex */
 
     osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
     if (osReturn != OK)
@@ -297,6 +291,12 @@ void IelfInit (UINT8 systemId)
 
     /* Verify daily event counter file */
     InitDailyEventCounter ();
+
+    /* TODO Look for "open" events (no end time) from the previous cycle and add them to the postQueue */
+    /* TODO Set starting event log index by examining firstRecordIndex and lastRecordIndex */
+
+    FileClose (crcFilePtr, __FILE__, __LINE__);
+    FileClose (dataFilePtr, __FILE__, __LINE__);
 
 }
 
@@ -598,18 +598,24 @@ static INT32 WriteIelfDataFile (void)
     const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME;
     FILE *pFile = NULL;
     BOOL fileWriteSuccess = FALSE;
+    INT16 osReturn = ERROR;
 
-    if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
+    osReturn = FileOpen (fileName, "w+b", &pFile, __FILE__, __LINE__);
+
+    if (osReturn == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
                         "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
                         __FILE__, __LINE__);
-        return (-1);
     }
 
-    fileWriteSuccess = FileWrite (pFile, &m_FileOverlay, sizeof(m_FileOverlay), TRUE, __FILE__,
-    __LINE__);
-    if (!fileWriteSuccess)
+    if (osReturn == OK)
+    {
+        fileWriteSuccess = FileWrite (pFile, &m_FileOverlay, sizeof(m_FileOverlay), TRUE, __FILE__,
+        __LINE__);
+    }
+
+    if (osReturn != OK || !fileWriteSuccess)
     {
         return (-1);
     }
@@ -633,7 +639,7 @@ static INT32 WriteIelfCRCFile (UINT32 crc)
     FILE *pFile = NULL;
     BOOL fileWriteSuccess = FALSE;
 
-    if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
+    if (FileOpen (fileName, "w+b", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
                         "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
@@ -694,7 +700,7 @@ static void InitDailyEventCounter (void)
     }
 
     /* File does exist, so attempt to open it */
-    if (os_io_fopen (fileName, "r+b", &pFile) == ERROR)
+    if (FileOpen (fileName, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
@@ -747,7 +753,7 @@ static INT32 WriteIelfEventCounterFile (UINT32 utcSeconds)
     BOOL fileWriteSuccess = FALSE;
     UINT32 crc = 0;
 
-    if (os_io_fopen (fileName, "w+b", &pFile) == ERROR)
+    if (FileOpen (fileName, "w+b", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
                         "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,

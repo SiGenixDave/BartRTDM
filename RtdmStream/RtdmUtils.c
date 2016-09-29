@@ -46,6 +46,8 @@
 /* comment out of floats/doubles are not allowed */
 #define DOUBLES_ALLOWED
 
+#define MAX_OPEN_FILES          5
+
 /*******************************************************************
  *
  *     E  N  U  M  S
@@ -63,6 +65,7 @@
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
+static FILE *filePtrList[MAX_OPEN_FILES];
 
 /*******************************************************************
  *
@@ -448,7 +451,81 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
 
     if (closeFile)
     {
-        os_io_fclose (filePtr);
+        FileClose (filePtr, calledFromFile, lineNumber);
+    }
+
+    return (success);
+}
+
+BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calledFromFile,
+                UINT32 lineNumber)
+{
+    INT16 osReturn = 0;
+    UINT16 index = 0;
+
+    osReturn = os_io_fopen (fileName, openAttributes, filePtr);
+    if (osReturn == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
+                        calledFromFile, lineNumber);
+
+        return (FALSE);
+    }
+
+    /* Add the file pointer to the list, this list is for debug only and only is used to track "dangling"
+     * file pointers */
+    while (index < MAX_OPEN_FILES)
+    {
+        if (filePtrList[index] == NULL)
+        {
+            filePtrList[index] = *filePtr;
+            break;
+        }
+        index++;
+    }
+
+    if (index == MAX_OPEN_FILES)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO,
+                        "Open File Index is full; can't add file pointer to the list");
+    }
+
+    return (TRUE);
+}
+
+BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
+{
+    INT16 osReturn = 0;
+    BOOL success = TRUE;
+    UINT16 index = 0;
+
+    osReturn = os_io_fclose (filePtr);
+
+    if (osReturn == ERROR)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "os_io_fclose() failed: Called from ---> File: %s  Line#: %d\n",
+                        calledFromFile, lineNumber);
+
+        success = FALSE;
+    }
+
+    /* Remove the file pointer from the list, this list is for debug only and only is used to track "dangling"
+     * file pointers */
+    while (index < MAX_OPEN_FILES)
+    {
+        if (filePtrList[index] == filePtr)
+        {
+            filePtrList[index] = NULL;
+            break;
+        }
+        index++;
+    }
+
+    if (index == MAX_OPEN_FILES)
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "Could not find FILE * in the File Index list\n");
     }
 
     return (success);
