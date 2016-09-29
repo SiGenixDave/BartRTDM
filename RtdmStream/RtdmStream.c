@@ -86,15 +86,15 @@ static BOOL m_MemoryAllocationError = FALSE;
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface);
-static UINT16 NetworkAvailable (TYPE_RTDMSTREAM_IF *interface, BOOL *networkAvailable);
-static void ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
+static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface);
+static UINT16 NetworkAvailable (struct dataBlock_RtdmStream *interface, BOOL *networkAvailable);
+static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkAvailable,
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime);
-static UINT32 CreateSingleSampleStream (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime);
+static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface, RTDMTimeStr *currentTime);
 static void PopulateSignalsWithNewSamples (void);
 static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
-static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
+static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface, RtdmXmlStr* rtdmXmlData,
                 UINT8 *streamBuffer, UINT32 streamBufferSize);
 
 /*****************************************************************************/
@@ -190,7 +190,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
  * Description   : Original Release
  *
  *****************************************************************************/
-void RtdmStream (TYPE_RTDMSTREAM_IF *interface)
+void RtdmStream (struct dataBlock_RtdmStream *interface)
 {
     static BOOL firstCall = TRUE; /* used to trigger initialization one time only */
 
@@ -250,7 +250,7 @@ void SetRtdmInitFinished (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
+static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface)
 {
     UINT16 errorCode = 0; /* Determines if network is available */
     UINT16 result = 0;
@@ -292,7 +292,7 @@ static void NormalStreamProcessing (TYPE_RTDMSTREAM_IF *interface)
 }
 
 /* TODO function header... not sure if function needed, so wait before investing time */
-static UINT16 NetworkAvailable (TYPE_RTDMSTREAM_IF *interface, BOOL *networkAvailable)
+static UINT16 NetworkAvailable (struct dataBlock_RtdmStream *interface, BOOL *networkAvailable)
 {
     UINT16 errorCode = NO_ERROR;
 
@@ -336,7 +336,7 @@ static UINT16 NetworkAvailable (TYPE_RTDMSTREAM_IF *interface, BOOL *networkAvai
  * Description   : Original Release
  *
  *****************************************************************************/
-static void ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
+static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkAvailable,
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime)
 {
     INT32 timeDiff = 0; /* time difference (msecs) */
@@ -440,7 +440,7 @@ static void ServiceStream (TYPE_RTDMSTREAM_IF *interface, BOOL networkAvailable,
  * Description   : Original Release
  *
  *****************************************************************************/
-static UINT32 CreateSingleSampleStream (TYPE_RTDMSTREAM_IF *interface, RTDMTimeStr *currentTime)
+static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface, RTDMTimeStr *currentTime)
 {
     UINT32 signalChangeBufferSize = 0;      /* number of bytes of signal data that has changed */
     UINT16 signalCount = 0;     /* number of signals in the current sample */
@@ -719,7 +719,7 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 }
 
 /* TODO need header after function has been tested and verified */
-static UINT16 SendStreamOverNetwork (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr* rtdmXmlData,
+static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface, RtdmXmlStr* rtdmXmlData,
                 UINT8 *streamBuffer, UINT32 streamBufferSize)
 {
     UINT16 ipt_result = 0;

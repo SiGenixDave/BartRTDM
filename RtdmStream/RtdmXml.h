@@ -50,7 +50,7 @@
  *
  *******************************************************************/
 
-UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData);
+UINT16 InitializeXML (struct dataBlock_RtdmStream *interface, RtdmXmlStr **rtdmXmlData);
 char *GetXMLConfigFileBuffer (void);
 UINT16 CopyXMLConfigFile (void);
 

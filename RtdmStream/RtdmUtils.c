@@ -222,7 +222,7 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
  * Description   : Original Release
  *
  *****************************************************************************/
-void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
+void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *rtdmXmlData,
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime)
 {

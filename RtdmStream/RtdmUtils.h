@@ -325,11 +325,12 @@ typedef struct
  *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-typedef struct dataBlock_RtdmStream TYPE_RTDMSTREAM_IF;
+struct dataBlock_RtdmStream;
 
+ 
 UINT16 GetEpochTime (RTDMTimeStr* currentTime);
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
-void PopulateStreamHeader (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr *rtdmXmlData,
+void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *rtdmXmlData,
                 StreamHeaderStr *streamHeader, UINT16 sampleCount, UINT8 *dataBuffer,
                 UINT32 dataSize, RTDMTimeStr *currentTime);
 UINT16 CreateVerifyStorageDirectory (char *pathName);

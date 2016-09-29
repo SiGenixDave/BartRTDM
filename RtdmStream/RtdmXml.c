@@ -240,7 +240,7 @@ static UINT16 ReadProcessXmlFile (void);
 static UINT16 OpenXMLConfigurationFile (void);
 static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr);
 static UINT16 ProcessXMLSignals (UINT16 *numberofSignals);
-static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface);
+static void PopulateVariableAddressesInMap (struct dataBlock_RtdmStream *interface);
 
 /*****************************************************************************/
 /**
@@ -262,7 +262,7 @@ static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface);
  * Description   : Original Release
  *
  *****************************************************************************/
-UINT16 InitializeXML (TYPE_RTDMSTREAM_IF *interface, RtdmXmlStr **rtdmXmlData)
+UINT16 InitializeXML (struct dataBlock_RtdmStream *interface, RtdmXmlStr **rtdmXmlData)
 {
     UINT16 errorCode = NO_ERROR; /* error code from XML processing; return value */
 
@@ -835,7 +835,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
  * Description   : Original Release
  *
  *****************************************************************************/
-static void PopulateVariableAddressesInMap (TYPE_RTDMSTREAM_IF *interface)
+static void PopulateVariableAddressesInMap (struct dataBlock_RtdmStream *interface)
 {
     m_VariableMap[0].variableAddr = &interface->oPCU_I1.Analog801.CTractEffortReq;
     m_VariableMap[1].variableAddr = &interface->oPCU_I1.Analog801.ICarSpeed;

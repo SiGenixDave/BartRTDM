@@ -50,6 +50,6 @@
  *
  *******************************************************************/
 
-void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface);
+void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface);
 
 #endif /* RTDMINITIALIZE_H_ */

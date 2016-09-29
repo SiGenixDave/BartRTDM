@@ -83,7 +83,7 @@
  * Description   : Original Release
  *
  *****************************************************************************/
-void RtdmInitializeAllFunctions (TYPE_RTDMSTREAM_IF *interface)
+void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
 {
 
     RtdmXmlStr *rtdmXmlData = NULL;

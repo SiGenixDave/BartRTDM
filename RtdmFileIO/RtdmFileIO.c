@@ -191,7 +191,7 @@ typedef struct
 /** @brief Used to create file name of temporary stream file */
 static UINT16 m_StreamFileIndex = 0;
 /** @brief Holds a pointer to the MTPE stream interface structure */
-static TYPE_RTDMSTREAM_IF *m_StreamInterface = NULL;
+static struct dataBlock_RtdmStream *m_StreamInterface = NULL;
 /** @brief Holds a pointer to the data from the XML configuration file */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 /** @brief Holds a sorted list of #.stream files so that they are appended in the correct order. */
@@ -1471,7 +1471,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
         return (FALSE);
     }
 
-    if (FileOpen (filename, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *)filename, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
@@ -1641,7 +1641,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     BOOL success = FALSE;
 
     /* Open the file to be truncated for reading */
-    if (FileOpen (fileName, "rb", &pReadFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *)fileName, "rb", &pReadFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
@@ -1649,7 +1649,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     }
 
     /* Open the temporary file where the first "desiredFileSize" bytes will be written */
-    if (FileOpen (tempFileName, "wb+", &pWriteFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *)tempFileName, "wb+", &pWriteFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
@@ -1765,7 +1765,7 @@ static BOOL CreateCarConDevFile (void)
     FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
 
     /* Create the data file  */
-    if (FileOpen (ccdFileName, "wb+", &pFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *)ccdFileName, "wb+", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
