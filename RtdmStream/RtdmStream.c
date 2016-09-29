@@ -90,12 +90,13 @@ static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface);
 static UINT16 NetworkAvailable (struct dataBlock_RtdmStream *interface, BOOL *networkAvailable);
 static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkAvailable,
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime);
-static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface, RTDMTimeStr *currentTime);
+static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
+                RTDMTimeStr *currentTime);
 static void PopulateSignalsWithNewSamples (void);
 static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
-static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface, RtdmXmlStr* rtdmXmlData,
-                UINT8 *streamBuffer, UINT32 streamBufferSize);
+static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface,
+                RtdmXmlStr* rtdmXmlData, UINT8 *streamBuffer, UINT32 streamBufferSize);
 
 /*****************************************************************************/
 /**
@@ -133,8 +134,8 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_StreamData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
@@ -147,8 +148,8 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_NewSignalData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
@@ -156,8 +157,8 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_OldSignalData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
@@ -165,8 +166,8 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
                     (void **) &m_ChangedSignalData);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         m_MemoryAllocationError = TRUE;
     }
 
@@ -280,7 +281,8 @@ static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface)
     ServiceStream (interface, networkAvailable, bufferChangeAmount, &currentTime);
 
     /* Populate the data log buffer with the latest sample */
-    ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &m_SampleHeader, &currentTime);
+    ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &m_SampleHeader,
+                    &currentTime);
 
     /* TODO Fault Logging */
     result = Check_Fault (errorCode, &currentTime);
@@ -440,10 +442,11 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
  * Description   : Original Release
  *
  *****************************************************************************/
-static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface, RTDMTimeStr *currentTime)
+static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
+                RTDMTimeStr *currentTime)
 {
-    UINT32 signalChangeBufferSize = 0;      /* number of bytes of signal data that has changed */
-    UINT16 signalCount = 0;     /* number of signals in the current sample */
+    UINT32 signalChangeBufferSize = 0; /* number of bytes of signal data that has changed */
+    UINT16 signalCount = 0; /* number of signals in the current sample */
 
     if (m_RtdmXmlData->dataRecorderCfg.compressionEnabled)
     {
@@ -719,8 +722,8 @@ static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime)
 }
 
 /* TODO need header after function has been tested and verified */
-static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface, RtdmXmlStr* rtdmXmlData,
-                UINT8 *streamBuffer, UINT32 streamBufferSize)
+static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface,
+                RtdmXmlStr* rtdmXmlData, UINT8 *streamBuffer, UINT32 streamBufferSize)
 {
     UINT16 ipt_result = 0;
     UINT16 errorCode = 0;

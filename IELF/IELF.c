@@ -600,7 +600,7 @@ static INT32 WriteIelfDataFile (void)
     BOOL fileWriteSuccess = FALSE;
     INT16 osReturn = ERROR;
 
-    osReturn = FileOpen (fileName, "w+b", &pFile, __FILE__, __LINE__);
+    osReturn = FileOpen ((char *)fileName, "w+b", &pFile, __FILE__, __LINE__);
 
     if (osReturn == ERROR)
     {

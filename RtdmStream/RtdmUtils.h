@@ -143,7 +143,6 @@ typedef enum
     INT32_XML_TYPE
 } XmlSignalType;
 
-
 /*******************************************************************
  *
  *    S  T  R  U  C  T  S
@@ -202,7 +201,6 @@ typedef struct
     char Delimiter[4];
     StreamHeaderContent content;
 } StreamHeaderStr;
-
 
 /** @brief */
 typedef struct RTDMTimeStr
@@ -313,7 +311,6 @@ typedef struct
 
 } RtdmXmlStr;
 
-
 /*******************************************************************
  *
  *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
@@ -327,7 +324,6 @@ typedef struct
  *******************************************************************/
 struct dataBlock_RtdmStream;
 
- 
 UINT16 GetEpochTime (RTDMTimeStr* currentTime);
 INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
 void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *rtdmXmlData,

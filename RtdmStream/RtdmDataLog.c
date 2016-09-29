@@ -128,16 +128,16 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPingPtr);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
     }
 
     /* Allocate memory to store the log data in the "pong" buffer */
     returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPongPtr);
     if (returnValue != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
     }
 
     /* Set the pointer initially to the "ping" buffer. This pointer is toggled when
@@ -198,7 +198,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
         tempCount = dataSample->count;
 
         /* Count needs to be modified in case compression was enabled */
-        dataSample->count = htons(m_RtdmXmlData->metaData.signalCount);
+        dataSample->count = htons (m_RtdmXmlData->metaData.signalCount);
 
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], dataSample, sizeof(DataSampleStr));
@@ -209,13 +209,15 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
         m_RTDMDataLogIndex += sizeof(DataSampleStr);
 
         /* Copy the changed data into main buffer */
-        memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], newSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
+        memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], newSignalData,
+                        m_RtdmXmlData->metaData.maxStreamDataSize);
 
         m_RTDMDataLogIndex += m_RtdmXmlData->metaData.maxStreamDataSize;
 
         m_SampleCount++;
 
-        debugPrintf(RTDM_IELF_DBG_LOG, "m_NewStreamStarted - Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(RTDM_IELF_DBG_LOG, "m_NewStreamStarted - Data Log Sample Populated %d\n",
+                        m_SampleCount);
 
     }
     else if (dataAmount != 0)

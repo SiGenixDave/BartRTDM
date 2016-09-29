@@ -21,22 +21,18 @@
  *  Initial version
  *****************************************************************************/
 
-
-
 #ifndef CRC32_H
 #define CRC32_H
 
 #ifdef __cplusplus   /* to be compatible with C++ */
-extern "C" {
+extern "C"
+{
 #endif
 
-
-UINT32 crc32(UINT32 crc, const UINT8 *buf, INT32 len);
-
+UINT32 crc32 (UINT32 crc, const UINT8 *buf, INT32 len);
 
 #ifdef __cplusplus   /* to be compatible with C++ */
 }
 #endif
-
 
 #endif  /* CRC32_H */

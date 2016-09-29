@@ -128,11 +128,11 @@ static INT32 m_ConfigXmlFileSize = 0;
 static const DataTypeMapStr dataTypeMap[] =
     {
         { "UINT8", UINT8_XML_TYPE },
-        { "INT8", INT8_XML_TYPE },
-        { "UINT16", UINT16_XML_TYPE },
-        { "INT16", INT16_XML_TYPE },
-        { "UINT32", UINT32_XML_TYPE },
-        { "INT32", INT32_XML_TYPE }, };
+          { "INT8", INT8_XML_TYPE },
+          { "UINT16", UINT16_XML_TYPE },
+          { "INT16", INT16_XML_TYPE },
+          { "UINT32", UINT32_XML_TYPE },
+          { "INT32", INT32_XML_TYPE }, };
 
 /** @brief Stores all of the XML configuration data */
 static RtdmXmlStr m_RtdmXmlData;
@@ -143,78 +143,81 @@ static RtdmXmlStr m_RtdmXmlData;
 static VariableMapStr m_VariableMap[] =
     {
         { "oPCU_I1.PCU_I1.Analog801.CTractEffortReq", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.IDiffCurr", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.ILineVoltage", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.IRate", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.IRateRequest", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli", NULL },
-        { "oPCU_I1.PCU_I1.Counter801.IOdometer", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.CHscbCmd", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.CScContCmd", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IPKOStatus", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IPropCutout", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IPropSystMode", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", NULL },
-        { "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },
-        { "oPCU_I1.PCU_I1.Analog801.ILineCurr", NULL } };
+          { "oPCU_I1.PCU_I1.Analog801.ICarSpeed", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.IDcLinkCurr", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.IDcLinkVoltage", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.IDiffCurr", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.ILineVoltage", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.IRate", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.IRateRequest", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.ITractEffortDeli", NULL },
+          { "oPCU_I1.PCU_I1.Counter801.IOdometer", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.CHscbCmd", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.CRunRelayCmd", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.CScContCmd", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IDynBrkCutOut", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IMCSSModeSel", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IPKOStatus", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IPKOStatusPKOnet", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IPropCutout", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IPropSystMode", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", NULL },
+          { "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },
+          { "oPCU_I1.PCU_I1.Analog801.ILineCurr", NULL } };
 
 /** @brief Maps all XML configuration parameter names to the data type, memory location,
  * and error code */
 static const XmlAttributeDataStr m_DataRecorderCfgAttributes[] =
     {
         { "id", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.id, NO_CONFIG_ID },
-        { "version", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.version,
-        NO_VERSION },
-        { "deviceId", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.deviceId, NO_NEED_DEFINE },
-        { "name", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.name,
-        NO_NEED_DEFINE },
-        { "description", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.description,
-        NO_NEED_DEFINE },
-        { "type", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.type,
-        NO_NEED_DEFINE },
-        { "samplingRate", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.samplingRate,
-        NO_SAMPLING_RATE },
-        { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataRecorderCfg.compressionEnabled,
-        NO_COMPRESSION_ENABLED },
-        { "minRecordingRate", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.minRecordingRate,
-        NO_MIN_RECORD_RATE },
-        { "noChangeFailurePeriod", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.noChangeFailurePeriod,
-        NO_NO_CHANGE_FAILURE_PERIOD } };
+          { "version", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.version,
+          NO_VERSION },
+          { "deviceId", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.deviceId, NO_NEED_DEFINE },
+          { "name", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.name,
+          NO_NEED_DEFINE },
+          { "description", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.description,
+          NO_NEED_DEFINE },
+          { "type", STRING_DTYPE, &m_RtdmXmlData.dataRecorderCfg.type,
+          NO_NEED_DEFINE },
+          { "samplingRate", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.samplingRate,
+          NO_SAMPLING_RATE },
+          { "compressionEnabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataRecorderCfg.compressionEnabled,
+          NO_COMPRESSION_ENABLED },
+          { "minRecordingRate", U32_DTYPE, &m_RtdmXmlData.dataRecorderCfg.minRecordingRate,
+          NO_MIN_RECORD_RATE },
+          { "noChangeFailurePeriod", U32_DTYPE,
+            &m_RtdmXmlData.dataRecorderCfg.noChangeFailurePeriod,
+            NO_NO_CHANGE_FAILURE_PERIOD } };
 
 /** @brief */
 static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
     {
         { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataLogFileCfg.enabled, NO_DATALOG_CFG_ENABLED },
-        { "filesCount", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesCount,
-        NO_FILES_COUNT },
-        { "numberSamplesInFile", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.numberSamplesInFile, NO_NUM_SAMPLES_IN_FILE },
-        { "filesFullPolicy", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesFullPolicy,
-        NO_FILE_FULL_POLICY },
-        { "numberSamplesBeforeSave", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.numberSamplesBeforeSave,
-        NO_NUM_SAMPLES_BEFORE_SAVE },
-        { "maxTimeBeforeSaveMs", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.maxTimeBeforeSaveMs,
-        NO_MAX_TIME_BEFORE_SAVE },
-        { "folderPath", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.folderPath,
-        NO_NEED_DEFINE }, };
+          { "filesCount", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesCount,
+          NO_FILES_COUNT },
+          { "numberSamplesInFile", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.numberSamplesInFile,
+            NO_NUM_SAMPLES_IN_FILE },
+          { "filesFullPolicy", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesFullPolicy,
+          NO_FILE_FULL_POLICY },
+          { "numberSamplesBeforeSave", U32_DTYPE,
+            &m_RtdmXmlData.dataLogFileCfg.numberSamplesBeforeSave,
+            NO_NUM_SAMPLES_BEFORE_SAVE },
+          { "maxTimeBeforeSaveMs", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.maxTimeBeforeSaveMs,
+          NO_MAX_TIME_BEFORE_SAVE },
+          { "folderPath", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.folderPath,
+          NO_NEED_DEFINE }, };
 
 /** @brief */
 static const XmlAttributeDataStr m_OutputStreamCfgAttributes[] =
     {
         { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.outputStreamCfg.enabled, NO_DATALOG_CFG_ENABLED },
-        { "comId", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.comId,
-        NO_COMID },
-        { "bufferSize", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.bufferSize, NO_BUFFERSIZE },
-        { "maxTimeBeforeSendMs", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs,
-        NO_MAX_TIME_BEFORE_SEND }, };
+          { "comId", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.comId,
+          NO_COMID },
+          { "bufferSize", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.bufferSize, NO_BUFFERSIZE },
+          { "maxTimeBeforeSendMs", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs,
+          NO_MAX_TIME_BEFORE_SEND }, };
 
 /** @brief */
 static XmlElementDataStr m_DataRecorderCfg =
@@ -331,10 +334,10 @@ UINT16 CopyXMLConfigFile (void)
     const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
     FILE *copyFile = NULL;
 
-    if (FileOpen ((char *)copyFileName, "wb+", &copyFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *) copyFileName, "wb+", &copyFile, __FILE__, __LINE__) == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n", copyFileName,
-                        __FILE__, __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n",
+                        copyFileName, __FILE__, __LINE__);
         /* TODO Error type */
         return (1);
     }
@@ -469,12 +472,13 @@ static UINT16 OpenXMLConfigurationFile (void)
 
         /* grab sufficient memory for the buffer to hold the text - clear all bytes. Add
          * an additional byte to ensure a NULL character (end of string) is encountered */
-        returnValue = AllocateMemoryAndClear ((m_ConfigXmlFileSize + 1), (void **)&m_ConfigXmlBufferPtr);
+        returnValue = AllocateMemoryAndClear ((m_ConfigXmlFileSize + 1),
+                        (void **) &m_ConfigXmlBufferPtr);
         if (returnValue != OK)
         {
             FileClose (filePtr, __FILE__, __LINE__);
-            debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                            __LINE__);
+            debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                            __FILE__, __LINE__);
             return (BAD_READ_BUFFER);
         }
 
@@ -580,12 +584,12 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
                     {
                         charCount++;
                     }
-                    AllocateMemoryAndClear ((charCount + 1), (void **)&stringPtr);
+                    AllocateMemoryAndClear ((charCount + 1), (void **) &stringPtr);
 
                     /* NOTE Assume a 32 bit native address architecture, xmlData now contains the
                      * address of the dynamically allocated memory */
-                    *(UINT32 *)xmlElementPtr->xmlAttibuteData[index].xmlData = (UINT32)(stringPtr);
-                    strncpy ((char *)(*(UINT32 *)xmlElementPtr->xmlAttibuteData[index].xmlData),
+                    *(UINT32 *) xmlElementPtr->xmlAttibuteData[index].xmlData = (UINT32) (stringPtr);
+                    strncpy ((char *) (*(UINT32 *) xmlElementPtr->xmlAttibuteData[index].xmlData),
                                     pStringLocation2, charCount);
                     break;
 
@@ -664,12 +668,13 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     requiredMemorySize = sizeof(SignalDescriptionStr) * signalCount;
 
     /* allocate memory */
-    returnValue = AllocateMemoryAndClear (requiredMemorySize, (void **)&m_RtdmXmlData.signalDesription);
+    returnValue = AllocateMemoryAndClear (requiredMemorySize,
+                    (void **) &m_RtdmXmlData.signalDesription);
 
     if (returnValue == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
         /* TODO flag error */
     }
 
@@ -700,7 +705,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
         sscanf (pStringLocation1, "%u", &signalId);
         m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId;
 
-        PrintIntegerContents(RTDM_IELF_DBG_LOG,signalId);
+        PrintIntegerContents(RTDM_IELF_DBG_LOG, signalId);
 
         pStringLocation1 = pStringLocationSignal;
 

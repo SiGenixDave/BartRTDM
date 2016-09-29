@@ -41,8 +41,7 @@ static IELFCallbackMap ielfCallbackMap[] =
 static IELFCallbackMap ielfCallbackMap[] =
     {
         { 1, Sim1EventOver },
-          { 2, Sim2EventOver },
-    };
+          { 2, Sim2EventOver }, };
 #endif
 
 EventOverCallback GetIELFCallback (UINT16 eventCode)

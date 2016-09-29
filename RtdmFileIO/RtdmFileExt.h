@@ -60,7 +60,7 @@
  *******************************************************************/
 
 void InitializeFileIO (RtdmXmlStr *rtdmXmlData);
-UINT32 RtdmSystemInitialize(struct dataBlock_RtdmStream *interface);
+UINT32 RtdmSystemInitialize (struct dataBlock_RtdmStream *interface);
 UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime);
 

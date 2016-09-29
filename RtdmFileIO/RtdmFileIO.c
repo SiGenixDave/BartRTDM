@@ -1471,7 +1471,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
         return (FALSE);
     }
 
-    if (FileOpen ((char *)filename, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *) filename, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
@@ -1641,7 +1641,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     BOOL success = FALSE;
 
     /* Open the file to be truncated for reading */
-    if (FileOpen ((char *)fileName, "rb", &pReadFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *) fileName, "rb", &pReadFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
@@ -1649,7 +1649,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     }
 
     /* Open the temporary file where the first "desiredFileSize" bytes will be written */
-    if (FileOpen ((char *)tempFileName, "wb+", &pWriteFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *) tempFileName, "wb+", &pWriteFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
@@ -1710,7 +1710,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
              */
             remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
             success = FileWrite (pWriteFile, buffer, remainingBytesToWrite, FALSE, __FILE__,
-                            __LINE__);
+            __LINE__);
             if (!success)
             {
                 FileClose (pWriteFile, __FILE__, __LINE__);
@@ -1765,7 +1765,7 @@ static BOOL CreateCarConDevFile (void)
     FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
 
     /* Create the data file  */
-    if (FileOpen ((char *)ccdFileName, "wb+", &pFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpen ((char *) ccdFileName, "wb+", &pFile, __FILE__, __LINE__) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);

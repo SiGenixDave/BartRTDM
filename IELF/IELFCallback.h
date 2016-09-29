@@ -20,7 +20,6 @@
 #ifndef IELFCALLBACK_H
 #define IELFCALLBACK_H
 
-
 EventOverCallback GetIELFCallback (UINT16 eventCode);
 
 #endif /* IELFCALLBACK_H */
