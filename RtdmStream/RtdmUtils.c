@@ -13,7 +13,7 @@
  * \file RtdmUtils.c
  *//*
  *
- * Revision: 01SEP2016 - D.Smail : Original Release
+ * Revision: 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -88,7 +88,7 @@ static FILE *filePtrList[MAX_OPEN_FILES];
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -145,7 +145,7 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -218,7 +218,7 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -335,7 +335,7 @@ void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *r
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -380,7 +380,7 @@ UINT16 CreateVerifyStorageDirectory (char *pathName)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -414,7 +414,7 @@ BOOL FileExists (const char *fileName)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -451,7 +451,7 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
 
     if (closeFile)
     {
-        FileClose (filePtr, calledFromFile, lineNumber);
+        FileCloseMacro(filePtr);
     }
 
     return (success);

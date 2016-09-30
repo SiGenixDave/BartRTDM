@@ -13,7 +13,7 @@
  * \file RtdmFileIO.c
  *//*
  *
- * Revision: 01SEP2016 - D.Smail : Original Release
+ * Revision: 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -252,7 +252,7 @@ static char *CreateTFFS0FileName (UINT16 fileIndex);
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -299,7 +299,7 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -345,7 +345,7 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -377,7 +377,7 @@ UINT32 RtdmSystemInitialize (TYPE_RTDMSTREAM_IF *interface)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -418,7 +418,7 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -450,7 +450,7 @@ static void InitiateRtdmFileIOEventTask (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -567,7 +567,7 @@ static void WriteStreamFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -656,7 +656,7 @@ static void BuildSendRtdmFile (void)
     IncludeStreamFiles (ftpFilePtr);
 
     /* Close file pointer */
-    FileClose (ftpFilePtr, __FILE__, __LINE__);
+    FileCloseMacro(ftpFilePtr);
 
     /* Send newly create file to FTP server */
 #ifndef TEST_ON_PC
@@ -697,7 +697,7 @@ static void BuildSendRtdmFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -754,7 +754,7 @@ static void InitFileIndex (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -804,7 +804,7 @@ static void InitFtpTrackerFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -847,7 +847,7 @@ static void PopulateValidFileTimeStamps (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -898,7 +898,7 @@ static void SortValidFileTimeStamps (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -934,7 +934,7 @@ static UINT16 GetNewestStreamFileIndex (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -957,7 +957,7 @@ static UINT16 GetOldestStreamFileIndex (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -968,6 +968,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     OS_STR_TIME_ANSI ansiTime; /* Stores the ANSI time (structure) */
 #endif
 
+    BOOL fileSuccess = FALSE;
     char consistId[17]; /* Stores the consist id */
     char carId[17]; /* Stores the car id */
     char deviceId[17]; /* Stores the device id */
@@ -1033,10 +1034,9 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     strcat (s_FileName, extension);
 
     /* Try opening the file for writing and leave open */
-    if (FileOpen (s_FileName, "wb+", ftpFilePtr, __FILE__, __LINE__) == ERROR)
+    fileSuccess = FileOpenMacro(s_FileName, "wb+", ftpFilePtr);
+    if (!fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
-                        __FILE__, __LINE__);
         *ftpFilePtr = NULL;
     }
 
@@ -1057,7 +1057,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1071,7 +1071,7 @@ static void IncludeXMLFile (FILE *ftpFilePtr)
     fseek (ftpFilePtr, 0L, SEEK_END);
 
     /* Write the XML configuration file to the FTP file */
-    (void) FileWrite (ftpFilePtr, xmlConfigFile, strlen (xmlConfigFile), FALSE, __FILE__, __LINE__);
+    (void) FileWriteMacro(ftpFilePtr, xmlConfigFile, strlen (xmlConfigFile), FALSE);
 
 }
 
@@ -1089,7 +1089,7 @@ static void IncludeXMLFile (FILE *ftpFilePtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1152,7 +1152,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
     rtdmHeader.preamble.headerChecksum = htonl (rtdmHeaderCrc);
 
     /* Update the FTP file with the RTDM header */
-    FileWrite (ftpFilePtr, &rtdmHeader, sizeof(rtdmHeader), FALSE, __FILE__, __LINE__);
+    FileWriteMacro(ftpFilePtr, &rtdmHeader, sizeof(rtdmHeader), FALSE);
 
 }
 
@@ -1170,7 +1170,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1182,17 +1182,16 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     size_t amountRead = 0;
     StreamHeaderContent streamHeaderContent;
     char *fileName = NULL;
+    BOOL fileSuccess = FALSE;
 
     /* Reset the stream header. If no valid streams are found, then the time stamp structure will
      * have "0" in it. */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
     fileName = CreateFileName (fileIndex);
-    if (FileOpen (fileName, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
+    fileSuccess = FileOpenMacro(fileName, "r+b", &pFile);
+    if (!fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n", fileName,
-                        __FILE__, __LINE__);
         return;
     }
 
@@ -1239,7 +1238,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     timeStamp->seconds = ntohl (streamHeaderContent.postamble.timeStampUtcSecs);
     timeStamp->msecs = ntohs (streamHeaderContent.postamble.timeStampUtcMsecs);
 
-    FileClose (pFile, __FILE__, __LINE__);
+    (void) FileCloseMacro(pFile);
 
 }
 
@@ -1256,7 +1255,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1269,6 +1268,7 @@ static UINT16 CountStreams (void)
     UINT32 amountRead = 0; /* amount of data read from stream file */
     UINT16 sIndex = 0; /* indexes into stream delimiter */
     char *fileName = NULL;
+    BOOL fileSuccess = FALSE;
 
     /* Scan through all valid .stream files and tally the number of occurrences of "STRM" */
     while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
@@ -1276,15 +1276,9 @@ static UINT16 CountStreams (void)
     {
         fileName = CreateFileName (m_ValidStreamFileListIndexes[fileIndex]);
         /* Open the stream file for reading */
-        if (FileOpen (fileName, "r+b", &streamFilePtr, __FILE__, __LINE__) == ERROR)
+        fileSuccess = FileOpenMacro(fileName, "r+b", &streamFilePtr);
+        if (fileSuccess)
         {
-            debugPrintf(RTDM_IELF_DBG_ERROR,
-                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                            fileName, __FILE__, __LINE__);
-        }
-        else
-        {
-
             while (1)
             {
                 /* Search for delimiter */
@@ -1320,7 +1314,7 @@ static UINT16 CountStreams (void)
             sIndex = 0;
 
             /* close stream file */
-            FileClose (streamFilePtr, __FILE__, __LINE__);
+            (void) FileCloseMacro(streamFilePtr);
         }
 
         fileIndex++;
@@ -1344,7 +1338,7 @@ static UINT16 CountStreams (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1355,7 +1349,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Stores the data read from the stream file */
     UINT32 amount = 0; /* bytes or blocks read or written */
     char *fileName = NULL;
-    BOOL fileWriteSuccess = FALSE;
+    BOOL fileSuccess = FALSE;
 
     /* Scan through all valid stream files. This list is ordered oldest to newest. */
     while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
@@ -1363,13 +1357,8 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     {
         fileName = CreateFileName (m_ValidStreamFileListIndexes[fileIndex]);
         /* Open the stream file for reading */
-        if (FileOpen (fileName, "r+b", &streamFilePtr, __FILE__, __LINE__) == ERROR)
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR,
-                            "os_io_fopen() failed to open file %s ---> File: %s  Line#: %d\n",
-                            fileName, __FILE__, __LINE__);
-        }
-        else
+        fileSuccess = FileOpenMacro(fileName, "r+b", &streamFilePtr);
+        if (fileSuccess)
         {
             /* All's well, read from stream file and write to FTP file */
             while (1)
@@ -1380,12 +1369,12 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
                 /* End of file reached */
                 if (amount == 0)
                 {
-                    FileClose (streamFilePtr, __FILE__, __LINE__);
+                    FileCloseMacro(streamFilePtr);
                     break;
                 }
 
                 /* Keep writing the stream file to the FTP file */
-                (void) FileWrite (ftpFilePtr, &buffer[0], amount, FALSE, __FILE__, __LINE__);
+                (void) FileWriteMacro(ftpFilePtr, &buffer[0], amount, FALSE);
             }
         }
 
@@ -1407,7 +1396,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1445,7 +1434,7 @@ static char *CreateFileName (UINT16 fileIndex)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1461,6 +1450,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     StreamHeaderStr streamHeader; /* Overlaid on bytes read from the file */
     BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
     UINT16 sampleSize = 0;
+    BOOL fileSuccess = FALSE;
 
     /* Check if the file exists */
     if (!FileExists (filename))
@@ -1471,11 +1461,10 @@ static BOOL VerifyFileIntegrity (const char *filename)
         return (FALSE);
     }
 
-    if (FileOpen ((char *) filename, "r+b", &pFile, __FILE__, __LINE__) == ERROR)
+    fileSuccess = FileOpenMacro((char * ) filename, "r+b", &pFile);
+
+    if (!fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO,
-                        "VerifyFileIntegrity() os_io_fopen() failed... File: %s  Line#: %d\n",
-                        __FILE__, __LINE__);
         return (FALSE);
     }
 
@@ -1521,7 +1510,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     if (lastStrmIndex == -1)
     {
         debugPrintf(RTDM_IELF_DBG_WARNING, "%s", "No STRMs found in file\n");
-        FileClose (pFile, __FILE__, __LINE__);
+        FileCloseMacro(pFile);
         return (FALSE);
     }
 
@@ -1539,7 +1528,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
     {
         debugPrintf(RTDM_IELF_DBG_WARNING, "%s",
                         "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
-        FileClose (pFile, __FILE__, __LINE__);
+        (void) FileCloseMacro(pFile);
 
         /* If lastStrmIndex = 0, that indicates the first and only stream in the file is corrupted and therefore the
          * entire file should be deleted. */
@@ -1555,7 +1544,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
 
     }
 
-    FileClose (pFile, __FILE__, __LINE__);
+    (void) FileCloseMacro(pFile);
     return (TRUE);
 }
 
@@ -1571,7 +1560,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1624,7 +1613,7 @@ static void CleanupDirectory (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1638,43 +1627,37 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     UINT32 remainingBytesToWrite = 0;
     INT32 osCallReturn = 0;
     const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream";
-    BOOL success = FALSE;
+    BOOL fileSuccess = FALSE;
 
     /* Open the file to be truncated for reading */
-    if (FileOpen ((char *) fileName, "rb", &pReadFile, __FILE__, __LINE__) == ERROR)
+    fileSuccess = FileOpenMacro((char * ) fileName, "rb", &pReadFile);
+
+    if (fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
-                        __FILE__, __LINE__);
-        return (FALSE);
+        fileSuccess = FileOpenMacro((char * ) tempFileName, "wb+", &pWriteFile);
     }
 
-    /* Open the temporary file where the first "desiredFileSize" bytes will be written */
-    if (FileOpen ((char *) tempFileName, "wb+", &pWriteFile, __FILE__, __LINE__) == ERROR)
+    if (fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
-                        __FILE__, __LINE__);
-        FileClose (pReadFile, __FILE__, __LINE__);
-        return (FALSE);
-    }
-
-    /* Ensure the respective file pointers are set to the begining of the file */
-    osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
-    if (osCallReturn != 0)
-    {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
-        FileClose (pWriteFile, __FILE__, __LINE__);
-        FileClose (pReadFile, __FILE__, __LINE__);
-        return (FALSE);
-    }
-    osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
-    if (osCallReturn != 0)
-    {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
-                        __LINE__);
-        FileClose (pWriteFile, __FILE__, __LINE__);
-        FileClose (pReadFile, __FILE__, __LINE__);
-        return (FALSE);
+        /* Ensure the respective file pointers are set to the beginning of the file */
+        osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
+        if (osCallReturn != 0)
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
+                            __LINE__);
+            (void) FileCloseMacro(pWriteFile);
+            (void) FileCloseMacro(pReadFile);
+            return (FALSE);
+        }
+        osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
+        if (osCallReturn != 0)
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
+                            __LINE__);
+            (void) FileCloseMacro(pWriteFile);
+            (void) FileCloseMacro(pReadFile);
+            return (FALSE);
+        }
     }
 
     while (1)
@@ -1687,19 +1670,19 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
          * is reached.  */
         if (amountRead == 0)
         {
-            FileClose (pWriteFile, __FILE__, __LINE__);
-            FileClose (pReadFile, __FILE__, __LINE__);
+            FileCloseMacro(pWriteFile);
+            FileCloseMacro(pReadFile);
             return (FALSE);
         }
 
         /* Check if the amount of bytes read is less than the desired file size */
         if (byteCount < desiredFileSize)
         {
-            success = FileWrite (pWriteFile, buffer, sizeof(buffer), FALSE, __FILE__, __LINE__);
-            if (!success)
+            fileSuccess = FileWriteMacro(pWriteFile, buffer, sizeof(buffer), FALSE);
+            if (!fileSuccess)
             {
-                FileClose (pWriteFile, __FILE__, __LINE__);
-                FileClose (pReadFile, __FILE__, __LINE__);
+                (void) FileCloseMacro(pWriteFile);
+                (void) FileCloseMacro(pReadFile);
                 return (FALSE);
             }
         }
@@ -1709,17 +1692,16 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
              * bytes than the desired amount to write.
              */
             remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
-            success = FileWrite (pWriteFile, buffer, remainingBytesToWrite, FALSE, __FILE__,
-            __LINE__);
-            if (!success)
+            fileSuccess = FileWriteMacro(pWriteFile, buffer, remainingBytesToWrite, FALSE);
+            if (!fileSuccess)
             {
-                FileClose (pWriteFile, __FILE__, __LINE__);
-                FileClose (pReadFile, __FILE__, __LINE__);
+                (void) FileCloseMacro(pWriteFile);
+                (void) FileCloseMacro(pReadFile);
                 return (FALSE);
             }
 
-            FileClose (pWriteFile, __FILE__, __LINE__);
-            FileClose (pReadFile, __FILE__, __LINE__);
+            (void) FileCloseMacro(pWriteFile);
+            (void) FileCloseMacro(pReadFile);
 
             /* Delete the file that was being truncated */
             osCallReturn = remove (fileName);
@@ -1755,7 +1737,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1763,26 +1745,23 @@ static BOOL CreateCarConDevFile (void)
 {
     const char *ccdFileName = DRIVE_NAME DIRECTORY_NAME "CarConDev.dat"; /* Fully qualified file name */
     FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
+    BOOL fileSuccess = FALSE;
 
     /* Create the data file  */
-    if (FileOpen ((char *) ccdFileName, "wb+", &pFile, __FILE__, __LINE__) == ERROR)
+    fileSuccess = FileOpenMacro((char * ) ccdFileName, "wb+", &pFile);
+    if (fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "os_io_fopen() failed ---> File: %s  Line#: %d\n",
-                        __FILE__, __LINE__);
-        FileClose (pFile, __FILE__, __LINE__);
-        return (FALSE);
+        /* TODO check that these have been updated by the output task responsible  */
+        fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.id);
+        fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
+        fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
+        fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
+        fprintf (pFile, "%s\n", m_RtdmXmlData->dataRecorderCfg.deviceId);
+
+        fileSuccess = FileCloseMacro(pFile);
     }
 
-    /* TODO check that these have been updated by the output task responsible  */
-    fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.id);
-    fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
-    fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
-    fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
-    fprintf (pFile, "%s\n", m_RtdmXmlData->dataRecorderCfg.deviceId);
-
-    FileClose (pFile, __FILE__, __LINE__);
-
-    return (TRUE);
+    return (fileSuccess);
 
 }
 
@@ -1793,7 +1772,7 @@ static BOOL CreateCarConDevFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1803,7 +1782,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
     const char *createFileArgs = "w+b";
     const char *appendFileArgs = "a+b";
     char *fopenArgString = NULL;
-    BOOL success = FALSE;
+    BOOL fileSuccess = FALSE;
 
     if (createFile)
     {
@@ -1814,17 +1793,13 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
         fopenArgString = (char *) appendFileArgs;
     }
 
-    if (FileOpen (fileName, fopenArgString, &wrtFile, __FILE__, __LINE__) == ERROR)
+    fileSuccess = FileOpenMacro(fileName, fopenArgString, &wrtFile);
+    if (fileSuccess)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
-                        __FILE__, __LINE__);
-        return (FALSE);
+        fileSuccess = FileWriteMacro(wrtFile, wrtBuffer, wrtSize, TRUE);
     }
 
-    success = FileWrite (wrtFile, wrtBuffer, wrtSize, TRUE, __FILE__, __LINE__);
-
-    return (success);
+    return (fileSuccess);
 }
 
 #ifdef FOR_TEST_ONLY
@@ -1881,8 +1856,8 @@ static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)
         }
     }while (bytesRead != 0);
 
-    FileClose (pFileInput);
-    FileClose (pFileOutput);
+    FileCloseMacro (pFileInput);
+    FileCloseMacro (pFileOutput);
 
     return (0);
 

@@ -13,7 +13,7 @@
  * \file RtdmXml.c
  *//*
  *
- * Revision: 01SEP2016 - D.Smail : Original Release
+ * Revision: 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -198,7 +198,7 @@ static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
           { "filesCount", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesCount,
           NO_FILES_COUNT },
           { "numberSamplesInFile", U32_DTYPE, &m_RtdmXmlData.dataLogFileCfg.numberSamplesInFile,
-            NO_NUM_SAMPLES_IN_FILE },
+          NO_NUM_SAMPLES_IN_FILE },
           { "filesFullPolicy", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.filesFullPolicy,
           NO_FILE_FULL_POLICY },
           { "numberSamplesBeforeSave", U32_DTYPE,
@@ -261,7 +261,7 @@ static void PopulateVariableAddressesInMap (struct dataBlock_RtdmStream *interfa
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -303,7 +303,7 @@ UINT16 InitializeXML (struct dataBlock_RtdmStream *interface, RtdmXmlStr **rtdmX
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -325,7 +325,7 @@ char *GetXMLConfigFileBuffer (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -334,7 +334,7 @@ UINT16 CopyXMLConfigFile (void)
     const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
     FILE *copyFile = NULL;
 
-    if (FileOpen ((char *) copyFileName, "wb+", &copyFile, __FILE__, __LINE__) == ERROR)
+    if (FileOpenMacro ((char *) copyFileName, "wb+", &copyFile) == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn'open file %s ---> File: %s  Line#: %d\n",
                         copyFileName, __FILE__, __LINE__);
@@ -342,7 +342,7 @@ UINT16 CopyXMLConfigFile (void)
         return (1);
     }
 
-    FileWrite (copyFile, &m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE, __FILE__, __LINE__);
+    FileWriteMacro(copyFile, &m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE);
 
     return (NO_ERROR);
 
@@ -361,7 +361,7 @@ UINT16 CopyXMLConfigFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -450,7 +450,7 @@ static UINT16 ReadProcessXmlFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -461,7 +461,7 @@ static UINT16 OpenXMLConfigurationFile (void)
 
     /* open the existing configuration file for reading TEXT MODE ("rb" needed because if "r" only
      * \n gets discarded ) */
-    if (FileOpen (RTDM_XML_FILE, "rb", &filePtr, __FILE__, __LINE__) != ERROR)
+    if (FileOpenMacro (RTDM_XML_FILE, "rb", &filePtr) != ERROR)
     {
         /* Get the number of bytes */
         fseek (filePtr, 0L, SEEK_END);
@@ -476,7 +476,7 @@ static UINT16 OpenXMLConfigurationFile (void)
                         (void **) &m_ConfigXmlBufferPtr);
         if (returnValue != OK)
         {
-            FileClose (filePtr, __FILE__, __LINE__);
+            FileCloseMacro(filePtr);
             debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
                             __FILE__, __LINE__);
             return (BAD_READ_BUFFER);
@@ -486,7 +486,7 @@ static UINT16 OpenXMLConfigurationFile (void)
         fread (m_ConfigXmlBufferPtr, sizeof(char), (size_t) m_ConfigXmlFileSize, filePtr);
 
         /* Close the file, no longer needed */
-        FileClose (filePtr, __FILE__, __LINE__);
+        FileCloseMacro(filePtr);
     }
     /* File does not exist or internal error */
     else
@@ -511,7 +511,7 @@ static UINT16 OpenXMLConfigurationFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -635,7 +635,7 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -836,7 +836,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/

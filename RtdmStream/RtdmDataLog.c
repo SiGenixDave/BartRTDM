@@ -13,7 +13,7 @@
  * \file RtdmDataLog.c
  *//*
  *
- * Revision: 01SEP2016 - D.Smail : Original Release
+ * Revision: 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -106,7 +106,7 @@ static void SwapBuffers (void);
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -170,7 +170,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -278,7 +278,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -315,7 +315,7 @@ void FTPDataLog (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/

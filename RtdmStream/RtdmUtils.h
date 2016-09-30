@@ -13,7 +13,7 @@
  * @file RtdmUtils.h
  *//*
  *
- * Revision : 01SEP2016 - D.Smail : Original Release
+ * Revision : 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -119,6 +119,10 @@
 /*****************************************************************/
 
 #define  PrintIntegerContents(debugLevel,a)   debugPrintf(debugLevel, #a " = %d\n", (INT32)a)
+
+#define  FileCloseMacro(a)              FileClose(a, __FILE__, __LINE__)
+#define  FileOpenMacro(a,b,c)           FileOpen(a, b, c, __FILE__, __LINE__)
+#define  FileWriteMacro(a,b,c,d)        FileWrite(a, b, c, d, __FILE__, __LINE__)
 /*******************************************************************
  *
  *     E  N  U  M  S

@@ -1,9 +1,21 @@
-/*
- * IELFCallbackList.c
+/*****************************************************************************/
+/* This document and its contents are the property of Bombardier
+ * Inc or its subsidiaries.  This document contains confidential
+ * proprietary information.  The reproduction, distribution,
+ * utilization or the communication of this document or any part
+ * thereof, without express authorization is strictly prohibited.
+ * Offenders will be held liable for the payment of damages.
  *
- *  Created on: Sep 15, 2016
- *      Author: Dave
- */
+ * (C) 2016, Bombardier Inc. or its subsidiaries.  All rights reserved.
+ *
+ * Project      :  RTDM (Embedded)
+ *//**
+ * \file IELFCallback.c
+ *//*
+ *
+ * Revision: 01OCT2016 - D.Smail : Original Release
+ *
+ *****************************************************************************/
 
 /* This file exists because this feature must support the ability to detect the end of an
  * event in case of a power cycle or reset while an event is active.

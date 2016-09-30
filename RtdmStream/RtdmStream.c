@@ -13,7 +13,7 @@
  * \file RtdmStream.c
  *//*
  *
- * Revision: 01SEP2016 - D.Smail : Original Release
+ * Revision: 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -113,7 +113,7 @@ static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface,
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -187,7 +187,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -224,7 +224,7 @@ void RtdmStream (struct dataBlock_RtdmStream *interface)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -247,7 +247,7 @@ void SetRtdmInitFinished (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -334,7 +334,7 @@ static UINT16 NetworkAvailable (struct dataBlock_RtdmStream *interface, BOOL *ne
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -438,7 +438,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -495,7 +495,7 @@ static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -572,7 +572,7 @@ static void PopulateSignalsWithNewSamples (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/

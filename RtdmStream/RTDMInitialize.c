@@ -13,10 +13,9 @@
  * \file RtdmInitialize.c
  *//*
  *
- * Revision: 01SEP2016 - D.Smail : Original Release
+ * Revision: 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
-
 
 #ifndef TEST_ON_PC
 #include "global_mwt.h"
@@ -33,7 +32,6 @@
 #include "../RtdmStream/RtdmDataLog.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 #include "../RtdmStream/RtdmStreamExt.h"
-
 
 /*******************************************************************
  *
@@ -79,7 +77,7 @@
  *//*
  * Revision History:
  *
- * Date & Author : 01SEP2016 - D.Smail
+ * Date & Author : 01OCT2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -101,7 +99,7 @@ void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
 
     /* Inform the 50 msec RTDM stream task that initialization is complete and stream
      * data can now be collected. */
-    SetRtdmInitFinished();
+    SetRtdmInitFinished ();
 
 }
 

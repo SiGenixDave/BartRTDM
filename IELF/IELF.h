@@ -13,7 +13,7 @@
  * @file IELF.h
  *//*
  *
- * Revision : 01SEP2016 - D.Smail : Original Release
+ * Revision : 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -22,12 +22,9 @@
 
 typedef BOOL (*EventOverCallback) (void);
 
-
 void IelfInit (UINT8 systemId);
 void ServicePostedEvents (void);
 INT32 LogIELFEvent (UINT16 eventId);
-
-
 
 #endif /* IELF_H */
 

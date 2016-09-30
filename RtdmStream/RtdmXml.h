@@ -13,7 +13,7 @@
  * @file RtdmXmlh
  *//*
  *
- * Revision : 01SEP2016 - D.Smail : Original Release
+ * Revision : 01OCT2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
