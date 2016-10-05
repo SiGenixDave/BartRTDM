@@ -35,36 +35,41 @@
 
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmCrc32.h"
+#include "../RtdmFileIO/RtdmFileExt.h"
 
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-/* Drive and directory where the IELF will be saved */
-#ifdef TEST_ON_PC
-#define DRIVE_NAME                          "D:\\"
-#define DIRECTORY_NAME                      "ielf\\"
-#else
-#define DRIVE_NAME                          "/ata0/"
-#define DIRECTORY_NAME                      "ielf/"
-#endif
 
-#define IELF_DATA_FILENAME                  "ielf.dat"
+/** @brief file name used to store IELF file */
+#define IELF_DATA_FILENAME                  "ielf.flt"
+/** @brief file name used to store IELF CRC file which is used to verify the integrity of the
+ * IELF file*/
 #define IELF_CRC_FILENAME                   "ielf.crc"
+/** @brief file name used to store IELF daily event log counters */
 #define IELF_DAILY_EVENT_COUNTER_FILENAME   "ielfevnt.dat"
-
+/** @brief specified version used in IELF file */
 #define IELF_VERSION                        0x30000000
-
+/** @brief number of seconds in a day */
 #define SECONDS_PER_DAY                     86400
-
-#define MAX_NUMBER_OF_EVENTS                1024
-#define MAX_RECORDS                         2100
+/** @brief maximum number of unique events */
+#define MAX_NUMBER_OF_UNIQUE_EVENTS         1024
+/** @brief size of the event FIFO in IELF file. Old events will be overwritten. */
+#define EVENT_FIFO_SIZE_IN_FILE             2100
+/** @brief Used to identify the IELF file event log is empty. */
 #define FILE_EMPTY                          -1
-
+/** @brief Max size of the pending event log. All pending events will be
+ * transferred to active events every task cycle, this freeing up the entire pending
+ * event log every task cycle. */
 #define PENDING_EVENT_QUEUE_SIZE            16
+/** @brief Max size of the active event log. All active events (event criteria still present)
+ * will invoke its callback to determine when the event criteria no longer exists. When that
+ * occurs, the event will be removed from the active event list */
 #define ACTIVE_EVENT_QUEUE_SIZE             128
-
+/** @brief Identifies that the entry in either the pending or active event list is available (id
+ * is set to this value if entry is available). */
 #define EVENT_QUEUE_ENTRY_EMPTY             -1
 #define EVENT_LOGGED_WAITING_FOR_CLOSE      0xFFFFFFFF
 
@@ -90,27 +95,36 @@ typedef enum
  *    S  T  R  U  C  T  S
  *
  *******************************************************************/
+/** @brief Used to maintain event information regarding the number of occurrences
+ * of each unique event. This information is part of the IELF file. */
 typedef struct
 {
+    /** TODO */
     UINT8 subsystemId;
     UINT16 id __attribute__ ((packed));
     UINT16 count __attribute__ ((packed));
     UINT8 overflowFlag;
     UINT8 rateLimitFlag;
+    /** Reserved for future use... currently unused */
     UINT8 _reserved[3];
 } EventCounterStr;
 
+/** @brief Used to maintain event information for each logged event. This information is
+ * part of the IELF file. */
 typedef struct
 {
+    /** TODO */
     UINT32 failureBeginning __attribute__ ((packed));
     UINT32 failureEnd __attribute__ ((packed));
     UINT8 subsystemId;
     UINT16 eventId __attribute__ ((packed));
     UINT8 timeInacuurate;
     UINT8 dstFlag;
+    /** Reserved for future use... currently unused */
     UINT8 _reserved[2];
 } EventStr;
 
+/** @brief Memory image of the IELF stored on disk. */
 typedef struct
 {
     UINT8 version[4];
@@ -120,17 +134,20 @@ typedef struct
     INT16 lastRecordIndex __attribute__ ((packed));
     UINT32 timeOfLastReset __attribute__ ((packed));
     UINT8 reasonForReset;
+    /** Reserved for future use... currently unused */
     UINT32 _reserved __attribute__ ((packed));
-    EventCounterStr eventCounter[MAX_NUMBER_OF_EVENTS];
-    EventStr event[MAX_RECORDS];
+    EventCounterStr eventCounter[MAX_NUMBER_OF_UNIQUE_EVENTS];
+    EventStr event[EVENT_FIFO_SIZE_IN_FILE];
 } IelfStr;
 
+/** @brief Used to hold events just logged. */
 typedef struct
 {
     INT16 id;
     UINT32 time;
 } PendingEventQueueStr;
 
+/** @brief Used to hold events which are active (event criteria still present). */
 typedef struct
 {
     UINT16 id;
@@ -141,7 +158,7 @@ typedef struct
 
 typedef struct
 {
-    UINT16 count[MAX_NUMBER_OF_EVENTS] __attribute__ ((packed));
+    UINT16 count[MAX_NUMBER_OF_UNIQUE_EVENTS] __attribute__ ((packed));
     UINT32 utcSeconds __attribute__ ((packed));
     UINT32 crc __attribute__ ((packed));
 
@@ -152,18 +169,27 @@ typedef struct
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
-/** @brief TODO */
+/** @brief Memory copy of the IELF file on disk. */
 static IelfStr m_FileOverlay;
-
+/** @brief Contains events that just occurred, but haven't been copied to the m_ActiveEvent
+ * list. The reason to have both a pending list and active list is the following. The act of
+ * copying from pending to active logs the event as a single shot. Then, the active list
+ * is used to invoke the event's callback to determine when the event ends. It also reduces
+ * the amount of possible contention over a resource if m_PendingEvent and m_ActiveEvent
+ * were combined. */
 static PendingEventQueueStr m_PendingEvent[PENDING_EVENT_QUEUE_SIZE];
+/** @brief Contains all of the active events (events that have been logged, but
+ * haven't ended. */
 static ActiveEventQueueStr m_ActiveEvent[ACTIVE_EVENT_QUEUE_SIZE];
-
+/** @brief Write index into the m_FileOverlay.event array */
 static UINT16 m_LogIndex;
-
+/** @brief Semaphore used to block access from different threads to shared resources
+ * "m_PendingEvent & m_ActiveEvent" */
 static INT32 m_SemaphoreId = 0;
-
+/** @brief Memory copy of file that maintains the daily event counter for each event. */
 static DailyEventCounter m_DailyEventCounterOverlay;
-
+/** @brief Becomes TRUE when a new event is added to the event log overlay, thus triggering
+ * a file write (copy memory to file) */
 static BOOL m_NewEventActive = FALSE;
 
 /*******************************************************************
@@ -171,14 +197,14 @@ static BOOL m_NewEventActive = FALSE;
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static INT32 CreateNewIELFOverlay (UINT8 systemId);
+static INT32 CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime);
 static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
 static UINT32 MemoryOverlayCRCCalc (void);
 static BOOL WriteIelfDataFile (void);
 static BOOL WriteIelfCRCFile (UINT32 crc);
 static BOOL BothTimesToday (UINT32 time1, UINT32 time2);
-static void InitDailyEventCounter (void);
+static void InitDailyEventCounter (RTDMTimeStr *currentTime);
 static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds);
 static void ServiceEventCounter (UINT32 currentTimeSecs);
 static void UpdateRecordIndexes (void);
@@ -213,11 +239,26 @@ void IelfInit (UINT8 systemId)
     UINT16 index = 0; /* used as loop index */
     BOOL fileSuccess = FALSE; /* determines if file opened/closed successfully */
     INT16 osReturn = OK; /* result from OS call */
+    RTDMTimeStr currentTime;    /* Stores the current system time */
+
+
+    debugPrintf(RTDM_IELF_DBG_LOG,
+                    "LOG = %s ---> File: %s  Line#: %d\n",
+                    crcFileName, __FILE__, __LINE__);
+    debugPrintf(RTDM_IELF_DBG_INFO,
+                    "INFO = %s ---> File: %s  Line#: %d\n",
+                    crcFileName, __FILE__, __LINE__);
+    debugPrintf(RTDM_IELF_DBG_ERROR,
+                    "ERROR = %s ---> File: %s  Line#: %d\n",
+                    crcFileName, __FILE__, __LINE__);
 
     /* "0" all structures */
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
     memset (&m_ActiveEvent, 0, sizeof(m_ActiveEvent));
     memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+
+    memset (&currentTime, 0, sizeof(currentTime));
+    GetEpochTime (&currentTime);
 
     /* Set the pending event queue entries to empty */
     for (index = 0; index < PENDING_EVENT_QUEUE_SIZE; index++)
@@ -235,7 +276,7 @@ void IelfInit (UINT8 systemId)
     /* If either file doesn't exist; create the files and return */
     if (!fileDataExists || !fileCrcExists)
     {
-        CreateNewIELFOverlay (systemId);
+        CreateNewIELFOverlay (systemId, &currentTime);
         crc = MemoryOverlayCRCCalc ();
         (void) WriteIelfDataFile ();
         (void) WriteIelfCRCFile (crc);
@@ -288,7 +329,7 @@ void IelfInit (UINT8 systemId)
 
         if (calculatedCRC != storedCRC)
         {
-            CreateNewIELFOverlay (systemId);
+            CreateNewIELFOverlay (systemId, &currentTime);
             crc = MemoryOverlayCRCCalc ();
             (void) WriteIelfDataFile ();
             (void) WriteIelfCRCFile (crc);
@@ -304,7 +345,7 @@ void IelfInit (UINT8 systemId)
         }
 
         /* Verify daily event counter file */
-        InitDailyEventCounter ();
+        InitDailyEventCounter (&currentTime);
 
         /* Look for "open" events (the end of the event wasn't detected... no end time) from the previous
          * power/reset cycle and add them to the posted queue */
@@ -570,7 +611,7 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
     }
 
     /* Verify the event id is within bounds */
-    if (pendingEvent->id < MAX_NUMBER_OF_EVENTS)
+    if (pendingEvent->id < MAX_NUMBER_OF_UNIQUE_EVENTS)
     {
         /* Get the callback that determines when the event is over */
         evOverCallback = GetIELFCallback (pendingEvent->id);
@@ -590,13 +631,14 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
             m_FileOverlay.eventCounter[pendingEvent->id].overflowFlag++;
         }
 
+        m_NewEventActive = TRUE;
+
         /* Determine that the maximum allowed events per day hasn't been exceeded */
         if (m_DailyEventCounterOverlay.count[pendingEvent->id] < MAX_ALLOWED_EVENTS_PER_DAY)
         {
             debugPrintf(RTDM_IELF_DBG_INFO, "IELF Event Logged with event id = %d\n",
                             pendingEvent->id);
 
-            m_NewEventActive = TRUE;
 
             m_DailyEventCounterOverlay.count[pendingEvent->id]++;
 
@@ -619,7 +661,7 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
 
             /* Update the log index for the next event */
             m_LogIndex++;
-            if (m_LogIndex >= MAX_RECORDS)
+            if (m_LogIndex >= EVENT_FIFO_SIZE_IN_FILE)
             {
                 m_LogIndex = 0;
             }
@@ -659,14 +701,11 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
  * Description   : Original Release
  *
  *****************************************************************************/
-static INT32 CreateNewIELFOverlay (UINT8 systemId)
+static INT32 CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
 {
-    UINT16 errorCode = NO_ERROR;    /* result from OS call */
-    RTDMTimeStr currentTime;    /* Stores the current system time */
     UINT16 index = 0;   /* used as loop index */
 
     /* Clear structures that are to be updated */
-    memset (&currentTime, 0, sizeof(currentTime));
     memset (&m_FileOverlay, 0, sizeof(m_FileOverlay));
 
     /* Set the version */
@@ -677,23 +716,17 @@ static INT32 CreateNewIELFOverlay (UINT8 systemId)
 
     /* Set the default values */
     m_FileOverlay.systemId = systemId;
-    m_FileOverlay.numberOfRecords = MAX_RECORDS;
+    m_FileOverlay.numberOfRecords = EVENT_FIFO_SIZE_IN_FILE;
     m_FileOverlay.firstRecordIndex = FILE_EMPTY;
     m_FileOverlay.lastRecordIndex = FILE_EMPTY;
 
-    /* Set the time and the reason for the IELF reselt */
-    errorCode = GetEpochTime (&currentTime);
-    if (errorCode != NO_ERROR)
-    {
-        return (errorCode);
-    }
 
-    m_FileOverlay.timeOfLastReset = currentTime.seconds;
+    m_FileOverlay.timeOfLastReset = currentTime->seconds;
     /* TODO: may need to look at reason for reset */
     m_FileOverlay.reasonForReset = (UINT8) RESET_AFTER_DOWNLOAD;
 
     /* Update the event counter ids and the subsystem IDs */
-    for (index = 0; index < MAX_NUMBER_OF_EVENTS; index++)
+    for (index = 0; index < MAX_NUMBER_OF_UNIQUE_EVENTS; index++)
     {
         m_FileOverlay.eventCounter[index].id = index;
         m_FileOverlay.eventCounter[index].subsystemId = 0x55; /* TODO TBD Assigned by Bombardier */
@@ -784,16 +817,31 @@ static BOOL WriteIelfCRCFile (UINT32 crc)
     return (fileSuccess);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 /* TODO May have to adjust this algorithm to account for PST / PDT and when midnight occurs. Algorithm
  * current is geared for GMT */
 static BOOL BothTimesToday (UINT32 time1, UINT32 time2)
 {
-    UINT32 daysSinceEpochTime1 = 0;
-    UINT32 daysSinceEpochTime2 = 0;
+    UINT32 daysSinceEpochTime1 = 0; /* Conversion of time1 to days since Jan 1, 1970 */
+    UINT32 daysSinceEpochTime2 = 0; /* Conversion of time2 to days since Jan 1, 1970 */
 
+    /* Get the number of days since the epoch */
     daysSinceEpochTime1 = time1 / SECONDS_PER_DAY;
     daysSinceEpochTime2 = time2 / SECONDS_PER_DAY;
 
+    /* Return true if time1 and time2 are part of the same day */
     if (daysSinceEpochTime1 == daysSinceEpochTime2)
     {
         return (TRUE);
@@ -803,28 +851,39 @@ static BOOL BothTimesToday (UINT32 time1, UINT32 time2)
 
 }
 
-static void InitDailyEventCounter (void)
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void InitDailyEventCounter (RTDMTimeStr *currentTime)
 {
-    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME;
-    FILE *pFile = NULL;
-    BOOL fileExists = FALSE;
-    BOOL fileLastUpdateWasToday = FALSE;
-    UINT32 amountRead = 0;
-    UINT32 crc = 0;
-    RTDMTimeStr currentTime;
-    BOOL fileSuccess = FALSE;
+    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
+    FILE *pFile = NULL; /* FILE pointer to "ielfevnt.dat" */
+    BOOL fileExists = FALSE;    /* Becomes TRUE if "ielfevnt.dat" exists */
+    BOOL fileLastUpdateWasToday = FALSE; /* Becomes TRUE if "ielfevnt.dat" was updated today */
+    UINT32 amountRead = 0;  /* Number of bytes read from file */
+    UINT32 crc = 0; /* calculated CRC */
+    BOOL fileSuccess = FALSE;   /* TRUE of file operation successful */
 
     memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
 
-    memset (&currentTime, 0, sizeof(currentTime));
-    GetEpochTime (&currentTime);
+
 
     fileExists = FileExists (fileName);
     if (!fileExists)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "IELF Event counter file doesn't exist; creating new file\n");
-        WriteIelfEventCounterFile (currentTime.seconds);
+        WriteIelfEventCounterFile (currentTime->seconds);
         return;
     }
 
@@ -833,7 +892,7 @@ static void InitDailyEventCounter (void)
     if (!fileSuccess)
     {
         /* Couldn't open the file for reading so just create a new one. */
-        WriteIelfEventCounterFile (currentTime.seconds);
+        WriteIelfEventCounterFile (currentTime->seconds);
         return;
     }
 
@@ -842,7 +901,7 @@ static void InitDailyEventCounter (void)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "Couldn't read the correct # of bytes from IELF Event counter file; creating new file\n");
-        WriteIelfEventCounterFile (currentTime.seconds);
+        WriteIelfEventCounterFile (currentTime->seconds);
         return;
     }
 
@@ -854,36 +913,51 @@ static void InitDailyEventCounter (void)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "IELF Event counter file CRC verification failed; creating new file\n");
-        WriteIelfEventCounterFile (currentTime.seconds);
+        WriteIelfEventCounterFile (currentTime->seconds);
         return;
     }
 
     /* Determine when this file was last updated; if updated yesterday, clear overlay */
-    fileLastUpdateWasToday = BothTimesToday (currentTime.seconds,
+    fileLastUpdateWasToday = BothTimesToday (currentTime->seconds,
                     m_DailyEventCounterOverlay.utcSeconds);
     if (!fileLastUpdateWasToday)
     {
         memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "IELF Event counter file last updated yesterday; resetting counters and updating file\n");
-        WriteIelfEventCounterFile (currentTime.seconds);
+        WriteIelfEventCounterFile (currentTime->seconds);
         return;
     }
 
 }
 
+
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds)
 {
-    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME;
-    FILE *pFile = NULL;
-    BOOL fileSuccess = FALSE;
-    UINT32 crc = 0;
+    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
+    FILE *pFile = NULL;     /* FILE pointer to "ielfevnt.dat" */
+    BOOL fileSuccess = FALSE;   /* Becomes TRUE if file operation successful */
+    UINT32 crc = 0; /* Calculated CRC of memory overlay of daily event counter */
 
     fileSuccess = FileOpenMacro(fileName, "w+b", &pFile);
-
     if (fileSuccess)
     {
+        /* Update the time stamp of the overlay */
         m_DailyEventCounterOverlay.utcSeconds = utcSeconds;
+        /* Calculate the CRC, update the overlay and write the file */
         crc = crc32 (crc, (const UINT8 *) &m_DailyEventCounterOverlay,
                         sizeof(m_DailyEventCounterOverlay)
                                         - sizeof(m_DailyEventCounterOverlay.crc));
@@ -896,12 +970,28 @@ static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds)
     return (fileSuccess);
 }
 
+
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void ServiceEventCounter (UINT32 currentTimeSecs)
 {
-    BOOL sameDay = FALSE;
+    BOOL sameDay = FALSE;   /* Becomes TRUE if the current time and the last time the
+                                event counter was updated is the same day */
 
     sameDay = BothTimesToday (currentTimeSecs, m_DailyEventCounterOverlay.utcSeconds);
 
+    /* If the day has changed, reset all event counters and update the file */
     if (!sameDay)
     {
         memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
@@ -910,7 +1000,7 @@ static void ServiceEventCounter (UINT32 currentTimeSecs)
         return;
     }
 
-    /* Whenever there is an event active, update the event counter file.*/
+    /* Whenever there is a new event added to the active queue, update the event counter file.*/
     if (m_NewEventActive)
     {
         m_NewEventActive = FALSE;
@@ -918,6 +1008,19 @@ static void ServiceEventCounter (UINT32 currentTimeSecs)
     }
 }
 
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void UpdateRecordIndexes (void)
 {
     /* Indicates that the event log is completely empty */
@@ -930,7 +1033,7 @@ static void UpdateRecordIndexes (void)
     else if (m_FileOverlay.firstRecordIndex == 0)
     {
         m_FileOverlay.lastRecordIndex++;
-        if (m_FileOverlay.lastRecordIndex > MAX_RECORDS)
+        if (m_FileOverlay.lastRecordIndex > EVENT_FIFO_SIZE_IN_FILE)
         {
             m_FileOverlay.firstRecordIndex = 1;
             m_FileOverlay.lastRecordIndex = 0;
@@ -940,7 +1043,7 @@ static void UpdateRecordIndexes (void)
     else
     {
         m_FileOverlay.firstRecordIndex++;
-        if (m_FileOverlay.lastRecordIndex > MAX_RECORDS)
+        if (m_FileOverlay.lastRecordIndex > EVENT_FIFO_SIZE_IN_FILE)
         {
             m_FileOverlay.firstRecordIndex = 1;
         }
@@ -952,33 +1055,61 @@ static void UpdateRecordIndexes (void)
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void ScanForOpenEvents (void)
 {
-    UINT16 index = 0;
-    UINT16 postedEventIndex = 0;
+    UINT16 index = 0; /* Used as a loop index */
+    UINT16 activeEventIndex = 0;    /* Used as an index into the active event queue */
 
-    for (index = 0; index < MAX_RECORDS; index++)
+    for (index = 0; index < EVENT_FIFO_SIZE_IN_FILE; index++)
     {
+        /* An active event wasn't closed during a power off or a reset */
         if (m_FileOverlay.event[index].failureEnd == EVENT_LOGGED_WAITING_FOR_CLOSE)
         {
             /* Verify the number of open events hasn't exceeded the number of possible posted events */
-            if (postedEventIndex >= ACTIVE_EVENT_QUEUE_SIZE)
+            if (activeEventIndex >= ACTIVE_EVENT_QUEUE_SIZE)
             {
                 debugPrintf(RTDM_IELF_DBG_WARNING,
                                 "The number of open events has exceeded the max limit\n");
                 break;
             }
 
-            m_ActiveEvent[postedEventIndex].eventActive = TRUE;
-            m_ActiveEvent[postedEventIndex].eventOverCallback = GetIELFCallback (
+            /* Get all of the information necessary to close the event when the event is over */
+            m_ActiveEvent[activeEventIndex].eventActive = TRUE;
+            m_ActiveEvent[activeEventIndex].eventOverCallback = GetIELFCallback (
                             m_FileOverlay.event[index].eventId);
-            m_ActiveEvent[postedEventIndex].id = m_FileOverlay.event[index].eventId;
-            m_ActiveEvent[postedEventIndex].logIndex = index;
-            postedEventIndex++;
+            m_ActiveEvent[activeEventIndex].id = m_FileOverlay.event[index].eventId;
+            m_ActiveEvent[activeEventIndex].logIndex = index;
+            activeEventIndex++;
         }
     }
 }
 
+/*****************************************************************************/
+/**
+ * @brief       TODO
+ *
+ *              TODO
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 static void SetEventLogIndex (void)
 {
     /* Indicates that the event log is completely empty */

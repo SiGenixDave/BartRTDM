@@ -52,13 +52,13 @@ int main (void)
     setvbuf (stderr, NULL, _IONBF, 0);
     setvbuf (stdin, NULL, _IONBF, 0);
 #ifdef _DEBUG
-    setbuf(stdout,NULL); // this disables buffering for stdout.
+    setbuf(stdout,NULL); /* this disables buffering for stdout. */
 #endif
 
     printf("Hello World\n");
-    //RTDMInitialize (&mStreamInfo);
-    //DAS can't single step debug when another thread is spawned
-    CreateUIThread();
+    /* RTDMInitialize (&mStreamInfo); */
+    /* DAS can't single step debug when another thread is spawned */
+    /* CreateUIThread(); */
 
     IelfInit (0x12);
 

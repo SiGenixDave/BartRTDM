@@ -424,7 +424,7 @@ static UINT16 ReadProcessXmlFile (void)
                     + sizeof(DataSampleStr));
 
     /* original code but now returning the amount of memory needed */
-    if (signalCount <= 0)
+    if (signalCount == 0)
     {
         /* No signals found */
         return (NO_SIGNALS);

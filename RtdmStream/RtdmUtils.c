@@ -43,7 +43,7 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-/* comment out of floats/doubles are not allowed */
+/* comment out if floats/doubles are not allowed */
 #define DOUBLES_ALLOWED
 
 #define MAX_OPEN_FILES          5
@@ -488,7 +488,7 @@ BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calle
     if (index == MAX_OPEN_FILES)
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
-                        "Open File Index is full; can't add file pointer to the list");
+                        "Open File Index is full; can't add file pointer to the list\n");
     }
 
     return (TRUE);
@@ -529,6 +529,46 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
     }
 
     return (success);
+
+}
+
+void GetTimeDate (char *dateTime)
+{
+#ifndef TEST_ON_PC
+    RTDMTimeStr rtdmTime; /* Stores the Epoch time (seconds/nanoseconds) */
+    OS_STR_TIME_ANSI ansiTime; /* Stores the ANSI time (structure) */
+
+    /* Get the current time */
+    GetEpochTime (&rtdmTime);
+
+    /* Convert to ANSI time */
+    os_c_localtime (rtdmTime.seconds, &ansiTime);
+
+    /* Print string (zero filling single digit numbers; this %02d */
+    sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
+                    ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
+
+#else
+    GetTimeDateFromPc (dateTime);
+#endif
+}
+
+void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...)
+{
+    FILE *ptr = NULL;
+    char dateTime[64];
+
+    GetTimeDate (&dateTime[0]);
+
+    va_list args;
+    va_start(args, start);
+
+    FileOpenMacro(LOG_DRIVE LOG_DIRECTORY "log.txt", "a", &ptr);
+    fprintf (ptr, "%s %s: ", debugLevel, dateTime);
+    vfprintf (ptr, formatSpecifier, args);
+    FileCloseMacro(ptr);
+
+    va_end(args);
 
 }
 

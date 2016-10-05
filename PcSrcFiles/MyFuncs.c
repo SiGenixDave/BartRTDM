@@ -11,12 +11,12 @@
 #include <stdlib.h>
 #include "../PcSrcFiles/MyTypes.h"
 
-void GetTimeDate (char *dateTime, UINT16 arraySize)
+void GetTimeDateFromPc (char *dateTime)
 {
     time_t now = time (NULL);
     struct tm *t = localtime (&now);
 
-    strftime (dateTime, arraySize, "%y%m%d_%H%M%S", t);
+    strftime (dateTime, 64, "%y%m%d_%H%M%S", t);
 
 }
 
@@ -143,16 +143,16 @@ UINT16 htons (UINT16 num)
 
 UINT32 htonl (UINT32 num)
 {
-    return ((num >> 24) & 0xff) | // move byte 3 to byte 0
-                    ((num << 8) & 0xff0000) | // move byte 1 to byte 2
-                    ((num >> 8) & 0xff00) | // move byte 2 to byte 1
-                    ((num << 24) & 0xff000000); // byte 0 to byte 3
+    return ((num >> 24) & 0xff) | /* move byte 3 to byte 0 */
+                    ((num << 8) & 0xff0000) | /* move byte 1 to byte 2 */
+                    ((num >> 8) & 0xff00) | /* move byte 2 to byte 1 */
+                    ((num << 24) & 0xff000000); /* byte 0 to byte 3 */
 }
 
 UINT32 ntohl (UINT32 num)
 {
-    return ((num >> 24) & 0xff) | // move byte 3 to byte 0
-                    ((num << 8) & 0xff0000) | // move byte 1 to byte 2
-                    ((num >> 8) & 0xff00) | // move byte 2 to byte 1
-                    ((num << 24) & 0xff000000); // byte 0 to byte 3
+    return ((num >> 24) & 0xff) | /* move byte 3 to byte 0 */
+                    ((num << 8) & 0xff0000) | /* move byte 1 to byte 2 */
+                    ((num >> 8) & 0xff00) | /* move byte 2 to byte 1 */
+                    ((num << 24) & 0xff000000); /* byte 0 to byte 3 */
 }

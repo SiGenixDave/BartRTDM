@@ -1006,20 +1006,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
     memset (dateTime, 0, sizeof(dateTime));
 
-#ifdef TEST_ON_PC
-    GetTimeDate (dateTime, sizeof(dateTime));
-#else
-    /* Get the current time */
-    GetEpochTime (&rtdmTime);
-
-    /* Convert to ANSI time */
-    os_c_localtime (rtdmTime.seconds, &ansiTime);
-
-    /* Print string (zero filling single digit numbers; this %02d */
-    sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
-                    ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
-
-#endif
+    GetTimeDate (dateTime);
 
     debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 

@@ -29,10 +29,10 @@
  * data file will be saved */
 #ifdef TEST_ON_PC
 #define DRIVE_NAME                          "D:\\"
-#define DIRECTORY_NAME                      "rtdm\\"
+#define DIRECTORY_NAME                      "rtdmielf\\"
 #else
 #define DRIVE_NAME                          "/ata0/"
-#define DIRECTORY_NAME                      "rtdm/"
+#define DIRECTORY_NAME                      "rtdmielf/"
 #endif
 
 /*******************************************************************

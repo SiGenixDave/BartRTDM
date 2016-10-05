@@ -10,7 +10,7 @@
 
 struct OS_STR_TIME_POSIX;
 
-void GetTimeDate (char *dateTime, UINT16 arraySize);
+void GetTimeDateFromPc (char *dateTime);
 BOOL Sim1EventOver (void);
 BOOL Sim2EventOver (void);
 int os_s_take (int sema, int options);
