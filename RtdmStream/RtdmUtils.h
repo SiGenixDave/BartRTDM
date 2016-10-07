@@ -76,7 +76,7 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-/* Undefine the following line if all debug info for RTDM/IELF is to be turned off */
+/* Undefine RTDM_IELF_DEBUG if all debug info for RTDM/IELF is to be turned off */
 #define RTDM_IELF_DEBUG
 
 #ifdef RTDM_IELF_DEBUG
@@ -87,12 +87,14 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
 #define RTDM_IELF_DBG_WARNING         3
 #define RTDM_IELF_DBG_ERROR           4
 /*****************************************************************/
-
-/* NOTE: If the developer only wants to see printfs set at one level, enable this #define (DEBUG_EXCLUSIVE_LEVEL) and
- * set it to the desired debug level. Otherwise all printfs equal or above DEBUG_ABOVE_EQUAL_LEVEL will be enabled
+/* NOTE: If the developer only wants to see printfs set at one level, set RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL to 1
+ * Otherwise all printfs equal or above RTDM_IELF_DBG_LEVEL will be enabled. Set RTDM_IELF_LOG_FILE_WRITE to 1
+ * if all printfs will also be written to a log file on the Compact FLASH. Set RTDM_IELF_DBG_LEVEL to the desired level
+ * from 1 of the 4 options listed above
  */
 #define RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL     0
 #define RTDM_IELF_LOG_FILE_WRITE            1
+#define RTDM_IELF_DBG_LEVEL                 RTDM_IELF_DBG_INFO
 
 #if (RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL != 0)
 #define RTDM_IELF_GE_OR_EQ ==
@@ -110,7 +112,7 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
 
 #define debugPrintf(debugLevel, fmt, args...)  \
     do { \
-        if (debugLevel RTDM_IELF_GE_OR_EQ RTDM_IELF_DBG_INFO) \
+        if (debugLevel RTDM_IELF_GE_OR_EQ RTDM_IELF_DBG_LEVEL) \
         {   \
             printf ("%s: ",#debugLevel); \
             printf (fmt, ##args); \
@@ -134,225 +136,226 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
 #define  FileCloseMacro(a)              FileClose(a, __FILE__, __LINE__)
 #define  FileOpenMacro(a,b,c)           FileOpen(a, b, c, __FILE__, __LINE__)
 #define  FileWriteMacro(a,b,c,d)        FileWrite(a, b, c, d, __FILE__, __LINE__)
-                /*******************************************************************
-                 *
-                 *     E  N  U  M  S
-                 *
-                 *******************************************************************/
-                /** @brief Signal data types from XML file. Each signal has a data type attribute
-                 * that describes the type (signed, unsigned) and size 8, 16, or 32 bits. Used to
-                 * allocate memory to store the signal */
-                typedef enum
-                {
-                    /** attribute is UINT8 type */
-                    UINT8_XML_TYPE,
-                    /** attribute is INT8 type */
-                    INT8_XML_TYPE,
-                    /** attribute is UINT16 type */
-                    UINT16_XML_TYPE,
-                    /** attribute is INT16 type */
-                    INT16_XML_TYPE,
-                    /** attribute is UINT32 type */
-                    UINT32_XML_TYPE,
-                    /** attribute is INT32 type */
-                    INT32_XML_TYPE
-                } XmlSignalType;
 
-                /*******************************************************************
-                 *
-                 *    S  T  R  U  C  T  S
-                 *
-                 *******************************************************************/
-                /* Main Stream buffer to be send out via MD message */
-                typedef struct
-                {
-                    UINT32 seconds __attribute__ ((packed));
-                    UINT16 msecs __attribute__ ((packed));
-                    UINT8 accuracy;
-                } TimeStampStr;
+/*******************************************************************
+ *
+ *     E  N  U  M  S
+ *
+ *******************************************************************/
+/** @brief Signal data types from XML file. Each signal has a data type attribute
+ * that describes the type (signed, unsigned) and size 8, 16, or 32 bits. Used to
+ * allocate memory to store the signal */
+typedef enum
+{
+    /** attribute is UINT8 type */
+    UINT8_XML_TYPE,
+    /** attribute is INT8 type */
+    INT8_XML_TYPE,
+    /** attribute is UINT16 type */
+    UINT16_XML_TYPE,
+    /** attribute is INT16 type */
+    INT16_XML_TYPE,
+    /** attribute is UINT32 type */
+    UINT32_XML_TYPE,
+    /** attribute is INT32 type */
+    INT32_XML_TYPE
+} XmlSignalType;
 
-                /* Structure to contain header for stream data */
-                typedef struct
-                {
-                    TimeStampStr timeStamp;
-                    UINT16 count __attribute__ ((packed));
-                } DataSampleStr;
+/*******************************************************************
+ *
+ *    S  T  R  U  C  T  S
+ *
+ *******************************************************************/
+/* Main Stream buffer to be send out via MD message */
+typedef struct
+{
+    UINT32 seconds __attribute__ ((packed));
+    UINT16 msecs __attribute__ ((packed));
+    UINT8 accuracy;
+} TimeStampStr;
 
-                typedef struct
-                {
-                    UINT8 endianness;
-                    UINT16 headerSize __attribute__ ((packed));
-                    UINT32 headerChecksum __attribute__ ((packed));
-                } StreamHeaderPreambleStr;
+/* Structure to contain header for stream data */
+typedef struct
+{
+    TimeStampStr timeStamp;
+    UINT16 count __attribute__ ((packed));
+} DataSampleStr;
 
-                /* Structure created to support ease of CRC calculation for preamble's header checksum */
-                typedef struct
-                {
-                    UINT8 version;
-                    UINT8 consistId[16];
-                    UINT8 carId[16];
-                    UINT8 deviceId[16];
-                    UINT16 dataRecorderId __attribute__ ((packed));
-                    UINT16 dataRecorderVersion __attribute__ ((packed));
-                    UINT32 timeStampUtcSecs __attribute__ ((packed));
-                    UINT16 timeStampUtcMsecs __attribute__ ((packed));
-                    UINT8 timeStampUtcAccuracy;
-                    UINT32 mdsStreamReceiveSecs __attribute__ ((packed));
-                    UINT16 mdsStreamReceiveMsecs __attribute__ ((packed));
-                    UINT16 sampleSize __attribute__ ((packed));
-                    UINT32 samplesChecksum __attribute__ ((packed));
-                    UINT16 numberOfSamples __attribute__ ((packed));
-                } StreamHeaderPostambleStr;
+typedef struct
+{
+    UINT8 endianness;
+    UINT16 headerSize __attribute__ ((packed));
+    UINT32 headerChecksum __attribute__ ((packed));
+} StreamHeaderPreambleStr;
 
-                typedef struct
-                {
-                    StreamHeaderPreambleStr preamble;
-                    StreamHeaderPostambleStr postamble;
-                } StreamHeaderContent;
+/* Structure created to support ease of CRC calculation for preamble's header checksum */
+typedef struct
+{
+    UINT8 version;
+    UINT8 consistId[16];
+    UINT8 carId[16];
+    UINT8 deviceId[16];
+    UINT16 dataRecorderId __attribute__ ((packed));
+    UINT16 dataRecorderVersion __attribute__ ((packed));
+    UINT32 timeStampUtcSecs __attribute__ ((packed));
+    UINT16 timeStampUtcMsecs __attribute__ ((packed));
+    UINT8 timeStampUtcAccuracy;
+    UINT32 mdsStreamReceiveSecs __attribute__ ((packed));
+    UINT16 mdsStreamReceiveMsecs __attribute__ ((packed));
+    UINT16 sampleSize __attribute__ ((packed));
+    UINT32 samplesChecksum __attribute__ ((packed));
+    UINT16 numberOfSamples __attribute__ ((packed));
+} StreamHeaderPostambleStr;
 
-                /* Structure to contain variables in the Stream header of the message */
-                typedef struct
-                {
-                    char Delimiter[4];
-                    StreamHeaderContent content;
-                } StreamHeaderStr;
+typedef struct
+{
+    StreamHeaderPreambleStr preamble;
+    StreamHeaderPostambleStr postamble;
+} StreamHeaderContent;
 
-                /** @brief */
-                typedef struct RTDMTimeStr
-                {
-                    /** */
-                    UINT32 seconds;
-                    /** */
-                    UINT32 nanoseconds;
-                } RTDMTimeStr;
+/* Structure to contain variables in the Stream header of the message */
+typedef struct
+{
+    char Delimiter[4];
+    StreamHeaderContent content;
+} StreamHeaderStr;
 
-                /** @brief */
-                typedef struct
-                {
-                    /** */
-                    UINT16 id;
-                    /** */
-                    void *variableAddr;
-                    /** */
-                    XmlSignalType signalType;
-                    /** */
-                    RTDMTimeStr signalUpdateTime;
-                } SignalDescriptionStr;
+/** @brief */
+typedef struct RTDMTimeStr
+{
+    /** */
+    UINT32 seconds;
+    /** */
+    UINT32 nanoseconds;
+} RTDMTimeStr;
 
-                /** @brief */
-                typedef struct
-                {
-                    /** */
-                    UINT32 id;
-                    /** */
-                    UINT32 version;
-                    /** */
-                    char *deviceId;
-                    /** */
-                    char *name;
-                    /** */
-                    char *description;
-                    /** */
-                    char *type;
-                    /** */
-                    UINT32 samplingRate;
-                    /** */
-                    BOOL compressionEnabled;
-                    /** */
-                    UINT32 minRecordingRate;
-                    /** */
-                    UINT32 noChangeFailurePeriod;
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT16 id;
+    /** */
+    void *variableAddr;
+    /** */
+    XmlSignalType signalType;
+    /** */
+    RTDMTimeStr signalUpdateTime;
+} SignalDescriptionStr;
 
-                } XmlDataRecorderCfgStr;
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT32 id;
+    /** */
+    UINT32 version;
+    /** */
+    char *deviceId;
+    /** */
+    char *name;
+    /** */
+    char *description;
+    /** */
+    char *type;
+    /** */
+    UINT32 samplingRate;
+    /** */
+    BOOL compressionEnabled;
+    /** */
+    UINT32 minRecordingRate;
+    /** */
+    UINT32 noChangeFailurePeriod;
 
-                /** @brief */
-                typedef struct
-                {
-                    /** */
-                    BOOL enabled;
-                    /** */
-                    UINT32 filesCount;
-                    /** */
-                    UINT32 numberSamplesInFile;
-                    /** */
-                    char *filesFullPolicy;
-                    /** */
-                    UINT32 numberSamplesBeforeSave;
-                    /** */
-                    UINT32 maxTimeBeforeSaveMs;
-                    /** */
-                    char *folderPath;
+} XmlDataRecorderCfgStr;
 
-                } XmlDataLogFileCfgStr;
+/** @brief */
+typedef struct
+{
+    /** */
+    BOOL enabled;
+    /** */
+    UINT32 filesCount;
+    /** */
+    UINT32 numberSamplesInFile;
+    /** */
+    char *filesFullPolicy;
+    /** */
+    UINT32 numberSamplesBeforeSave;
+    /** */
+    UINT32 maxTimeBeforeSaveMs;
+    /** */
+    char *folderPath;
 
-                /** @brief */
-                typedef struct
-                {
-                    /** */
-                    BOOL enabled;
-                    /** */
-                    UINT32 comId;
-                    /** */
-                    UINT32 bufferSize;
-                    /** */
-                    UINT32 maxTimeBeforeSendMs;
-                } XmlOutputStreamCfgStr;
+} XmlDataLogFileCfgStr;
 
-                /** @brief */
-                typedef struct
-                {
-                    /** */
-                    UINT32 maxStreamHeaderDataSize;
-                    /** */
-                    UINT32 maxStreamDataSize;
-                    /** */
-                    UINT32 signalCount;
+/** @brief */
+typedef struct
+{
+    /** */
+    BOOL enabled;
+    /** */
+    UINT32 comId;
+    /** */
+    UINT32 bufferSize;
+    /** */
+    UINT32 maxTimeBeforeSendMs;
+} XmlOutputStreamCfgStr;
 
-                } XmlMetaDataStr;
+/** @brief */
+typedef struct
+{
+    /** */
+    UINT32 maxStreamHeaderDataSize;
+    /** */
+    UINT32 maxStreamDataSize;
+    /** */
+    UINT32 signalCount;
 
-                /** @brief */
-                typedef struct
-                {
-                    /** */
-                    XmlDataRecorderCfgStr dataRecorderCfg;
-                    /** */
-                    XmlDataLogFileCfgStr dataLogFileCfg;
-                    /** */
-                    XmlOutputStreamCfgStr outputStreamCfg;
-                    /** */
-                    XmlMetaDataStr metaData;
-                    /** allocated at runtime based on the number of signals discovered in the configuration file */
-                    SignalDescriptionStr *signalDesription;
+} XmlMetaDataStr;
 
-                } RtdmXmlStr;
+/** @brief */
+typedef struct
+{
+    /** */
+    XmlDataRecorderCfgStr dataRecorderCfg;
+    /** */
+    XmlDataLogFileCfgStr dataLogFileCfg;
+    /** */
+    XmlOutputStreamCfgStr outputStreamCfg;
+    /** */
+    XmlMetaDataStr metaData;
+    /** allocated at runtime based on the number of signals discovered in the configuration file */
+    SignalDescriptionStr *signalDesription;
 
-                /*******************************************************************
-                 *
-                 *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
-                 *
-                 *******************************************************************/
+} RtdmXmlStr;
 
-                /*******************************************************************
-                 *
-                 *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
-                 *
-                 *******************************************************************/
-                struct dataBlock_RtdmStream;
+/*******************************************************************
+ *
+ *    E  X  T  E  R  N      V  A  R  I  A  B  L  E  S
+ *
+ *******************************************************************/
 
-                UINT16 GetEpochTime (RTDMTimeStr* currentTime);
-                INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
-                void PopulateStreamHeader (struct dataBlock_RtdmStream *interface,
-                                RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader,
-                                UINT16 sampleCount, UINT8 *dataBuffer, UINT32 dataSize,
-                                RTDMTimeStr *currentTime);
-                UINT16 CreateVerifyStorageDirectory (char *pathName);
-                BOOL FileExists (const char *fileName);
-                INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
-                BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
-                                char *calledFromFile, UINT32 lineNumber);
-                BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr,
-                                char *calledFromFile, UINT32 lineNumber);
-                BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
-                void GetTimeDate (char *dateTime);
+/*******************************************************************
+ *
+ *    E  X  T  E  R  N      F  U  N  C  T  I  O  N  S
+ *
+ *******************************************************************/
+struct dataBlock_RtdmStream;
+
+UINT16 GetEpochTime (RTDMTimeStr* currentTime);
+INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2);
+void PopulateStreamHeader (struct dataBlock_RtdmStream *interface,
+                RtdmXmlStr *rtdmXmlData, StreamHeaderStr *streamHeader,
+                UINT16 sampleCount, UINT8 *dataBuffer, UINT32 dataSize,
+                RTDMTimeStr *currentTime);
+UINT16 CreateVerifyStorageDirectory (char *pathName);
+BOOL FileExists (const char *fileName);
+INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
+BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
+                char *calledFromFile, UINT32 lineNumber);
+BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr,
+                char *calledFromFile, UINT32 lineNumber);
+BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
+void GetTimeDate (char *dateTime, char *formatSpecifier);
 
 #endif /* RTDMUTILS_H_ */

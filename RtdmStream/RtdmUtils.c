@@ -434,14 +434,39 @@ INT32 AllocateMemoryAndClear (UINT32 size, void **memory)
     return (returnValue);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Writes a data buffer to a file
+ *
+ *              This function writes a data buffer to the specified file.
+ *              If desired, it also can close the file.
+ *
+ *  @param filePtr - file pointer to the file that is to be written to
+ *  @param buffer - data buffer that will be written to file
+ *  @param bytesToWrite - the number of bytes to write from buffer
+ *  @param closeFile - TRUE if the FILE pointer is to be closed
+ *  @param calledFromFile - filename that function was invoked from (debug only)
+ *  @param lineNumber - line # in file that function was invoked from (debug only)
+ *
+ *  @return BOOL - TRUE if write was successful; FALSE otherwise
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
                 char *calledFromFile, UINT32 lineNumber)
 {
-    UINT32 amountWritten = 0;
-    BOOL success = TRUE;
+    UINT32 amountWritten = 0; /* amount of bytes written to file */
+    BOOL success = TRUE; /* becomes FALSE if the number of byets written was the amount desired */
 
+    /* Write the bytes to the file */
     amountWritten = fwrite (buffer, 1, bytesToWrite, filePtr);
 
+    /* Verify the amount of bytes written is correct */
     if (amountWritten != bytesToWrite)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "Write to file failed: Called from File: %s - Line#: %d\n",
@@ -449,19 +474,43 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
         success = FALSE;
     }
 
-    if (closeFile)
+    /* Close the file if desired */
+    if (closeFile && success)
     {
-        FileCloseMacro(filePtr);
+        /* Use macro so that debug info can be captured */
+        success = FileCloseMacro(filePtr);
     }
 
     return (success);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Opens a file
+ *
+ *              This function opens a file stream.
+ *
+ *  @param fileName - file name of file to be opened
+ *  @param openAttributes - file name of file to be opened
+ *  @param filePtr - FILE pointer returned from this function
+ *  @param calledFromFile - filename that function was invoked from (debug only)
+ *  @param lineNumber - line # in file that function was invoked from (debug only)
+ *
+ *  @return BOOL - TRUE if file open was successful; FALSE otherwise
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calledFromFile,
                 UINT32 lineNumber)
 {
-    INT16 osReturn = 0;
-    UINT16 index = 0;
+    INT16 osReturn = 0; /* return value from OS call */
+    UINT16 index = 0; /* loop index to access active file pointers */
+    BOOL success = TRUE; /* Becomes FALSE if file couldn't be opened */
 
     osReturn = os_io_fopen (fileName, openAttributes, filePtr);
     if (osReturn == ERROR)
@@ -470,38 +519,62 @@ BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calle
                         "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
                         calledFromFile, lineNumber);
 
-        return (FALSE);
+        success = FALSE;
     }
 
-    /* Add the file pointer to the list, this list is for debug only and only is used to track "dangling"
-     * file pointers */
-    while (index < MAX_OPEN_FILES)
+    if (success)
     {
-        if (filePtrList[index] == NULL)
+        /* Add the file pointer to the list, this list is for debug only and only is used to track "dangling"
+         * file pointers */
+        while (index < MAX_OPEN_FILES)
         {
-            filePtrList[index] = *filePtr;
-            break;
+            if (filePtrList[index] == NULL)
+            {
+                filePtrList[index] = *filePtr;
+                break;
+            }
+            index++;
         }
-        index++;
+
+        if (index == MAX_OPEN_FILES)
+        {
+            debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                            "Open File Index is full; can't add file pointer to the list\n");
+        }
     }
 
-    if (index == MAX_OPEN_FILES)
-    {
-        debugPrintf(RTDM_IELF_DBG_INFO,
-                        "Open File Index is full; can't add file pointer to the list\n");
-    }
-
-    return (TRUE);
+    return (success);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Closes a file
+ *
+ *              This function closes a file stream
+ *
+ *  @param filePtr - file pointer to the file that is to be close
+ *  @param calledFromFile - filename that function was invoked from (debug only)
+ *  @param lineNumber - line # in file that function was invoked from (debug only)
+ *
+ *  @return BOOL - TRUE if file close was successful; FALSE otherwise
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
 {
-    INT16 osReturn = 0;
-    BOOL success = TRUE;
-    UINT16 index = 0;
+    INT16 osReturn = 0; /* return value from OS call */
+    BOOL success = TRUE; /* Becomes FALSE if file couldn't be closed */
+    UINT16 index = 0; /* loop index to access active file pointers */
 
+    /* try to close the file */
     osReturn = os_io_fclose (filePtr);
 
+    /* Verify OS call */
     if (osReturn == ERROR)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
@@ -511,31 +584,57 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
         success = FALSE;
     }
 
-    /* Remove the file pointer from the list, this list is for debug only and only is used to track "dangling"
-     * file pointers */
-    while (index < MAX_OPEN_FILES)
+    if (success)
     {
-        if (filePtrList[index] == filePtr)
+        /* Remove the file pointer from the list, this list is for debug only and only is used to track "dangling"
+         * file pointers */
+        while (index < MAX_OPEN_FILES)
         {
-            filePtrList[index] = NULL;
-            break;
+            if (filePtrList[index] == filePtr)
+            {
+                filePtrList[index] = NULL;
+                break;
+            }
+            index++;
         }
-        index++;
-    }
 
-    if (index == MAX_OPEN_FILES)
-    {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Could not find FILE * in the File Index list\n");
+        if (index == MAX_OPEN_FILES)
+        {
+            debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Could not find FILE * in the File Index list\n");
+        }
     }
 
     return (success);
 
 }
 
-void GetTimeDate (char *dateTime)
+/*****************************************************************************/
+/**
+ * @brief       Gets the date & time and formats it to a string
+ *
+ *              This function gets the system date and time and formats it to
+ *              a string that is to be used to generate the proper partial filename
+ *              for the "DAN" file.
+ *
+ *  @param dateTime - pointer to string
+ *  @param formatSpecifier - how the dateTime is to be formatted; must be YYMMDDHHMMSS
+ *  @param calledFromFile - filename that function was invoked from (debug only)
+ *  @param lineNumber - line # in file that function was invoked from (debug only)
+ *
+ *  @return BOOL - TRUE if file close was successful; FALSE otherwise
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+void GetTimeDate (char *dateTime, char *formatSpecifier)
 {
 #ifndef TEST_ON_PC
     RTDMTimeStr rtdmTime; /* Stores the Epoch time (seconds/nanoseconds) */
+
     OS_STR_TIME_ANSI ansiTime; /* Stores the ANSI time (structure) */
 
     /* Get the current time */
@@ -545,26 +644,47 @@ void GetTimeDate (char *dateTime)
     os_c_localtime (rtdmTime.seconds, &ansiTime);
 
     /* Print string (zero filling single digit numbers; this %02d */
-    sprintf (dateTime, "%02d%02d%02d-%02d%02d%02d", ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
+    sprintf (dateTime, formatSpecifier, ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
                     ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
-
 #else
     GetTimeDateFromPc (dateTime);
 #endif
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Writes string to log file
+ *
+ *              This function is a variable argument function that writes information
+ *              to a log file. This call is made strictly to log debug events for the
+ *              RTDM/IELF code.
+ *
+ *  @param debugLevel - RTDM/IELF debug level
+ *  @param formatSpecifier - format specifier (similar to printf)
+ *  @param start - used as a starting point for variable argument list
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01OCT2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...)
 {
-    FILE *ptr = NULL;
-    char dateTime[64];
+    FILE *ptr = NULL;       /* FILE pointer to log file */
+    char dateTime[64];  /* storage sting for data time portion of message */
 
-    GetTimeDate (&dateTime[0]);
+    /* Get the date/time */
+    GetTimeDate (&dateTime[0], "%02d-%02d-%02d %02d:%02d:%02d");
 
+    /* Used to process variable argument list */
     va_list args;
     va_start(args, start);
 
     FileOpenMacro(LOG_DRIVE LOG_DIRECTORY "log.txt", "a", &ptr);
     fprintf (ptr, "%s %s: ", debugLevel, dateTime);
+    /* Needed when variable argument list is used */
     vfprintf (ptr, formatSpecifier, args);
     FileCloseMacro(ptr);
 

@@ -523,7 +523,7 @@ static void WriteStreamFile (void)
             CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 #endif
 
-            debugPrintf(RTDM_IELF_DBG_INFO, "%s", "FILEIO - Append Existing\n");
+            debugPrintf(RTDM_IELF_DBG_LOG, "%s", "FILEIO - Append Existing\n");
 
             /* determine if the time span of data saved to the current file has
              * met or exceeded the desired amount. */
@@ -589,7 +589,7 @@ static void BuildSendRtdmFile (void)
 
     /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
 
-    debugPrintf(RTDM_IELF_DBG_INFO, "%s\n", "SpawSpawnFTPDatalog() invoked");
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "SpawSpawnFTPDatalog() invoked\n");
 
     /* Determine all current valid stream files */
     PopulateValidStreamFileList ();
@@ -605,7 +605,7 @@ static void BuildSendRtdmFile (void)
     if (newestStreamFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "%s\n",
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s",
                         "No valid .stream files exist to build compilation DAN file (newestStreamFileIndex not found)\n");
         return;
     }
@@ -620,7 +620,7 @@ static void BuildSendRtdmFile (void)
     if (oldestStreamFileIndex == INVALID_FILE_INDEX)
     {
         /* TODO handle error */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "%s\n",
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s",
                         "No valid .stream files exist to build compilation DAN file (oldestStreamFileIndex not found)\n");
         return;
     }
@@ -1006,7 +1006,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
     memset (dateTime, 0, sizeof(dateTime));
 
-    GetTimeDate (dateTime);
+    GetTimeDate (dateTime, "%02d%02d%02d-%02d%02d%02d");
 
     debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 

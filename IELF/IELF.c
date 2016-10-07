@@ -73,7 +73,7 @@
 #define EVENT_QUEUE_ENTRY_EMPTY             -1
 #define EVENT_LOGGED_WAITING_FOR_CLOSE      0xFFFFFFFF
 
-/* The same event can only be logged MAX_ALLOWED_EVENTS_PER_DAY this many times per day. However,
+/** @brief The same event can only be logged MAX_ALLOWED_EVENTS_PER_DAY this many times per day. However,
  * if the same event occurs more per day, the event counter is incremented regardless. */
 #define MAX_ALLOWED_EVENTS_PER_DAY          10
 
@@ -242,15 +242,7 @@ void IelfInit (UINT8 systemId)
     RTDMTimeStr currentTime;    /* Stores the current system time */
 
 
-    debugPrintf(RTDM_IELF_DBG_LOG,
-                    "LOG = %s ---> File: %s  Line#: %d\n",
-                    crcFileName, __FILE__, __LINE__);
-    debugPrintf(RTDM_IELF_DBG_INFO,
-                    "INFO = %s ---> File: %s  Line#: %d\n",
-                    crcFileName, __FILE__, __LINE__);
-    debugPrintf(RTDM_IELF_DBG_ERROR,
-                    "ERROR = %s ---> File: %s  Line#: %d\n",
-                    crcFileName, __FILE__, __LINE__);
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Initialization\n");
 
     /* "0" all structures */
     memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
@@ -341,7 +333,7 @@ void IelfInit (UINT8 systemId)
         osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
         if (osReturn != OK)
         {
-            debugPrintf(RTDM_IELF_DBG_ERROR, "IELF semaphore could not be created\n");
+            debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "IELF semaphore could not be created\n");
         }
 
         /* Verify daily event counter file */
@@ -389,7 +381,7 @@ void ServicePostedEvents (void)
     semaAcquired = DequeuePendingEvents (&fileWriteNecessary);
     if (semaAcquired != 0)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in ServicePostedEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't acquire semaphore in ServicePostedEvents()\n");
     }
 
     /* Get the current time in case an event has become inactive */
@@ -472,7 +464,7 @@ INT32 LogIELFEvent (UINT16 eventId)
     errorCode = GetEpochTime (&currentTime);
     if (errorCode != NO_ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't read RTC in LogIELFEvent()\n");
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "Couldn't read RTC in LogIELFEvent()\n");
         return (errorCode);
     }
 
@@ -482,7 +474,7 @@ INT32 LogIELFEvent (UINT16 eventId)
     osReturn = os_s_take (m_SemaphoreId, OS_NO_WAIT);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in LogIELFEvent()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't acquire semaphore in LogIELFEvent()\n");
         return (-1);
     }
     /* Add event to the pending event queue */
@@ -501,13 +493,13 @@ INT32 LogIELFEvent (UINT16 eventId)
     osReturn = os_s_give (m_SemaphoreId);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't return semaphore in LogIELFEvent()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't return semaphore in LogIELFEvent()\n");
         return (-2);
     }
 
     if (index == PENDING_EVENT_QUEUE_SIZE)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "Couldn't insert event into pending event queue... its FULL\n");
         return (-3);
     }
@@ -538,7 +530,7 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
     osReturn = os_s_take (m_SemaphoreId, OS_NO_WAIT);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't acquire semaphore in DequeuePendingEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't acquire semaphore in DequeuePendingEvents()\n");
         return (-1);
     }
 
@@ -563,7 +555,7 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
     osReturn = os_s_give (m_SemaphoreId);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "Couldn't return semaphore in DequeuePendingEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't return semaphore in DequeuePendingEvents()\n");
         return (-2);
     }
 
@@ -881,7 +873,7 @@ static void InitDailyEventCounter (RTDMTimeStr *currentTime)
     fileExists = FileExists (fileName);
     if (!fileExists)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "IELF Event counter file doesn't exist; creating new file\n");
         WriteIelfEventCounterFile (currentTime->seconds);
         return;
@@ -899,7 +891,7 @@ static void InitDailyEventCounter (RTDMTimeStr *currentTime)
     amountRead = fread (&m_DailyEventCounterOverlay, 1, sizeof(m_DailyEventCounterOverlay), pFile);
     if (amountRead != sizeof(m_DailyEventCounterOverlay))
     {
-        debugPrintf(RTDM_IELF_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "Couldn't read the correct # of bytes from IELF Event counter file; creating new file\n");
         WriteIelfEventCounterFile (currentTime->seconds);
         return;
@@ -911,7 +903,7 @@ static void InitDailyEventCounter (RTDMTimeStr *currentTime)
 
     if (crc != m_DailyEventCounterOverlay.crc)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "IELF Event counter file CRC verification failed; creating new file\n");
         WriteIelfEventCounterFile (currentTime->seconds);
         return;
@@ -923,7 +915,7 @@ static void InitDailyEventCounter (RTDMTimeStr *currentTime)
     if (!fileLastUpdateWasToday)
     {
         memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
-        debugPrintf(RTDM_IELF_DBG_INFO,
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "IELF Event counter file last updated yesterday; resetting counters and updating file\n");
         WriteIelfEventCounterFile (currentTime->seconds);
         return;
@@ -995,7 +987,7 @@ static void ServiceEventCounter (UINT32 currentTimeSecs)
     if (!sameDay)
     {
         memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
-        debugPrintf(RTDM_IELF_DBG_INFO, "IELF Event counter resetting because of day transition\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Event counter resetting because of day transition\n");
         WriteIelfEventCounterFile (currentTimeSecs);
         return;
     }
@@ -1081,7 +1073,7 @@ static void ScanForOpenEvents (void)
             /* Verify the number of open events hasn't exceeded the number of possible posted events */
             if (activeEventIndex >= ACTIVE_EVENT_QUEUE_SIZE)
             {
-                debugPrintf(RTDM_IELF_DBG_WARNING,
+                debugPrintf(RTDM_IELF_DBG_WARNING, "%s",
                                 "The number of open events has exceeded the max limit\n");
                 break;
             }
