@@ -13,7 +13,7 @@
  * \file RtdmInitialize.c
  *//*
  *
- * Revision: 01OCT2016 - D.Smail : Original Release
+ * Revision: 01DEC2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -77,7 +77,7 @@
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/

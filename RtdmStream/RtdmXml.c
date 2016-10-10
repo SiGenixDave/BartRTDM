@@ -13,7 +13,7 @@
  * \file RtdmXml.c
  *//*
  *
- * Revision: 01OCT2016 - D.Smail : Original Release
+ * Revision: 01DEC2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -261,7 +261,7 @@ static void PopulateVariableAddressesInMap (struct dataBlock_RtdmStream *interfa
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -303,7 +303,7 @@ UINT16 InitializeXML (struct dataBlock_RtdmStream *interface, RtdmXmlStr **rtdmX
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -325,7 +325,7 @@ char *GetXMLConfigFileBuffer (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -361,7 +361,7 @@ UINT16 CopyXMLConfigFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -450,7 +450,7 @@ static UINT16 ReadProcessXmlFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -511,7 +511,7 @@ static UINT16 OpenXMLConfigurationFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -635,7 +635,7 @@ static UINT16 ProcessXmlFileParams (XmlElementDataStr *xmlElementPtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -836,7 +836,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/

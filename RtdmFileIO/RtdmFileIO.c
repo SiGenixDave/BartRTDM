@@ -13,7 +13,7 @@
  * \file RtdmFileIO.c
  *//*
  *
- * Revision: 01OCT2016 - D.Smail : Original Release
+ * Revision: 01DEC2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -252,7 +252,7 @@ static char *CreateTFFS0FileName (UINT16 fileIndex);
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -299,7 +299,7 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -345,7 +345,7 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -377,7 +377,7 @@ UINT32 RtdmSystemInitialize (TYPE_RTDMSTREAM_IF *interface)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -418,7 +418,7 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -450,7 +450,7 @@ static void InitiateRtdmFileIOEventTask (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -567,7 +567,7 @@ static void WriteStreamFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -697,7 +697,7 @@ static void BuildSendRtdmFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -754,7 +754,7 @@ static void InitFileIndex (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -804,7 +804,7 @@ static void InitFtpTrackerFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -847,7 +847,7 @@ static void PopulateValidFileTimeStamps (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -898,7 +898,7 @@ static void SortValidFileTimeStamps (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -934,7 +934,7 @@ static UINT16 GetNewestStreamFileIndex (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -957,7 +957,7 @@ static UINT16 GetOldestStreamFileIndex (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1044,7 +1044,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1076,7 +1076,7 @@ static void IncludeXMLFile (FILE *ftpFilePtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1157,7 +1157,7 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1242,7 +1242,7 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1325,7 +1325,7 @@ static UINT16 CountStreams (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1383,7 +1383,7 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1421,7 +1421,7 @@ static char *CreateFileName (UINT16 fileIndex)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1547,7 +1547,7 @@ static BOOL VerifyFileIntegrity (const char *filename)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1600,7 +1600,7 @@ static void CleanupDirectory (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1724,7 +1724,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -1739,8 +1739,8 @@ static BOOL CreateCarConDevFile (void)
     if (fileSuccess)
     {
         /* TODO check that these have been updated by the output task responsible  */
-        fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.id);
-        fprintf (pFile, "%d\n", m_RtdmXmlData->dataRecorderCfg.version);
+        fprintf (pFile, "%d\n", (INT32)(m_RtdmXmlData->dataRecorderCfg.id));
+        fprintf (pFile, "%d\n", (INT32)m_RtdmXmlData->dataRecorderCfg.version);
         fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
         fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
         fprintf (pFile, "%s\n", m_RtdmXmlData->dataRecorderCfg.deviceId);
@@ -1759,25 +1759,23 @@ static BOOL CreateCarConDevFile (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize, BOOL createFile)
 {
     FILE *wrtFile = NULL;
-    const char *createFileArgs = "w+b";
-    const char *appendFileArgs = "a+b";
     char *fopenArgString = NULL;
     BOOL fileSuccess = FALSE;
 
     if (createFile)
     {
-        fopenArgString = (char *) createFileArgs;
+        fopenArgString = "w+b";
     }
     else
     {
-        fopenArgString = (char *) appendFileArgs;
+        fopenArgString = "a+b";
     }
 
     fileSuccess = FileOpenMacro(fileName, fopenArgString, &wrtFile);

@@ -13,7 +13,7 @@
  * \file RtdmStream.c
  *//*
  *
- * Revision: 01OCT2016 - D.Smail : Original Release
+ * Revision: 01DEC2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -82,6 +82,7 @@
  *     E  N  U  M  S
  *
  *******************************************************************/
+/** @brief Used to determine why the IELF file was reset */
 typedef enum
 {
     RESET_BY_PTU = 0x01,
@@ -113,8 +114,9 @@ typedef struct
  * part of the IELF file. */
 typedef struct
 {
-    /** TODO */
+    /** The time in UTC seconds when the event occurred */
     UINT32 failureBeginning __attribute__ ((packed));
+    /** The time in UTC seconds when the event ended */
     UINT32 failureEnd __attribute__ ((packed));
     UINT8 subsystemId;
     UINT16 eventId __attribute__ ((packed));
@@ -197,14 +199,14 @@ static BOOL m_NewEventActive = FALSE;
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static INT32 CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime);
-static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent);
+static void CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime);
+static void AddEventToActiveQueue (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
 static UINT32 MemoryOverlayCRCCalc (void);
 static BOOL WriteIelfDataFile (void);
 static BOOL WriteIelfCRCFile (UINT32 crc);
-static BOOL BothTimesToday (UINT32 time1, UINT32 time2);
-static void InitDailyEventCounter (RTDMTimeStr *currentTime);
+static BOOL BothTimesToday (UINT32 seconds1, UINT32 seconds2);
+static void InitDailyEventCounter (UINT32 utcSeconds);
 static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds);
 static void ServiceEventCounter (UINT32 currentTimeSecs);
 static void UpdateRecordIndexes (void);
@@ -220,7 +222,7 @@ static void SetEventLogIndex (void);
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -239,8 +241,7 @@ void IelfInit (UINT8 systemId)
     UINT16 index = 0; /* used as loop index */
     BOOL fileSuccess = FALSE; /* determines if file opened/closed successfully */
     INT16 osReturn = OK; /* result from OS call */
-    RTDMTimeStr currentTime;    /* Stores the current system time */
-
+    RTDMTimeStr currentTime; /* Stores the current system time */
 
     debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Initialization\n");
 
@@ -337,7 +338,7 @@ void IelfInit (UINT8 systemId)
         }
 
         /* Verify daily event counter file */
-        InitDailyEventCounter (&currentTime);
+        InitDailyEventCounter (currentTime.seconds);
 
         /* Look for "open" events (the end of the event wasn't detected... no end time) from the previous
          * power/reset cycle and add them to the posted queue */
@@ -361,7 +362,7 @@ void IelfInit (UINT8 systemId)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -381,7 +382,8 @@ void ServicePostedEvents (void)
     semaAcquired = DequeuePendingEvents (&fileWriteNecessary);
     if (semaAcquired != 0)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't acquire semaphore in ServicePostedEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s ",
+                        "Couldn't acquire or release semaphore in ServicePostedEvents()\n");
     }
 
     /* Get the current time in case an event has become inactive */
@@ -400,7 +402,7 @@ void ServicePostedEvents (void)
         /* Check each posted entry to determine if it contains an active event. */
         if (m_ActiveEvent[index].eventActive)
         {
-            /* Determine if the evenyt is over */
+            /* Determine if the event is over */
             eventOver = m_ActiveEvent[index].eventOverCallback ();
             if (eventOver)
             {
@@ -444,7 +446,7 @@ void ServicePostedEvents (void)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -507,30 +509,30 @@ INT32 LogIELFEvent (UINT16 eventId)
     return (0);
 }
 
-
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Scans and dequeues logged events from pending queue
  *
  *              TODO
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
 {
-    UINT16 index = 0;       /* Used as loop index */
-    INT16 osReturn = OK;    /* Return value from OS call */
+    UINT16 index = 0; /* Used as loop index */
+    INT16 osReturn = OK; /* Return value from OS call */
 
     /* Attempt to acquire the semaphore */
     osReturn = os_s_take (m_SemaphoreId, OS_NO_WAIT);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't acquire semaphore in DequeuePendingEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                        "Couldn't acquire semaphore in DequeuePendingEvents()\n");
         return (-1);
     }
 
@@ -542,7 +544,7 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
             /* New event has occurred */
             *fileUpdateRequired = TRUE;
             /* Updated the active event queue */
-            (void) AddEventToActiveQueue (&m_PendingEvent[index]);
+            AddEventToActiveQueue (&m_PendingEvent[index]);
             /* Allow new events to be added to this location */
             memset (&m_PendingEvent[index], 0, sizeof(PendingEventQueueStr));
             /* Free up this location for new events */
@@ -555,7 +557,8 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
     osReturn = os_s_give (m_SemaphoreId);
     if (osReturn != OK)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't return semaphore in DequeuePendingEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                        "Couldn't return semaphore in DequeuePendingEvents()\n");
         return (-2);
     }
 
@@ -565,23 +568,29 @@ static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Copies an event from the pending queue to the active queue
  *
- *              TODO
+ *              This function adds a logged event to the active queue. In the
+ *              process of adding the event, it updates the event counter
+ *              and gets the event over callback function. It also adds the
+ *              event to the IELF event log (memory overlay) if the number of
+ *              daily events for the event hasn't been exceeded. It also increments
+ *              the event counter associated with the event. NOTE: This function
+ *              assumes the calling function has acquired the resource semaphore.
+ *
+ * @param pendingEvent - pointer to the event that is to be added to the active event queue
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
-/* No need for semaphore acquiring here because the semaphore has been acquired successfully in calling
- * function */
-static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
+static void AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
 {
-    UINT16 index = 0;   /* Used as loop index */
-    EventOverCallback evOverCallback = NULL;    /* Callback function that determines when event is over */
+    UINT16 index = 0; /* Used as loop index */
+    EventOverCallback evOverCallback = NULL; /* Callback function that determines when event is over */
 
     /* Copy the new event into active even queue */
     while (index < ACTIVE_EVENT_QUEUE_SIZE)
@@ -594,12 +603,13 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
         index++;
     }
 
+    /* Verify the active event queue isn't full */
     if (index >= ACTIVE_EVENT_QUEUE_SIZE)
     {
         debugPrintf(RTDM_IELF_DBG_WARNING,
                         "IELF Event Log full, could not log event with id = %d\n",
                         pendingEvent->id);
-        return (-1);
+        return;
     }
 
     /* Verify the event id is within bounds */
@@ -612,7 +622,7 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
             debugPrintf(RTDM_IELF_DBG_ERROR,
                             "IELF Event: NO CALLBACK PRESENT for event id = %d ... Event not logged\n",
                             pendingEvent->id);
-            return (-2);
+            return;
         }
 
         /* Update the event counter */
@@ -623,6 +633,7 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
             m_FileOverlay.eventCounter[pendingEvent->id].overflowFlag++;
         }
 
+        /* Set flag so that a IELF file write is triggered */
         m_NewEventActive = TRUE;
 
         /* Determine that the maximum allowed events per day hasn't been exceeded */
@@ -630,7 +641,6 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
         {
             debugPrintf(RTDM_IELF_DBG_INFO, "IELF Event Logged with event id = %d\n",
                             pendingEvent->id);
-
 
             m_DailyEventCounterOverlay.count[pendingEvent->id]++;
 
@@ -677,25 +687,26 @@ static INT32 AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
                         pendingEvent->id);
     }
 
-    return (0);
+    return;
 }
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Creates a fresh IELF file memory overlay
  *
- *              TODO
+ *              This function creates a fresh copy of the IELF memory overlay.
+ *              It clears all logged events and event counters.
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
-static INT32 CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
+static void CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
 {
-    UINT16 index = 0;   /* used as loop index */
+    UINT16 index = 0; /* used as loop index */
 
     /* Clear structures that are to be updated */
     memset (&m_FileOverlay, 0, sizeof(m_FileOverlay));
@@ -712,7 +723,6 @@ static INT32 CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
     m_FileOverlay.firstRecordIndex = FILE_EMPTY;
     m_FileOverlay.lastRecordIndex = FILE_EMPTY;
 
-
     m_FileOverlay.timeOfLastReset = currentTime->seconds;
     /* TODO: may need to look at reason for reset */
     m_FileOverlay.reasonForReset = (UINT8) RESET_AFTER_DOWNLOAD;
@@ -724,28 +734,29 @@ static INT32 CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
         m_FileOverlay.eventCounter[index].subsystemId = 0x55; /* TODO TBD Assigned by Bombardier */
     }
 
-    return (0);
-
 }
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Writes the IELF data file
  *
- *              TODO
+ *              This functions writes the entire IELF file memory overlay
+ *              to disk.
+ *
+ * @return BOOL - TRUE if file write was successful; FALSE otherwise
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static BOOL WriteIelfDataFile (void)
 {
-    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.dat" */
-    FILE *pFile = NULL; /* FILE pointer to "ielf.dat" */
-    BOOL fileSuccess = FALSE;   /* Becomes true if file successfully opened */
+    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.flt" */
+    FILE *pFile = NULL; /* FILE pointer to "ielf.flt" */
+    BOOL fileSuccess = FALSE; /* Becomes true if file successfully opened */
 
     /* Open the file and write the contents of the memory overlay */
     fileSuccess = FileOpenMacro((char * ) fileName, "w+b", &pFile);
@@ -760,14 +771,18 @@ static BOOL WriteIelfDataFile (void)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Calculates the CRC of the IELF file memory overlay
  *
- *              TODO
+ *              This function calculates the CRC of the IELF file memory
+ *              overlay. The CRC is used for IELF file integrity.
+ *
+ *
+ * @returns UINT32 - CRC of the IELF file memory overlay
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -782,14 +797,16 @@ static UINT32 MemoryOverlayCRCCalc (void)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Writes the IELF file CRC to a CRC file
  *
- *              TODO
+ *              This function writes the IELF file CRC to a unique file.
+ *              This CRC file is used to verify the integrity of the IELF
+ *              file.
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -797,9 +814,9 @@ static BOOL WriteIelfCRCFile (UINT32 crc)
 {
     const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
     FILE *pFile = NULL; /* FILE pointer to "ielf.crc" */
-    BOOL fileSuccess = FALSE;   /* Becomes true if file successfully opened */
+    BOOL fileSuccess = FALSE; /* Becomes true if file successfully opened */
 
-    fileSuccess = FileOpenMacro((char *)fileName, "w+b", &pFile);
+    fileSuccess = FileOpenMacro((char * )fileName, "w+b", &pFile);
 
     if (fileSuccess)
     {
@@ -811,30 +828,38 @@ static BOOL WriteIelfCRCFile (UINT32 crc)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Determines if two times (UTC seconds) occur on the same calendar day
  *
- *              TODO
+ *              This function compares two unique times (UTC seconds) and determines
+ *              if they are part of the same calendar day.
+ *
+ *
+ *  @param seconds1 - system time 1 (UTC seconds)
+ *  @param seconds2 - system time 2 (UTC seconds)
+ *
+ *  @returns BOOL - TRUE if the times are part of same day; FALSE otherwise
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
-/* TODO May have to adjust this algorithm to account for PST / PDT and when midnight occurs. Algorithm
- * current is geared for GMT */
-static BOOL BothTimesToday (UINT32 time1, UINT32 time2)
+static BOOL BothTimesToday (UINT32 seconds1, UINT32 seconds2)
 {
-    UINT32 daysSinceEpochTime1 = 0; /* Conversion of time1 to days since Jan 1, 1970 */
-    UINT32 daysSinceEpochTime2 = 0; /* Conversion of time2 to days since Jan 1, 1970 */
+    UINT32 daysSinceEpoch1 = 0; /* Conversion of seconds1 to days since Jan 1, 1970 */
+    UINT32 daysSinceEpoch2 = 0; /* Conversion of seconds2 to days since Jan 1, 1970 */
+
+    /* TODO May have to adjust this algorithm to account for PST / PDT and when midnight occurs. Algorithm
+     * currently geared for GMT */
 
     /* Get the number of days since the epoch */
-    daysSinceEpochTime1 = time1 / SECONDS_PER_DAY;
-    daysSinceEpochTime2 = time2 / SECONDS_PER_DAY;
+    daysSinceEpoch1 = seconds1 / SECONDS_PER_DAY;
+    daysSinceEpoch2 = seconds2 / SECONDS_PER_DAY;
 
     /* Return true if time1 and time2 are part of the same day */
-    if (daysSinceEpochTime1 == daysSinceEpochTime2)
+    if (daysSinceEpoch1 == daysSinceEpoch2)
     {
         return (TRUE);
     }
@@ -845,37 +870,45 @@ static BOOL BothTimesToday (UINT32 time1, UINT32 time2)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Initializes the daily event counter
  *
- *              TODO
+ *              This function determines if the daily event counter file exists
+ *              and is valid. If either condition is not true, then a new event
+ *              counter file with all event counters cleared is created. Also,
+ *              if the file exists and is valid but the last time the file
+ *              was updated was yesterday or before, then a new file is created.
+ *
+ *
+ *  @param currentTimeSecs - current system time (UTC seconds)
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
-static void InitDailyEventCounter (RTDMTimeStr *currentTime)
+static void InitDailyEventCounter (UINT32 utcSeconds)
 {
     char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
     FILE *pFile = NULL; /* FILE pointer to "ielfevnt.dat" */
-    BOOL fileExists = FALSE;    /* Becomes TRUE if "ielfevnt.dat" exists */
+    BOOL fileExists = FALSE; /* Becomes TRUE if "ielfevnt.dat" exists */
     BOOL fileLastUpdateWasToday = FALSE; /* Becomes TRUE if "ielfevnt.dat" was updated today */
-    UINT32 amountRead = 0;  /* Number of bytes read from file */
+    UINT32 amountRead = 0; /* Number of bytes read from file */
     UINT32 crc = 0; /* calculated CRC */
-    BOOL fileSuccess = FALSE;   /* TRUE of file operation successful */
+    BOOL fileSuccess = FALSE; /* TRUE of file operation successful */
 
+    /* Clear the event counter file overlay */
     memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
 
-
-
+    /* Determine if the daily event counter file exists */
     fileExists = FileExists (fileName);
     if (!fileExists)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "IELF Event counter file doesn't exist; creating new file\n");
-        WriteIelfEventCounterFile (currentTime->seconds);
+        /* It doesn't so create the new file */
+        WriteIelfEventCounterFile (utcSeconds);
         return;
     }
 
@@ -884,64 +917,78 @@ static void InitDailyEventCounter (RTDMTimeStr *currentTime)
     if (!fileSuccess)
     {
         /* Couldn't open the file for reading so just create a new one. */
-        WriteIelfEventCounterFile (currentTime->seconds);
+        WriteIelfEventCounterFile (utcSeconds);
         return;
     }
 
+    /* Verify the file is the expected size and read it into the memory overlay. Ergo, if
+     * a new file is not created with the remaining checks in this function, then the most recent
+     * event file information is stored in the overlay. */
     amountRead = fread (&m_DailyEventCounterOverlay, 1, sizeof(m_DailyEventCounterOverlay), pFile);
     if (amountRead != sizeof(m_DailyEventCounterOverlay))
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "Couldn't read the correct # of bytes from IELF Event counter file; creating new file\n");
-        WriteIelfEventCounterFile (currentTime->seconds);
+        /* Clear the event counter file overlay */
+        memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+        WriteIelfEventCounterFile (utcSeconds);
         return;
     }
 
     /* Verify file's CRC */
     crc = crc32 (0, (const UINT8 *) &m_DailyEventCounterOverlay,
                     sizeof(m_DailyEventCounterOverlay) - sizeof(m_DailyEventCounterOverlay.crc));
-
     if (crc != m_DailyEventCounterOverlay.crc)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "IELF Event counter file CRC verification failed; creating new file\n");
-        WriteIelfEventCounterFile (currentTime->seconds);
+        /* Clear the event counter file overlay */
+        memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+        WriteIelfEventCounterFile (utcSeconds);
         return;
     }
 
-    /* Determine when this file was last updated; if updated yesterday, clear overlay */
-    fileLastUpdateWasToday = BothTimesToday (currentTime->seconds,
+    /* Determine when this file was last updated; if the last update was yesterday or before create
+     * the new file (i.e. reset all event counters) */
+    fileLastUpdateWasToday = BothTimesToday (utcSeconds,
                     m_DailyEventCounterOverlay.utcSeconds);
     if (!fileLastUpdateWasToday)
     {
-        memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+
         debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "IELF Event counter file last updated yesterday; resetting counters and updating file\n");
-        WriteIelfEventCounterFile (currentTime->seconds);
+        memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+        WriteIelfEventCounterFile (utcSeconds);
         return;
     }
 
 }
 
-
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Writes the event counter file to disk
  *
- *              TODO
+ *              This function writes the event counter file to disk. The event counter
+ *              file maintains the number of events logged for each event daily.
+ *              The time the file update was made as well as the file's contents CRC is
+ *              maintained in this file.
+ *
+ *  @param currentTimeSecs - current system time (UTC seconds)
+ *
+ *  @returns BOOL - TRUE if event counter file updated successfully, FALSE otherwise
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds)
 {
     char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
-    FILE *pFile = NULL;     /* FILE pointer to "ielfevnt.dat" */
-    BOOL fileSuccess = FALSE;   /* Becomes TRUE if file operation successful */
+    FILE *pFile = NULL; /* FILE pointer to "ielfevnt.dat" */
+    BOOL fileSuccess = FALSE; /* Becomes TRUE if file operation successful */
     UINT32 crc = 0; /* Calculated CRC of memory overlay of daily event counter */
 
     fileSuccess = FileOpenMacro(fileName, "w+b", &pFile);
@@ -962,32 +1009,41 @@ static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds)
     return (fileSuccess);
 }
 
-
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Determines whether or not to reset event counters
  *
- *              TODO
+ *              This function determines when a change of day has occurred between
+ *              the last time the IELF file was updated and the current time.
+ *              If these days are different, then the daily event counter for
+ *              every event is cleared allowing more events to be logged. There is
+ *              a daily limit of logged events for each unique event. However if
+ *              this limit is exceeded, the event counter for that event will still be
+ *              incremented, but the event will not be logged into the event FIFO.
+ *
+ *  @param currentTimeSecs - current system time (UTC seconds)
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static void ServiceEventCounter (UINT32 currentTimeSecs)
 {
-    BOOL sameDay = FALSE;   /* Becomes TRUE if the current time and the last time the
-                                event counter was updated is the same day */
+    BOOL sameDay = FALSE; /* Becomes TRUE if the current time and the last time the
+     event counter was updated is the same day */
 
     sameDay = BothTimesToday (currentTimeSecs, m_DailyEventCounterOverlay.utcSeconds);
 
-    /* If the day has changed, reset all event counters and update the file */
+    /* If the day is different from the last time the event file was updated,
+     * reset all event counters and update the file */
     if (!sameDay)
     {
         memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Event counter resetting because of day transition\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                        "IELF Event counter resetting because of day transition\n");
         WriteIelfEventCounterFile (currentTimeSecs);
         return;
     }
@@ -1002,21 +1058,29 @@ static void ServiceEventCounter (UINT32 currentTimeSecs)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Updates the IELF file record indexes
  *
- *              TODO
+ *              This function is invoked after an event is logged. It is
+ *              responsible for updating the first and last record index in the
+ *              IELF file. If the event FIFO hasn't yet been filled, the
+ *              last record index is modified and the first record index is
+ *              set at 0. Once the event FIFO has been filled the last record
+ *              index is set to 1 and the first record index is used to track
+ *              the most recent entry. The values of first record index and last
+ *              record index are specified in document 071-ICD-0004.
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static void UpdateRecordIndexes (void)
 {
     /* Indicates that the event log is completely empty */
-    if (m_FileOverlay.firstRecordIndex == FILE_EMPTY && m_FileOverlay.lastRecordIndex == FILE_EMPTY)
+    if ((m_FileOverlay.firstRecordIndex == FILE_EMPTY)
+                    && (m_FileOverlay.lastRecordIndex == FILE_EMPTY))
     {
         m_FileOverlay.firstRecordIndex = 0;
         m_FileOverlay.lastRecordIndex = 1;
@@ -1035,7 +1099,7 @@ static void UpdateRecordIndexes (void)
     else
     {
         m_FileOverlay.firstRecordIndex++;
-        if (m_FileOverlay.lastRecordIndex > EVENT_FIFO_SIZE_IN_FILE)
+        if (m_FileOverlay.firstRecordIndex > EVENT_FIFO_SIZE_IN_FILE)
         {
             m_FileOverlay.firstRecordIndex = 1;
         }
@@ -1049,21 +1113,26 @@ static void UpdateRecordIndexes (void)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Scans the entire the even log for open events
  *
- *              TODO
+ *              This function scans the entire event log to determine if
+ *              any logged events did not end. In other words, a reset or
+ *              power cycle occurred prior to the event being declared
+ *              as ended. If any of these events are found, they are added
+ *              to the active event list so they can be closed when the events'
+ *              condition are inactive.
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 static void ScanForOpenEvents (void)
 {
     UINT16 index = 0; /* Used as a loop index */
-    UINT16 activeEventIndex = 0;    /* Used as an index into the active event queue */
+    UINT16 activeEventIndex = 0; /* Used as an index into the active event queue */
 
     for (index = 0; index < EVENT_FIFO_SIZE_IN_FILE; index++)
     {
@@ -1091,14 +1160,19 @@ static void ScanForOpenEvents (void)
 
 /*****************************************************************************/
 /**
- * @brief       TODO
+ * @brief       Sets the index into the logged events
  *
- *              TODO
+ *              This function examines the first record index and the last record
+ *              index to determine where to set the index that will be used to log
+ *              new events. Since the event log is a FIFO, the index must be set to
+ *              the oldest event if the FIFO is full or just past the most
+ *              recent event if the FIFO isn't full. The values of first record
+ *              index and last record index are specified in document 071-ICD-0004.
  *
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/

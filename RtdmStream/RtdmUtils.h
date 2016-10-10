@@ -13,7 +13,7 @@
  * @file RtdmUtils.h
  *//*
  *
- * Revision : 01OCT2016 - D.Smail : Original Release
+ * Revision : 01DEC2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -352,9 +352,9 @@ UINT16 CreateVerifyStorageDirectory (char *pathName);
 BOOL FileExists (const char *fileName);
 INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
 BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
-                char *calledFromFile, UINT32 lineNumber);
+                char *calledFromFile, INT32 lineNumber);
 BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr,
-                char *calledFromFile, UINT32 lineNumber);
+                char *calledFromFile, INT32 lineNumber);
 BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
 void GetTimeDate (char *dateTime, char *formatSpecifier);
 

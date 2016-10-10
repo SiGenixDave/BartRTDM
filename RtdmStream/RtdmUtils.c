@@ -13,7 +13,7 @@
  * \file RtdmUtils.c
  *//*
  *
- * Revision: 01OCT2016 - D.Smail : Original Release
+ * Revision: 01DEC2016 - D.Smail : Original Release
  *
  *****************************************************************************/
 
@@ -43,9 +43,12 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-/* comment out if floats/doubles are not allowed */
+/** @brief undefine out if floats/doubles are not allowed */
 #define DOUBLES_ALLOWED
 
+/** @brief Maximum amount of open file pointers before logging an error. This
+ * is for debug only to detect file pointers that aren't closed and avoiding
+ * a memory leak. */
 #define MAX_OPEN_FILES          5
 
 /*******************************************************************
@@ -65,6 +68,8 @@
  *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
  *
  *******************************************************************/
+/** @brief Used to detect "dangling" FILE pointers. For debug only, but
+ * used to prevent memory leaks. */
 static FILE *filePtrList[MAX_OPEN_FILES];
 
 /*******************************************************************
@@ -88,7 +93,7 @@ static FILE *filePtrList[MAX_OPEN_FILES];
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -145,7 +150,7 @@ UINT16 GetEpochTime (RTDMTimeStr* currentTime)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -218,7 +223,7 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -335,7 +340,7 @@ void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *r
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -380,7 +385,7 @@ UINT16 CreateVerifyStorageDirectory (char *pathName)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -414,7 +419,7 @@ BOOL FileExists (const char *fileName)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -453,12 +458,12 @@ INT32 AllocateMemoryAndClear (UINT32 size, void **memory)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
-                char *calledFromFile, UINT32 lineNumber)
+                char *calledFromFile, INT32 lineNumber)
 {
     UINT32 amountWritten = 0; /* amount of bytes written to file */
     BOOL success = TRUE; /* becomes FALSE if the number of byets written was the amount desired */
@@ -501,12 +506,12 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
 BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calledFromFile,
-                UINT32 lineNumber)
+                INT32 lineNumber)
 {
     INT16 osReturn = 0; /* return value from OS call */
     UINT16 index = 0; /* loop index to access active file pointers */
@@ -561,7 +566,7 @@ BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calle
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -579,7 +584,7 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR,
                         "os_io_fclose() failed: Called from ---> File: %s  Line#: %d\n",
-                        calledFromFile, lineNumber);
+                        calledFromFile, (INT32)lineNumber);
 
         success = FALSE;
     }
@@ -626,7 +631,7 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -666,7 +671,7 @@ void GetTimeDate (char *dateTime, char *formatSpecifier)
  *//*
  * Revision History:
  *
- * Date & Author : 01OCT2016 - D.Smail
+ * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
  *
  *****************************************************************************/
@@ -674,12 +679,11 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...)
 {
     FILE *ptr = NULL;       /* FILE pointer to log file */
     char dateTime[64];  /* storage sting for data time portion of message */
+    va_list args; /* Used to process variable argument list */
 
     /* Get the date/time */
     GetTimeDate (&dateTime[0], "%02d-%02d-%02d %02d:%02d:%02d");
 
-    /* Used to process variable argument list */
-    va_list args;
     va_start(args, start);
 
     FileOpenMacro(LOG_DRIVE LOG_DIRECTORY "log.txt", "a", &ptr);
