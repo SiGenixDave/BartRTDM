@@ -30,6 +30,7 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
+
 #include "../RtdmStream/RtdmUtils.h"
 
 #include "../RtdmStream/RtdmStream.h"
@@ -38,6 +39,7 @@
 #include "../RtdmStream/RTDMInitialize.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 #include "../RtdmFileIO/RtdmFileIO.h"
+
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -49,9 +51,9 @@
 #define SINGLE_FILE_TIMESPAN_HOURS          0.25
 #else
 /* Total time stream data is logged, old data will be overwritten */
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (2.5/60.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (1.0)
 /* Each #.stream file contains this many hours worth of stream data */
-#define SINGLE_FILE_TIMESPAN_HOURS          (0.5/60.0)
+#define SINGLE_FILE_TIMESPAN_HOURS          (0.25)
 #endif
 
 /* Convert the above define to milliseconds */
@@ -207,6 +209,7 @@ static FileAction m_FileAction = 0;
 /** @brief Holds information when about the stream to be written. */
 static RtdmFileWrite m_FileWrite;
 
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
@@ -236,9 +239,9 @@ static void WriteStreamFile (void);
 static void BuildSendRtdmFile (void);
 static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 wrtSize, BOOL creaetFile);
 
-#ifdef FOR_TEST_ONLY
-static char *CreateTFFS0FileName (UINT16 fileIndex);
-#endif
+
+
+
 /*****************************************************************************/
 /**
  * @brief      Initializes the all File I/O
@@ -261,8 +264,6 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
     UINT16 errorCode = NO_ERROR;
 
     m_RtdmXmlData = rtdmXmlData;
-
-    CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
 
     errorCode = CopyXMLConfigFile ();
     if (errorCode != NO_ERROR)
@@ -462,9 +463,6 @@ static void WriteStreamFile (void)
     INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
     StreamHeaderStr streamHeader; /* holds the current stream header */
     char *fileName = NULL; /* filename of the #.stream file */
-#ifdef FOR_TEST_ONLY
-    char *fileNameTFFS0 = NULL; /* filename of the #.stream file */
-#endif
 
 #ifdef FIXED_TIME_CYCLE_NS
     static BOOL oneFileWriteComplete = FALSE;
@@ -487,9 +485,7 @@ static void WriteStreamFile (void)
 
     /* Get the file name */
     fileName = CreateFileName (m_StreamFileIndex);
-#ifdef FOR_TEST_ONLY
-    fileNameTFFS0 = CreateTFFS0FileName (m_StreamFileIndex);
-#endif
+
     switch (m_StreamFileState)
     {
         default:
@@ -499,10 +495,6 @@ static void WriteStreamFile (void)
             /* Write the stream */
             CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
-#ifdef FOR_TEST_ONLY
-            CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
-            CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
-#endif
             s_StartTime = m_FileWrite.time;
             m_StreamFileState = APPEND_TO_EXISTING;
 
@@ -517,11 +509,6 @@ static void WriteStreamFile (void)
             CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
             /* Write the stream */
             CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
-
-#ifdef FOR_TEST_ONLY
-            CompactFlashWrite (fileNameTFFS0, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
-            CompactFlashWrite (fileNameTFFS0, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
-#endif
 
             debugPrintf(RTDM_IELF_DBG_LOG, "%s", "FILEIO - Append Existing\n");
 
@@ -963,11 +950,6 @@ static UINT16 GetOldestStreamFileIndex (void)
  *****************************************************************************/
 static char * CreateFTPFileName (FILE **ftpFilePtr)
 {
-#ifndef TEST_ON_PC
-    RTDMTimeStr rtdmTime; /* Stores the Epoch time (seconds/nanoseconds) */
-    OS_STR_TIME_ANSI ansiTime; /* Stores the ANSI time (structure) */
-#endif
-
     BOOL fileSuccess = FALSE;
     char consistId[17]; /* Stores the consist id */
     char carId[17]; /* Stores the car id */
@@ -1006,7 +988,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
     memset (dateTime, 0, sizeof(dateTime));
 
-    GetTimeDate (dateTime, "%02d%02d%02d-%02d%02d%02d");
+    GetTimeDateRtdm (dateTime, "%02d%02d%02d-%02d%02d%02d");
 
     debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 
@@ -1786,26 +1768,6 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize,
 
     return (fileSuccess);
 }
-
-#ifdef FOR_TEST_ONLY
-static char *CreateTFFS0FileName (UINT16 fileIndex)
-{
-    static char s_FileName[100]; /* Stores the newly created filename */
-    const char *extension = ".stream"; /* Holds the extension for the file */
-
-    memset (s_FileName, 0, sizeof(s_FileName));
-
-    strcat (s_FileName, "/tffs0/");
-    strcat (s_FileName, DIRECTORY_NAME);
-
-    /* Append the file index to the drive and directory */
-    sprintf (&s_FileName[strlen (s_FileName)], "%u", fileIndex);
-    /* Append the extension */
-    strcat (s_FileName, extension);
-
-    return (s_FileName);
-}
-#endif
 
 #ifdef CURRENTLY_UNUSED
 static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)

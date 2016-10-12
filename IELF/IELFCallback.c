@@ -36,14 +36,18 @@
 
 #include "../IELF/IELF.h"
 
+/** @brief maps the event Id to the callback function that determines when the event conditions
+ * are no longer present */
 typedef struct
 {
+    /** event Id */
     UINT16 eventCode;
+    /** callback function associated with the eventCode */
     EventOverCallback callback;
 
 } IELFCallbackMap;
 
-#if !TEST_ON_PC
+#ifndef TEST_ON_PC
 static IELFCallbackMap ielfCallbackMap[] =
 {
     {   1, x},
@@ -56,15 +60,37 @@ static IELFCallbackMap ielfCallbackMap[] =
           { 2, Sim2EventOver }, };
 #endif
 
+/*****************************************************************************/
+/**
+ * @brief       Gets the callback function for the selected event
+ *
+ *              This function scans the event callback list and retrieves
+ *              the callback function used to determine when the event
+ *              conditions are no longer present.
+ *
+ * @param eventCode - the event id
+ *
+ * @returns EventOverCallback - callback function used to determine when event conditions
+ *                              are no longer present
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 EventOverCallback GetIELFCallback (UINT16 eventCode)
 {
-    EventOverCallback callback = NULL;
-    UINT16 index = 0;
+    EventOverCallback callback = NULL;  /* default return value, calling function should check for NULL */
+    UINT16 index = 0;   /* loop index */
 
+    /* Scan through the map */
     while (index < sizeof(ielfCallbackMap) / sizeof(IELFCallbackMap))
     {
         if (ielfCallbackMap[index].eventCode == eventCode)
         {
+            /* Callback found */
             callback = ielfCallbackMap[index].callback;
             break;
         }

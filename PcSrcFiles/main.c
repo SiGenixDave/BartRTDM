@@ -58,8 +58,9 @@ int main (void)
     printf("Hello World\n");
     /* RTDMInitialize (&mStreamInfo); */
     /* DAS can't single step debug when another thread is spawned */
-    /* CreateUIThread(); */
-
+#if 1
+    CreateUIThread();
+#endif
     IelfInit (0x12);
 
     while (TRUE)

@@ -22,14 +22,13 @@
 
 typedef struct dataBlock_RtdmFileIO
 {
-} TYPE_RTDMFILEIO_IF;
+}   TYPE_RTDMFILEIO_IF;
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface);
+void RtdmFileIO(TYPE_RTDMFILEIO_IF *interface);
 
 #ifdef __cplusplus
 }

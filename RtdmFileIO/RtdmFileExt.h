@@ -10,7 +10,7 @@
  *
  * Project    : BART VCU (Embedded)
  *//**
- * @file RtdmFileIO.h
+ * @file RtdmFileExt.h
  *//*
  *
  * Revision : 01DEC2016 - D.Smail : Original Release
@@ -31,7 +31,7 @@
 #define DRIVE_NAME                          "D:\\"
 #define DIRECTORY_NAME                      "rtdmielf\\"
 #else
-#define DRIVE_NAME                          "/ata0/"
+#define DRIVE_NAME                          "/tffs0/"
 #define DIRECTORY_NAME                      "rtdmielf/"
 #endif
 

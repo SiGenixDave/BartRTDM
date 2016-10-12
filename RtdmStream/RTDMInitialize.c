@@ -85,6 +85,10 @@ void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
 {
 
     RtdmXmlStr *rtdmXmlData = NULL;
+	
+    CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
+
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "RTDM Initialization\n");
 
     /* Read XML file and update all XML and interface parameters. This call must be
      * performed first because other initialization functions use parameters read from the

@@ -20,9 +20,6 @@
 #ifndef RTDMUTILS_H_
 #define RTDMUTILS_H_
 
-#include <stdarg.h>
-void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
-
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -93,7 +90,7 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
  * from 1 of the 4 options listed above
  */
 #define RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL     0
-#define RTDM_IELF_LOG_FILE_WRITE            1
+#define RTDM_IELF_LOG_FILE_WRITE            0
 #define RTDM_IELF_DBG_LEVEL                 RTDM_IELF_DBG_INFO
 
 #if (RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL != 0)
@@ -116,10 +113,6 @@ void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...);
         {   \
             printf ("%s: ",#debugLevel); \
             printf (fmt, ##args); \
-            if (RTDM_IELF_LOG_FILE_WRITE == 1) \
-            { \
-                WriteToLogFile (#debugLevel, fmt, 0, ##args); \
-            } \
         } \
     } while (0)
 
@@ -356,6 +349,6 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
 BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr,
                 char *calledFromFile, INT32 lineNumber);
 BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
-void GetTimeDate (char *dateTime, char *formatSpecifier);
+void GetTimeDateRtdm (char *dateTime, char *formatSpecifier);
 
 #endif /* RTDMUTILS_H_ */

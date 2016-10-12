@@ -635,7 +635,7 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
  * Description   : Original Release
  *
  *****************************************************************************/
-void GetTimeDate (char *dateTime, char *formatSpecifier)
+void GetTimeDateRtdm (char *dateTime, char *formatSpecifier)
 {
 #ifndef TEST_ON_PC
     RTDMTimeStr rtdmTime; /* Stores the Epoch time (seconds/nanoseconds) */
@@ -656,45 +656,6 @@ void GetTimeDate (char *dateTime, char *formatSpecifier)
 #endif
 }
 
-/*****************************************************************************/
-/**
- * @brief       Writes string to log file
- *
- *              This function is a variable argument function that writes information
- *              to a log file. This call is made strictly to log debug events for the
- *              RTDM/IELF code.
- *
- *  @param debugLevel - RTDM/IELF debug level
- *  @param formatSpecifier - format specifier (similar to printf)
- *  @param start - used as a starting point for variable argument list
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-void WriteToLogFile (char *debugLevel, char *formatSpecifier, int start, ...)
-{
-    FILE *ptr = NULL;       /* FILE pointer to log file */
-    char dateTime[64];  /* storage sting for data time portion of message */
-    va_list args; /* Used to process variable argument list */
-
-    /* Get the date/time */
-    GetTimeDate (&dateTime[0], "%02d-%02d-%02d %02d:%02d:%02d");
-
-    va_start(args, start);
-
-    FileOpenMacro(LOG_DRIVE LOG_DIRECTORY "log.txt", "a", &ptr);
-    fprintf (ptr, "%s %s: ", debugLevel, dateTime);
-    /* Needed when variable argument list is used */
-    vfprintf (ptr, formatSpecifier, args);
-    FileCloseMacro(ptr);
-
-    va_end(args);
-
-}
 
 #ifdef FOR_UNIT_TEST_ONLY
 void test(void)
