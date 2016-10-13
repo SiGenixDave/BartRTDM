@@ -635,7 +635,7 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
  * Description   : Original Release
  *
  *****************************************************************************/
-void GetTimeDateRtdm (char *dateTime, char *formatSpecifier)
+void GetTimeDateRtdm (char *dateTime, char *formatSpecifier, UINT32 dateTimeStrArrayLength)
 {
 #ifndef TEST_ON_PC
     RTDMTimeStr rtdmTime; /* Stores the Epoch time (seconds/nanoseconds) */
@@ -649,11 +649,33 @@ void GetTimeDateRtdm (char *dateTime, char *formatSpecifier)
     os_c_localtime (rtdmTime.seconds, &ansiTime);
 
     /* Print string (zero filling single digit numbers; this %02d */
-    sprintf (dateTime, formatSpecifier, ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
+    snprintf (dateTime, dateTimeStrArrayLength, formatSpecifier, ansiTime.tm_year % 100, ansiTime.tm_mon + 1, ansiTime.tm_mday,
                     ansiTime.tm_hour, ansiTime.tm_min, ansiTime.tm_sec);
 #else
     GetTimeDateFromPc (dateTime);
 #endif
+}
+
+void WriteToLogFile (char *strLevel, char *strInfo)
+{
+    FILE *logFile = NULL;
+    char dateTime[40];
+
+#ifdef TEST_ON_PC
+    char rawDateTime[40];
+    GetTimeDateFromPc (rawDateTime);
+    sprintf (dateTime, "(%s) ", rawDateTime);
+#else
+    GetTimeDateRtdm (dateTime, "(%d-%d-%d %d:%d:%d) ", sizeof(dateTime));
+#endif
+
+    FileOpenMacro (LOG_DRIVE LOG_DIRECTORY "log.txt", "a+", &logFile);
+
+    FileWriteMacro (logFile, strLevel, strlen(strLevel), FALSE);
+    FileWriteMacro (logFile, dateTime, strlen(dateTime), FALSE);
+    FileWriteMacro (logFile, strInfo, strlen(strInfo), TRUE);
+
+
 }
 
 

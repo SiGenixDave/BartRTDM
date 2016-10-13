@@ -16,7 +16,6 @@ void GetTimeDateFromPc (char *dateTime)
     time_t now = time (NULL);
     struct tm *t = localtime (&now);
     strftime (dateTime, 64, "%y-%m-%d %H:%M:%S", t);
-
 }
 
 static BOOL sim1, sim2;

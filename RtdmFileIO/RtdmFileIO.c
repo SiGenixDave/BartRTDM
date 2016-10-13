@@ -988,7 +988,7 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
 
     memset (dateTime, 0, sizeof(dateTime));
 
-    GetTimeDateRtdm (dateTime, "%02d%02d%02d-%02d%02d%02d");
+    GetTimeDateRtdm (dateTime, "%02d%02d%02d-%02d%02d%02d", sizeof(dateTime));
 
     debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 
