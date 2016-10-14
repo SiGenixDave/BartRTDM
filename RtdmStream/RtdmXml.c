@@ -342,7 +342,7 @@ UINT16 CopyXMLConfigFile (void)
         return (1);
     }
 
-    FileWriteMacro(copyFile, &m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE);
+    FileWriteMacro(copyFile, m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE);
 
     return (NO_ERROR);
 

@@ -180,7 +180,7 @@ typedef struct
     /** index into the event log where this event was logged, used to "close" the event when
      * event conditions are no longer present */
     UINT16 logIndex;
-    /** callback function to detect when the conditons that caused the event are no longer present */
+    /** callback function to detect when the conditions that caused the event are no longer present */
     EventOverCallback eventOverCallback;
 } ActiveEventQueueStr;
 
