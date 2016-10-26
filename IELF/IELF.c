@@ -258,6 +258,11 @@ static void SetEventLogIndex (void);
  *****************************************************************************/
 void IelfInit (UINT8 systemId)
 {
+
+    /* TODO need to understand how DST is saved on VCU target and how time is adjusted
+     * in order to make sure CSV file created by windows app does the right thing
+     */
+
     BOOL fileDataExists = FALSE; /* Becomes TRUE if the ielf.dat file exists */
     BOOL fileCrcExists = FALSE; /* Becomes TRUE if the ielf.crc file exists */
     UINT32 crc = 0; /* result of CRC calculation */

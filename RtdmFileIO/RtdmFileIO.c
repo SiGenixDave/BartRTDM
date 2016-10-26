@@ -77,6 +77,10 @@
 /* Indicates an invalid time stamp or the file doesn't exist  */
 #define INVALID_TIME_STAMP                  0xFFFFFFFF
 
+/* The name of the file uploaded by the PTU to indicate that the RTDM data should be cleared */
+#define RTDM_CLEAR_FILENAME     "Clear.rtdm"
+
+
 /*******************************************************************
  *
  *     E  N  U  M  S
@@ -237,10 +241,8 @@ static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
 static void BuildSendRtdmFile (void);
-static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 wrtSize, BOOL creaetFile);
-
-
-
+static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 amount, BOOL creaetFile);
+static void RtdmClearFileProcessing (void);
 
 /*****************************************************************************/
 /**
@@ -472,6 +474,13 @@ static void WriteStreamFile (void)
         return;
     }
 #endif
+
+    /* Determine if the "clear.rtdm" file exists. If so, all stream files will
+     * be deleted. This file is placed in the directory by the PTU upon user
+     * request to clear all stream data (i.e. remove all stream files)
+     */
+    RtdmClearFileProcessing();
+
 
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
@@ -1736,7 +1745,60 @@ static BOOL CreateCarConDevFile (void)
 
 /*****************************************************************************/
 /**
- * @brief       TODO may not need once problem is resolved; ergo no comments
+ * @brief       This function writes data to the specified file (in this case,
+ *              all file I/O is performed to/from the VCU Compact FLASH. An
+ *              argument determines whether data is to be written to a new file
+ *              or appended to an existing file.
+ *
+ *  @param fileName - the full name of the file to write to
+ *  @param buffer - the buffer from which data is written
+ *  @param amount - the amount of data from the buffer to write
+ *  @param createFile - TRUE to create a new file; FALSE to append data to existing file
+ *
+ *  @return BOOL - TRUE if all OS/file calls; FALSE otherwise
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL createFile)
+{
+    FILE *wrtFile = NULL;   /* FILE pointer to the file that is to be written */
+    char *fopenArgString = NULL;    /* The file specification string (either create or append) */
+    BOOL fileSuccess = FALSE;   /* */
+
+    if (createFile)
+    {
+        /* Create new file */
+        fopenArgString = "w+b";
+    }
+    else
+    {
+        /* Append to existing file... if file doesn't exist, it will create new file */
+        fopenArgString = "a+b";
+    }
+
+    fileSuccess = FileOpenMacro(fileName, fopenArgString, &wrtFile);
+    if (fileSuccess)
+    {
+        fileSuccess = FileWriteMacro(wrtFile, buffer, amount, TRUE);
+    }
+
+    return (fileSuccess);
+}
+
+
+/*****************************************************************************/
+/**
+ * @brief       This function examines the specified drive/directory for a
+ *              specific file (defined by RTDM_CLEAR_FILENAME). This file
+ *              will be uploaded by the PTU upon user command if the user
+ *              wishes to clear all RTDM data. This method is the best way
+ *              to gracefully clear the RTDM data streams. If this file is
+ *              detected, it is deleted and then all *.stream files will be
+ *              deleted.
  *
  *//*
  * Revision History:
@@ -1745,28 +1807,57 @@ static BOOL CreateCarConDevFile (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static BOOL CompactFlashWrite (char *fileName, UINT8 * wrtBuffer, INT32 wrtSize, BOOL createFile)
+static void RtdmClearFileProcessing (void)
 {
-    FILE *wrtFile = NULL;
-    char *fopenArgString = NULL;
-    BOOL fileSuccess = FALSE;
+    BOOL fileExists = FALSE;    /* Becomes TRUE if RTDM clear file is present */
+    char *clearFileName = DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME;    /* Clear file name */
+    INT32 osCallReturn = 0; /* return value from OS calls */
+    UINT16 fileIndex = 0;   /* Used to create stream file names */
+    char *streamFileName = NULL;    /* Stores the stream file name to be deleted */
 
-    if (createFile)
-    {
-        fopenArgString = "w+b";
-    }
-    else
-    {
-        fopenArgString = "a+b";
-    }
+    /* Determine if clear.rtdm file exists */
+    fileExists = FileExists(DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME);
 
-    fileSuccess = FileOpenMacro(fileName, fopenArgString, &wrtFile);
-    if (fileSuccess)
+    /* The file doesn't exist, so do nothing */
+    if (!fileExists)
     {
-        fileSuccess = FileWriteMacro(wrtFile, wrtBuffer, wrtSize, TRUE);
+        return;
     }
 
-    return (fileSuccess);
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "RTDM stream files cleared by the PTU\n");
+
+    /* delete the clear file */
+    osCallReturn = remove (clearFileName);
+    if (osCallReturn != 0)
+    {
+        debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n",
+                        clearFileName, __FILE__, __LINE__);
+    }
+
+    /* Scan through all stream files, and if they exist, delete them. */
+    while (fileIndex < MAX_NUMBER_OF_STREAM_FILES)
+    {
+        streamFileName = CreateFileName (fileIndex);
+        fileExists = FileExists(streamFileName);
+        if (fileExists)
+        {
+            /* delete clear file */
+            osCallReturn = remove (streamFileName);
+            if (osCallReturn != 0)
+            {
+                debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n",
+                                streamFileName, __FILE__, __LINE__);
+            }
+
+        }
+        fileIndex++;
+    }
+
+
+    /* reset file index and file state */
+    m_StreamFileState = CREATE_NEW;
+    m_StreamFileIndex = 0;
+
 }
 
 #ifdef CURRENTLY_UNUSED

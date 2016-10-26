@@ -466,7 +466,7 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
                 char *calledFromFile, INT32 lineNumber)
 {
     UINT32 amountWritten = 0; /* amount of bytes written to file */
-    BOOL success = TRUE; /* becomes FALSE if the number of byets written was the amount desired */
+    BOOL success = TRUE; /* becomes FALSE if the number of bytes written was the amount desired */
 
     /* Write the bytes to the file */
     amountWritten = fwrite (buffer, 1, bytesToWrite, filePtr);
