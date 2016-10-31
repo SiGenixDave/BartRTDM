@@ -50,6 +50,8 @@
 #define IELF_CRC_FILENAME                   "ielf.crc"
 /** @brief file name used to store IELF daily event log counters */
 #define IELF_DAILY_EVENT_COUNTER_FILENAME   "ielfevnt.dat"
+/* The name of the file uploaded by the PTU to indicate that the IELF data should be cleared */
+#define IELF_CLEAR_FILENAME                 "Clear.ielf"
 /** @brief specified version used in IELF file */
 #define IELF_VERSION                        0x30000000
 /** @brief number of seconds in a day */
@@ -217,13 +219,15 @@ static UINT16 m_LogIndex;
 static INT32 m_SemaphoreId = 0;
 /** @brief Memory copy of file that maintains the daily event counter for each event. */
 static DailyEventCounter m_DailyEventCounterOverlay;
+/** @brief The system Id as specified by Bombardier */
+static UINT8 m_SystemId = 0;
 
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static void CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime);
+static void CreateNewIELFOverlay (UINT8 reasonForReset, RTDMTimeStr *currentTime);
 static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
 static UINT32 MemoryOverlayCRCCalc (void);
@@ -236,6 +240,7 @@ static void ServiceEventCounter (UINT32 currentTimeSecs);
 static void UpdateRecordIndexes (void);
 static void ScanForOpenEvents (void);
 static void SetEventLogIndex (void);
+static void IelfClearFileProcessing (RTDMTimeStr *currentTime);
 
 /*****************************************************************************/
 /**
@@ -278,6 +283,9 @@ void IelfInit (UINT8 systemId)
     INT16 osReturn = OK; /* result from OS call */
     RTDMTimeStr currentTime; /* Stores the current system time */
 
+    /* Save the system Id */
+    m_SystemId = systemId;
+
     /* Check for the existence of the storage directory; create it if it doesn't exist */
     (void) CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
 
@@ -304,7 +312,7 @@ void IelfInit (UINT8 systemId)
     /* If either file doesn't exist; create the files and return */
     if (!fileDataExists || !fileCrcExists)
     {
-        CreateNewIELFOverlay (systemId, &currentTime);
+        CreateNewIELFOverlay (RESET_AFTER_DOWNLOAD, &currentTime);
         crc = MemoryOverlayCRCCalc ();
         (void) WriteIelfDataFile ();
         (void) WriteIelfCRCFile (crc);
@@ -358,7 +366,7 @@ void IelfInit (UINT8 systemId)
 
         if (calculatedCRC != storedCRC)
         {
-            CreateNewIELFOverlay (systemId, &currentTime);
+            CreateNewIELFOverlay (RESET_AFTER_DOWNLOAD, &currentTime);
             crc = MemoryOverlayCRCCalc ();
             (void) WriteIelfDataFile ();
             (void) WriteIelfCRCFile (crc);
@@ -423,6 +431,22 @@ void ServicePostedEvents (void)
      transferred to active event queue */
     UINT32 crc = 0; /* CRC calculation of memory overlay */
 
+    /* Get the current time in case an event has become inactive */
+    memset (&currentTime, 0, sizeof(currentTime));
+    errorCode = GetEpochTime (&currentTime);
+
+    /* Getting a correct time is imperative; therefore abort this function if
+     * a correct time can't be gotten from the OS.
+     */
+    if (errorCode != NO_ERROR)
+    {
+        return;
+    }
+
+
+    /* Determine if the user (via the PTU) has requested all IELF data to be cleared */
+    IelfClearFileProcessing(&currentTime);
+
     /* Get any new events just logged; copy from Pending to Posted. If semaphore couldn't be acquired, any
      * pending events will have to be copied from Pending to Posted on the next cycle. If fileWriteNecessary
      * becomes TRUE, at least 1 new event has been logged and successfully transferred from the
@@ -434,16 +458,6 @@ void ServicePostedEvents (void)
                         "Couldn't acquire or release semaphore in ServicePostedEvents()\n");
     }
 
-    /* Get the current time in case an event has become inactive */
-    memset (&currentTime, 0, sizeof(currentTime));
-    errorCode = GetEpochTime (&currentTime);
-    /* Getting a correct time is imperative; therefore abort this function if
-     * a correct time can't be gotten from the OS.
-     */
-    if (errorCode != NO_ERROR)
-    {
-        return;
-    }
 
     for (index = 0; index < ACTIVE_EVENT_QUEUE_SIZE; index++)
     {
@@ -783,7 +797,7 @@ static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
  * Description   : Original Release
  *
  *****************************************************************************/
-static void CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
+static void CreateNewIELFOverlay (UINT8 reasonForReset, RTDMTimeStr *currentTime)
 {
     UINT16 index = 0; /* used as loop index */
 
@@ -797,14 +811,14 @@ static void CreateNewIELFOverlay (UINT8 systemId, RTDMTimeStr *currentTime)
     m_FileOverlay.version[3] = IELF_VERSION & 0xFF;
 
     /* Set the default values */
-    m_FileOverlay.systemId = systemId;
+    m_FileOverlay.systemId = m_SystemId;
     m_FileOverlay.numberOfRecords = EVENT_FIFO_SIZE_IN_FILE;
     m_FileOverlay.firstRecordIndex = FILE_EMPTY;
     m_FileOverlay.lastRecordIndex = FILE_EMPTY;
 
     m_FileOverlay.timeOfLastReset = currentTime->seconds;
     /* TODO: may need to look at reason for reset */
-    m_FileOverlay.reasonForReset = (UINT8) RESET_AFTER_DOWNLOAD;
+    m_FileOverlay.reasonForReset = reasonForReset;
 
     /* Update the event counter ids and the subsystem IDs */
     for (index = 0; index < MAX_NUMBER_OF_UNIQUE_EVENTS; index++)
@@ -1049,7 +1063,7 @@ static void InitDailyEventCounter (UINT32 utcSeconds)
  *
  *              This function writes the event counter file to disk. The event counter
  *              file maintains the number of events logged for each event daily.
- *              The time the file update was made as well as the file's contents CRC is
+ *              The time the file updated was made as well as the file's contents CRC is
  *              maintained in this file.
  *
  *  @param currentTimeSecs - current system time (UTC seconds)
@@ -1266,5 +1280,64 @@ static void SetEventLogIndex (void)
     {
         m_LogIndex = m_FileOverlay.firstRecordIndex;
     }
+}
+
+
+/*****************************************************************************/
+/**
+ * @brief       This function examines the specified drive/directory for a
+ *              specific file (defined by IELF_CLEAR_FILENAME). This file
+ *              will be uploaded by the PTU upon user command if the user
+ *              wishes to clear all IELF data. This method is the best way
+ *              to gracefully clear the IELF data.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void IelfClearFileProcessing (RTDMTimeStr *currentTime)
+{
+    BOOL fileExists = FALSE;    /* Becomes TRUE if IELF clear file is present */
+    char *clearFileName = DRIVE_NAME DIRECTORY_NAME IELF_CLEAR_FILENAME;    /* Clear file name */
+    INT32 osCallReturn = 0; /* return value from OS calls */
+    UINT32 crc = 0;  /* calculated CRC of the IELF data file */
+
+    /* Determine if clear.rtdm file exists */
+    fileExists = FileExists(DRIVE_NAME DIRECTORY_NAME IELF_CLEAR_FILENAME);
+
+    /* The file doesn't exist, so do nothing */
+    if (!fileExists)
+    {
+        return;
+    }
+
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF data cleared by the PTU\n");
+
+    /* delete the clear file */
+    osCallReturn = remove (clearFileName);
+    if (osCallReturn != 0)
+    {
+        debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n",
+                        clearFileName, __FILE__, __LINE__);
+    }
+
+    /* Clear the memory overlay */
+    CreateNewIELFOverlay(RESET_BY_PTU, currentTime);
+
+    /* Clear all active logged events */
+    memset (&m_ActiveEvent, 0, sizeof(m_ActiveEvent));
+
+    /* Clear the daily event counter */
+    memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+
+    /* Write all data to the file system */
+    crc = MemoryOverlayCRCCalc ();
+    (void) WriteIelfDataFile ();
+    (void) WriteIelfCRCFile (crc);
+    (void) WriteIelfEventCounterFile (currentTime->seconds);
+
 }
 

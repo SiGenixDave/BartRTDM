@@ -63,7 +63,7 @@
 
 /* If DELETE_ALL_STREAM_FILES_AT_BOOT is defined, all stream files will be removed after every
  * power cycle or reset */
-/* #define DELETE_ALL_STREAM_FILES_AT_BOOT */
+#undef DELETE_ALL_STREAM_FILES_AT_BOOT
 
 /* If the maximum number of stream files decrease due to a software change, this ensures any extras
  * remaining get deleted.
@@ -263,7 +263,7 @@ static void RtdmClearFileProcessing (void);
  *****************************************************************************/
 void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
 {
-    UINT16 errorCode = NO_ERROR;
+    UINT16 errorCode = NO_ERROR;    /* return value from function call */
 
     m_RtdmXmlData = rtdmXmlData;
 
@@ -324,6 +324,10 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
             WriteStreamFile ();
             m_FileAction &= ~(WRITE_FILE);
         }
+        /* TODO this needs to be moved to another event driven task. The execution of
+         * this action may take longer than the time interval to successive calls to
+         * WriteStreamFile ()
+         */
         if ((m_FileAction & COMPILE_FTP_FILE) != 0)
         {
             BuildSendRtdmFile ();
@@ -959,7 +963,7 @@ static UINT16 GetOldestStreamFileIndex (void)
  *****************************************************************************/
 static char * CreateFTPFileName (FILE **ftpFilePtr)
 {
-    BOOL fileSuccess = FALSE;
+    BOOL fileSuccess = FALSE; /* return value for file operations */
     char consistId[17]; /* Stores the consist id */
     char carId[17]; /* Stores the car id */
     char deviceId[17]; /* Stores the device id */
@@ -1159,8 +1163,8 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     UINT8 buffer[1];
     size_t amountRead = 0;
     StreamHeaderContent streamHeaderContent;
-    char *fileName = NULL;
-    BOOL fileSuccess = FALSE;
+    char *fileName = NULL; /* fully qualified filename */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Reset the stream header. If no valid streams are found, then the time stamp structure will
      * have "0" in it. */
@@ -1245,8 +1249,8 @@ static UINT16 CountStreams (void)
     UINT8 buffer[1]; /* file read buffer */
     UINT32 amountRead = 0; /* amount of data read from stream file */
     UINT16 sIndex = 0; /* indexes into stream delimiter */
-    char *fileName = NULL;
-    BOOL fileSuccess = FALSE;
+    char *fileName = NULL; /* fully qualified filename */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Scan through all valid .stream files and tally the number of occurrences of "STRM" */
     while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
@@ -1326,8 +1330,8 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
     FILE *streamFilePtr = NULL; /* Used to open the stream file for reading */
     UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Stores the data read from the stream file */
     UINT32 amount = 0; /* bytes or blocks read or written */
-    char *fileName = NULL;
-    BOOL fileSuccess = FALSE;
+    char *fileName = NULL; /* fully qualified file name */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Scan through all valid stream files. This list is ordered oldest to newest. */
     while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
@@ -1427,8 +1431,8 @@ static BOOL VerifyFileIntegrity (const char *filename)
     UINT16 sIndex = 0; /* Used to index in to streamHeaderDelimiter */
     StreamHeaderStr streamHeader; /* Overlaid on bytes read from the file */
     BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
-    UINT16 sampleSize = 0;
-    BOOL fileSuccess = FALSE;
+    UINT16 sampleSize = 0; /* sample size read from stream header */
+    BOOL fileSuccess = FALSE;  /* return value for file operations */
 
     /* Check if the file exists */
     if (!FileExists (filename))
@@ -1544,9 +1548,9 @@ static BOOL VerifyFileIntegrity (const char *filename)
  *****************************************************************************/
 static void CleanupDirectory (void)
 {
-    INT32 osCallReturn = 0;
-    UINT16 index = 0;
-    char *fileName = NULL;
+    INT32 osCallReturn = 0;  /* Return value from OS call */
+    UINT16 index = 0;   /* Used to create base name of stream file */
+    char *fileName = NULL;  /* Fully qualified file name */
 
 #ifdef DELETE_ALL_STREAM_FILES_AT_BOOT
     index = 0;
@@ -1569,7 +1573,7 @@ static void CleanupDirectory (void)
         }
         else
         {
-            debugPrintf(RTDM_IELF_DBG_INFO, "Removed file \"%s\" because it is o longer needed\n",
+            debugPrintf(RTDM_IELF_DBG_INFO, "Removed file \"%s\" because it is no longer needed\n",
                             fileName);
         }
     }
@@ -1597,15 +1601,15 @@ static void CleanupDirectory (void)
  *****************************************************************************/
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
 {
-    UINT8 buffer[FILE_READ_BUFFER_SIZE];
-    UINT32 amountRead = 0;
-    FILE *pReadFile = NULL;
-    FILE *pWriteFile = NULL;
-    UINT32 byteCount = 0;
-    UINT32 remainingBytesToWrite = 0;
-    INT32 osCallReturn = 0;
-    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream";
-    BOOL fileSuccess = FALSE;
+    UINT8 buffer[FILE_READ_BUFFER_SIZE];    /* Holds data read from file to be truncated */
+    UINT32 amountRead = 0;  /* The amount of data read from the file */
+    FILE *pReadFile = NULL; /* File pointer to the file to be truncated */
+    FILE *pWriteFile = NULL;    /* File pointer to the temporary file */
+    UINT32 byteCount = 0;   /* Accumulates the total number of bytes read */
+    UINT32 remainingBytesToWrite = 0;   /* Maintains the number of remaining bytes to write */
+    INT32 osCallReturn = 0; /* return value from OS calls */
+    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream"; /* Fully qualified file name of temporary file */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Open the file to be truncated for reading */
     fileSuccess = FileOpenMacro((char * ) fileName, "rb", &pReadFile);
@@ -1723,7 +1727,7 @@ static BOOL CreateCarConDevFile (void)
 {
     const char *ccdFileName = DRIVE_NAME DIRECTORY_NAME "CarConDev.dat"; /* Fully qualified file name */
     FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
-    BOOL fileSuccess = FALSE;
+    BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Create the data file  */
     fileSuccess = FileOpenMacro((char * ) ccdFileName, "wb+", &pFile);
@@ -1767,7 +1771,7 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL
 {
     FILE *wrtFile = NULL;   /* FILE pointer to the file that is to be written */
     char *fopenArgString = NULL;    /* The file specification string (either create or append) */
-    BOOL fileSuccess = FALSE;   /* */
+    BOOL fileSuccess = FALSE;   /* return value for file operations */
 
     if (createFile)
     {
