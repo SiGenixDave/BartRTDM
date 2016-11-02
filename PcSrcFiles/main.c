@@ -32,6 +32,7 @@ TYPE_RTDMSTREAM_IF mStreamInfo;
 
 extern void CreateUIThread (void);
 int debug;
+char fileName[15];
 
 int main (void)
 {
@@ -56,6 +57,7 @@ int main (void)
 #endif
 
     printf("Hello World\n");
+
     /* RTDMInitialize (&mStreamInfo); */
     /* DAS can't single step debug when another thread is spawned */
 #if 0
@@ -66,6 +68,7 @@ int main (void)
     while (TRUE)
     {
         RtdmStream (&mStreamInfo);
+        RtdmBuildFTPDan();
         ServicePostedEvents();
         MySleep (50);
         mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;

@@ -46,20 +46,7 @@
  *
  *******************************************************************/
 
-#ifdef TODO
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      24.0
-#define SINGLE_FILE_TIMESPAN_HOURS          0.25
-#else
-/* Total time stream data is logged, old data will be overwritten */
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (1.0)
-/* Each #.stream file contains this many hours worth of stream data */
-#define SINGLE_FILE_TIMESPAN_HOURS          (0.25)
-#endif
 
-/* Convert the above define to milliseconds */
-#define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
-/* This will be the max total amount of stream files */
-#define MAX_NUMBER_OF_STREAM_FILES          (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
 
 /* If DELETE_ALL_STREAM_FILES_AT_BOOT is defined, all stream files will be removed after every
  * power cycle or reset */
@@ -122,55 +109,6 @@ typedef enum
  *    S  T  R  U  C  T  S
  *
  *******************************************************************/
-/** @brief Preamble of RTDM header, CRC IS NOT calculated on this section of data */
-typedef struct
-{
-    /** Holds the string delimiter for the RTDM header */
-    char delimiter[4];
-    /** Determines whether the data is big or little endian */
-    UINT8 endianness;
-    /** Holds the RTDM header size */
-    UINT16 headerSize __attribute__ ((packed));
-    /** Calculated CRC checksum of the postamble portion of the RTDM header */
-    UINT32 headerChecksum __attribute__ ((packed));
-} RtdmHeaderPreambleStr;
-
-/** @brief Postamble of RTDM header, CRC IS calculated on this section of data ONLY */
-typedef struct
-{
-    /** Holds the header version */
-    UINT8 headerVersion;
-    /** String holds the consist ID, unused filled with NULL (0) */
-    char consistId[16];
-    /** String holds the car ID, unused filled with NULL (0) */
-    char carId[16];
-    /** String holds the device ID, unused filled with NULL (0) */
-    char deviceId[16];
-    /** Holds the data recorder id */
-    UINT16 dataRecordId __attribute__ ((packed));
-    /** Holds the data recorder version */
-    UINT16 dataRecordVersion __attribute__ ((packed));
-    /** Holds the oldest time stamp seconds portion */
-    UINT32 firstTimeStampSecs __attribute__ ((packed));
-    /** Holds the oldest time stamp msecs portion */
-    UINT16 firstTimeStampMsecs __attribute__ ((packed));
-    /** Holds the newest time stamp seconds portion */
-    UINT32 lastTimeStampSecs __attribute__ ((packed));
-    /** Holds the newest time stamp msecs portion */
-    UINT16 lastTimeStampMsecs __attribute__ ((packed));
-    /** Holds the total number of streams in the file */
-    UINT32 numStreams __attribute__ ((packed));
-
-} RtdmHeaderPostambleStr;
-
-/** @brief Structure to contain variables in the RTDM header of the message */
-typedef struct
-{
-    /** Non CRC portion of the RTDMM header */
-    RtdmHeaderPreambleStr preamble;
-    /** CRC'ed portion of the RTDMM header */
-    RtdmHeaderPostambleStr postamble;
-} RtdmHeaderStr;
 
 /** @brief Saved information used to write to a #.stream file. Since the act of writing
  * to a #.stream file is asynchronous (spawned in an event driven task), the information
@@ -200,10 +138,6 @@ static UINT16 m_StreamFileIndex = 0;
 static struct dataBlock_RtdmStream *m_StreamInterface = NULL;
 /** @brief Holds a pointer to the data from the XML configuration file */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
-/** @brief Holds a sorted list of #.stream files so that they are appended in the correct order. */
-static UINT16 m_ValidStreamFileListIndexes[MAX_NUMBER_OF_STREAM_FILES ];
-/** @brief Used to sort #.stream files */
-static UINT32 m_ValidTimeStampList[MAX_NUMBER_OF_STREAM_FILES ];
 /** @brief Determines whether to create or append to a #.stream file */
 static StreamFileState m_StreamFileState;
 /** @brief The header which delimits streams from each other */
@@ -220,27 +154,13 @@ static RtdmFileWrite m_FileWrite;
  *
  *******************************************************************/
 static void InitFileIndex (void);
-static void InitFtpTrackerFile (void);
-static void PopulateValidStreamFileList (void);
-static void PopulateValidFileTimeStamps (void);
-static void SortValidFileTimeStamps (void);
-static UINT16 GetNewestStreamFileIndex (void);
-static UINT16 GetOldestStreamFileIndex (void);
-static char * CreateFTPFileName (FILE **ptr);
-static void IncludeXMLFile (FILE *ftpFilePtr);
-static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
-                UINT16 numStreams);
 static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex);
-static UINT16 CountStreams (void);
-static void IncludeStreamFiles (FILE *ftpFilePtr);
-static char *CreateFileName (UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
 static void CleanupDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
-static void BuildSendRtdmFile (void);
 static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 amount, BOOL creaetFile);
 static void RtdmClearFileProcessing (void);
 
@@ -278,8 +198,6 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
     CreateCarConDevFile ();
 
     InitFileIndex ();
-
-    InitFtpTrackerFile ();
 
 }
 
@@ -323,15 +241,6 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
         {
             WriteStreamFile ();
             m_FileAction &= ~(WRITE_FILE);
-        }
-        /* TODO this needs to be moved to another event driven task. The execution of
-         * this action may take longer than the time interval to successive calls to
-         * WriteStreamFile ()
-         */
-        if ((m_FileAction & COMPILE_FTP_FILE) != 0)
-        {
-            BuildSendRtdmFile ();
-            m_FileAction &= ~(COMPILE_FTP_FILE);
         }
     }
 
@@ -468,7 +377,7 @@ static void WriteStreamFile (void)
         { 0, 0 }; /* maintains the first time stamp in the current stream file */
     INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
     StreamHeaderStr streamHeader; /* holds the current stream header */
-    char *fileName = NULL; /* filename of the #.stream file */
+    char fileName[200]; /* filename of the #.stream file */
 
 #ifdef FIXED_TIME_CYCLE_NS
     static BOOL oneFileWriteComplete = FALSE;
@@ -497,7 +406,7 @@ static void WriteStreamFile (void)
                     m_FileWrite.buffer, m_FileWrite.bytesInBuffer, &m_FileWrite.time);
 
     /* Get the file name */
-    fileName = CreateFileName (m_StreamFileIndex);
+    (void) CreateStreamFileName (m_StreamFileIndex, fileName, sizeof(fileName));
 
     switch (m_StreamFileState)
     {
@@ -511,8 +420,7 @@ static void WriteStreamFile (void)
             s_StartTime = m_FileWrite.time;
             m_StreamFileState = APPEND_TO_EXISTING;
 
-            debugPrintf(RTDM_IELF_DBG_INFO, "FILEIO - CreateNew %s\n",
-                            CreateFileName (m_StreamFileIndex));
+            debugPrintf(RTDM_IELF_DBG_INFO, "FILEIO - CreateNew %s\n", fileName);
 
             break;
 
@@ -552,134 +460,6 @@ static void WriteStreamFile (void)
 
 }
 
-/*****************************************************************************/
-/**
- * @brief       Builds a valid .dan file and sends to FTP server
- *
- *              This function collects all the information necessary to
- *              build a dan file. It first copies the XML configuration
- *              file into it. It then creates and appends the RTDM header along
- *              with all of the valid stream files. It then creates the
- *              proper filename and then transmits the file via FTP over the
- *              network. It then deletes the file.
- *
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void BuildSendRtdmFile (void)
-{
-
-    UINT16 newestStreamFileIndex = INVALID_FILE_INDEX; /* newest stream file index */
-    UINT16 oldestStreamFileIndex = INVALID_FILE_INDEX; /* oldest stream file index */
-    FILE *ftpFilePtr = NULL; /* file pointer to the soon to be created .dan file */
-    TimeStampStr newestTimeStamp; /* newest time stamp (required for RTDM header) */
-    TimeStampStr oldestTimeStamp; /* oldest time stamp (required for RTDM header) */
-    UINT16 streamCount = 0; /* number of streams in all #.stream files */
-    char *fileName = NULL; /* filename of .dan file */
-
-#ifndef TEST_ON_PC
-    INT16 ftpStatus = 0;
-    INT16 ftpError = 0;
-#endif
-
-    /* TODO Wait for current datalog file to be closed (call SpawnRtdmFileWrite complete) */
-
-    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "SpawSpawnFTPDatalog() invoked\n");
-
-    /* Determine all current valid stream files */
-    PopulateValidStreamFileList ();
-    /* Get the oldest stream timestamp from every valid file */
-    PopulateValidFileTimeStamps ();
-    /* Sort the file indexes and timestamps from oldest to newest */
-    SortValidFileTimeStamps ();
-
-    /* Determine the newest file index */
-    newestStreamFileIndex = GetNewestStreamFileIndex ();
-    PrintIntegerContents(RTDM_IELF_DBG_LOG, newestStreamFileIndex);
-
-    if (newestStreamFileIndex == INVALID_FILE_INDEX)
-    {
-        /* TODO handle error */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "%s",
-                        "No valid .stream files exist to build compilation DAN file (newestStreamFileIndex not found)\n");
-        return;
-    }
-
-    /* Get the newest time stamp (last one) in the newest file; used for RTDM header */
-    GetTimeStamp (&newestTimeStamp, NEWEST_TIMESTAMP, newestStreamFileIndex);
-
-    /* Determine the oldest file index */
-    oldestStreamFileIndex = GetOldestStreamFileIndex ();
-    PrintIntegerContents(RTDM_IELF_DBG_LOG, oldestStreamFileIndex);
-
-    if (oldestStreamFileIndex == INVALID_FILE_INDEX)
-    {
-        /* TODO handle error */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "%s",
-                        "No valid .stream files exist to build compilation DAN file (oldestStreamFileIndex not found)\n");
-        return;
-    }
-
-    /* Get the oldest timestamp (first one) in the oldest file; used for RTDM header */
-    GetTimeStamp (&oldestTimeStamp, OLDEST_TIMESTAMP, oldestStreamFileIndex);
-
-    /* Scan through all valid files and count the number of streams in each file; used for
-     * RTDM header */
-    streamCount = CountStreams ();
-
-    PrintIntegerContents(RTDM_IELF_DBG_LOG, streamCount);
-
-    /* Create filename and open it for writing */
-    fileName = CreateFTPFileName (&ftpFilePtr);
-
-    debugPrintf(RTDM_IELF_DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
-
-    if (ftpFilePtr == NULL)
-    {
-        /* TODO handle error */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
-        return;
-    }
-
-    /* Include xml file */
-    IncludeXMLFile (ftpFilePtr);
-
-    /* Include rtdm header */
-    IncludeRTDMHeader (ftpFilePtr, &oldestTimeStamp, &newestTimeStamp, streamCount);
-
-    /* Open each file .stream (oldest first) and concatenate */
-    IncludeStreamFiles (ftpFilePtr);
-
-    /* Close file pointer */
-    FileCloseMacro(ftpFilePtr);
-
-    /* Send newly create file to FTP server */
-#ifndef TEST_ON_PC
-#ifdef TODO
-    /* TODO check return value for success or fail, ftpStatus indicates the type of error */
-    ftpError = ftpc_file_put("10.0.7.13", /* In: name of server host */
-                    "dsmail", /* In: user name for server login */
-                    "", /* In: password for server login */
-                    "", /* In: account for server login. Typically "". */
-                    "", /* In: directory to cd to before storing file */
-                    "test.txt", /* In: filename to put on server */
-                    "/ata0/rtdm/test.txt", /* In: filename of local file to copy to server */
-                    &ftpStatus); /* Out: Status on the operation */
-
-    if (ftpStatus != OK)
-    {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
-    }
-#endif
-#endif
-
-    /* TODO Delete file when FTP send complete */
-}
 
 /*****************************************************************************/
 /**
@@ -708,13 +488,15 @@ static void InitFileIndex (void)
     TimeStampStr timeStamp; /* Used to get the oldest stream time stamp from a file */
     UINT32 newestTimestampSeconds = 0; /* Used to check a file with for a newer stream */
     UINT16 newestFileIndex = INVALID_FILE_INDEX; /* will hold the newest file index */
+    char fileName[200];
 
     memset (&timeStamp, 0, sizeof(timeStamp));
 
     /* Find the most recent valid file and point to the next file for writing */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
     {
-        fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
+        (void)CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
+        fileOK = VerifyFileIntegrity (fileName);
         if (fileOK == TRUE)
         {
             GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, fileIndex);
@@ -743,400 +525,6 @@ static void InitFileIndex (void)
     m_StreamFileState = CREATE_NEW;
 }
 
-/*****************************************************************************/
-/**
- * @brief       Populates the valid stream file (#.stream) list
- *
- *              This function determines if a stream file exists and is valid. The
- *              call to VerifyFileIntegrity() also attempts to fix a file if the
- *              last stream was not written in its entirety.
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void PopulateValidStreamFileList (void)
-{
-    BOOL fileOK = FALSE; /* stream file is OK if TRUE */
-    UINT16 fileIndex = 0; /* Used to index through all possible stream files */
-    UINT16 arrayIndex = 0; /* increments every time a valid stream file is found */
-
-    /* Scan all files to determine what files are valid */
-    for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
-    {
-        /* Invalidate the index to ensure that */
-        m_ValidStreamFileListIndexes[fileIndex] = INVALID_FILE_INDEX;
-        fileOK = VerifyFileIntegrity (CreateFileName (fileIndex));
-        /* If valid file is found and is OK, populate the valid file array with the fileIndex */
-        if (fileOK)
-        {
-            m_ValidStreamFileListIndexes[arrayIndex] = fileIndex;
-            arrayIndex++;
-        }
-    }
-
-}
-
-static void InitFtpTrackerFile (void)
-{
-    /* Determine if file exists...
-     * if not create it and initialize all and exit */
-
-    /* If exists, verify proper size based on the number if .stream files
-     * if it isn't the proper size, make it so */
-
-    /* Update the file every time a new #.stream file created */
-
-    /* Open this file to determine what files to FTP */
-
-}
-
-/*****************************************************************************/
-/**
- * @brief       Populates the time stamp list
- *
- *              This function scans all valid stream files and gets the
- *              oldest time stamp from each file.
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void PopulateValidFileTimeStamps (void)
-{
-    UINT16 arrayIndex = 0; /* Used to index through time stamps and stream files */
-    TimeStampStr timeStamp; /* temporary placeholder for the oldest time stamp in a stream file */
-
-    /* Set all members to invalid indexes */
-    for (arrayIndex = 0; arrayIndex < MAX_NUMBER_OF_STREAM_FILES ; arrayIndex++)
-    {
-        m_ValidTimeStampList[arrayIndex] = INVALID_TIME_STAMP;
-    }
-
-    /* Scan all the valid files. Get the oldest time stamp and populate the
-     * time stamp with the seconds (epoch time).
-     */
-    arrayIndex = 0;
-    while ((m_ValidStreamFileListIndexes[arrayIndex] != INVALID_FILE_INDEX)
-                    && (arrayIndex < MAX_NUMBER_OF_STREAM_FILES ))
-    {
-        GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, m_ValidStreamFileListIndexes[arrayIndex]);
-        m_ValidTimeStampList[arrayIndex] = timeStamp.seconds;
-        arrayIndex++;
-    }
-}
-
-/*****************************************************************************/
-/**
- * @brief       Sorts the file indices based on the stream time stamps
- *
- *              This function used the bubble sort algorithm to sort the
- *              file indexes based on the stream time stamps associated with
- *              each file. It assumes that the time stamps have been populated
- *              with the stream time stamps and that at least 1 second seperates
- *              the stream time stamps. The sort orders oldest to newest and
- *              updates both the time stamps and the file indexes.
- *
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void SortValidFileTimeStamps (void)
-{
-    UINT16 c = 0; /* Used in the bubble sort algorithm */
-    UINT16 d = 0; /* Used in the bubble sort algorithm */
-    UINT16 numValidTimestamps = 0; /* The number of valid time stamps (i.e stream files) */
-    UINT32 swapTimestamp = 0; /* holding variable to place a time stamp */
-    UINT16 swapIndex = 0; /* holding variable to place a file index */
-
-    /* Find the number of valid timestamps */
-    while ((m_ValidTimeStampList[numValidTimestamps] != INVALID_TIME_STAMP)
-                    && (numValidTimestamps < MAX_NUMBER_OF_STREAM_FILES ))
-    {
-        numValidTimestamps++;
-    }
-
-    /* Bubble sort algorithm */
-    for (c = 0; c < (numValidTimestamps - 1); c++)
-    {
-        for (d = 0; d < numValidTimestamps - c - 1; d++)
-        {
-            /* For decreasing order use < */
-            if (m_ValidTimeStampList[d] > m_ValidTimeStampList[d + 1])
-            {
-                swapTimestamp = m_ValidTimeStampList[d];
-                m_ValidTimeStampList[d] = m_ValidTimeStampList[d + 1];
-                m_ValidTimeStampList[d + 1] = swapTimestamp;
-
-                swapIndex = m_ValidStreamFileListIndexes[d];
-                m_ValidStreamFileListIndexes[d] = m_ValidStreamFileListIndexes[d + 1];
-                m_ValidStreamFileListIndexes[d + 1] = swapIndex;
-            }
-        }
-    }
-}
-
-/*****************************************************************************/
-/**
- * @brief       Returns the newest file index (based on Stream time stamp)
- *
- *              This function assumes that the file indexes have been sorted
- *              prior to its call.
- *
- *  @returns UINT16 - newest file index
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static UINT16 GetNewestStreamFileIndex (void)
-{
-    UINT16 streamIndex = 0;
-
-    if (m_ValidStreamFileListIndexes[0] == INVALID_FILE_INDEX)
-    {
-        return (INVALID_FILE_INDEX);
-    }
-
-    while ((m_ValidStreamFileListIndexes[streamIndex] != INVALID_FILE_INDEX)
-                    && (streamIndex < MAX_NUMBER_OF_STREAM_FILES ))
-    {
-        streamIndex++;
-    }
-
-    /* Since the while loop has incremented one past the newest, subtract 1*/
-    return (m_ValidStreamFileListIndexes[streamIndex - 1]);
-
-}
-
-/*****************************************************************************/
-/**
- * @brief       Returns the oldest file index (based on Stream time stamp)
- *
- *              This function assumes that the file indexes have been sorted
- *              prior to its call.
- *
- *  @returns UINT16 - oldest file index
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static UINT16 GetOldestStreamFileIndex (void)
-{
-    return (m_ValidStreamFileListIndexes[0]);
-}
-
-/*****************************************************************************/
-/**
- * @brief       Creates the FTP file name and opens the file pointer to the file
- *
- *              Creates the filename based on the requirements from the ICD. This
- *              includes the consist, car, and device id along with the date/time.
- *
- *  @param ftpFilePtr - pointer FILE pointer to the FTP file. Pointer to pointer
- *                      required so that the file pointer can be passed around to
- *                      other functions
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static char * CreateFTPFileName (FILE **ftpFilePtr)
-{
-    BOOL fileSuccess = FALSE; /* return value for file operations */
-    char consistId[17]; /* Stores the consist id */
-    char carId[17]; /* Stores the car id */
-    char deviceId[17]; /* Stores the device id */
-    UINT32 maxCopySize; /* Used to ensure memory is not overwritten */
-
-    const char *extension = ".stream"; /* Required extension to FTP file */
-    const char *rtdmFill = "rtdm____________"; /* Required filler */
-
-    static char s_FileName[256]; /* FTP file name returned from function */
-    char dateTime[64]; /* stores the date/time inthe required format */
-
-    /* Set all default chars */
-    memset (s_FileName, 0, sizeof(s_FileName));
-    memset (consistId, '_', sizeof(consistId));
-    memset (carId, '_', sizeof(carId));
-    memset (deviceId, '_', sizeof(deviceId));
-
-    /* Terminate all strings with NULL */
-    consistId[sizeof(consistId) - 1] = 0;
-    carId[sizeof(carId) - 1] = 0;
-    deviceId[sizeof(deviceId) - 1] = 0;
-
-    /* Set max copy size for each member, choose the smaller amount so as not to overflow the buffer */
-    maxCopySize = sizeof(consistId) - 1 > strlen (m_StreamInterface->VNC_CarData_X_ConsistID) ?
-                    strlen (m_StreamInterface->VNC_CarData_X_ConsistID) : sizeof(consistId) - 1;
-    memcpy (consistId, m_StreamInterface->VNC_CarData_X_ConsistID, maxCopySize);
-
-    maxCopySize = sizeof(carId) - 1 > strlen (m_StreamInterface->VNC_CarData_X_CarID) ?
-                    strlen (m_StreamInterface->VNC_CarData_X_CarID) : sizeof(carId) - 1;
-    memcpy (carId, m_StreamInterface->VNC_CarData_X_CarID, maxCopySize);
-
-    maxCopySize = sizeof(deviceId) - 1 > strlen (m_RtdmXmlData->dataRecorderCfg.deviceId) ?
-                    strlen (m_RtdmXmlData->dataRecorderCfg.deviceId) : sizeof(deviceId) - 1;
-    memcpy (deviceId, m_RtdmXmlData->dataRecorderCfg.deviceId, maxCopySize);
-
-    memset (dateTime, 0, sizeof(dateTime));
-
-    GetTimeDateRtdm (dateTime, "%02d%02d%02d-%02d%02d%02d", sizeof(dateTime));
-
-    debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
-
-    /* Create the filename by concatenating in the proper order */
-    strcat (s_FileName, DRIVE_NAME);
-    strcat (s_FileName, DIRECTORY_NAME);
-    strcat (s_FileName, consistId);
-    strcat (s_FileName, carId);
-    strcat (s_FileName, deviceId);
-    strcat (s_FileName, rtdmFill);
-    strcat (s_FileName, dateTime);
-    strcat (s_FileName, extension);
-
-    /* Try opening the file for writing and leave open */
-    fileSuccess = FileOpenMacro(s_FileName, "wb+", ftpFilePtr);
-    if (!fileSuccess)
-    {
-        *ftpFilePtr = NULL;
-    }
-
-    /* Return the FTP file name */
-    return (s_FileName);
-
-}
-
-/*****************************************************************************/
-/**
- * @brief       Updates the FTP file with XML configuration file
- *
- *              Gets a pointer from memory where the xml configuration file is stored and
- *              writes the contents to the FTP file
- *
- *  @param ftpFilePtr - FILE pointer to the FTP file
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void IncludeXMLFile (FILE *ftpFilePtr)
-{
-    char *xmlConfigFile = NULL;
-
-    xmlConfigFile = GetXMLConfigFileBuffer ();
-
-    /* Assume file is opened and go the beginning of the file */
-    fseek (ftpFilePtr, 0L, SEEK_END);
-
-    /* Write the XML configuration file to the FTP file */
-    (void) FileWriteMacro(ftpFilePtr, xmlConfigFile, strlen (xmlConfigFile), FALSE);
-
-}
-
-/*****************************************************************************/
-/**
- * @brief       Updates the FTP file with the required RTDM header
- *
- *              Creates the required RTDM header and writes it to the FTP file.
- *
- *  @param ftpFilePtr - FILE pointer to the FTP file
- *  @param oldest - oldest stream time stamp that will be written to the FTP file
- *  @param newest - newest stream time stamp that will be written to the FTP file
- *  @param numStreams - the number of streams to be written in the FTP file
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
-                UINT16 numStreams)
-{
-    RtdmHeaderStr rtdmHeader; /* RTDM header that will be populated and written to FTP file */
-    char *delimiter = "RTDM"; /* RTDM delimiter in header */
-    UINT32 rtdmHeaderCrc = 0; /* CRC calculation result on the postamble part of the header */
-
-    memset (&rtdmHeader, 0, sizeof(rtdmHeader));
-
-    if (strlen (delimiter) > sizeof(rtdmHeader.preamble.delimiter))
-    {
-        /* TODO Error won't fit in  */
-    }
-    else
-    {
-        memcpy (&rtdmHeader.preamble.delimiter[0], delimiter, strlen (delimiter));
-    }
-
-    /* Endianness - Always BIG */
-    rtdmHeader.preamble.endianness = BIG_ENDIAN;
-    /* Header size */
-    rtdmHeader.preamble.headerSize = htons (sizeof(rtdmHeader));
-    /* Header Version - Always 2 */
-    rtdmHeader.postamble.headerVersion = RTDM_HEADER_VERSION;
-
-    /* TODO verify m_StreamInterface->... are valid strings */
-    /* Consist ID */
-    strcpy (&rtdmHeader.postamble.consistId[0], m_StreamInterface->VNC_CarData_X_ConsistID);
-    strcpy (&rtdmHeader.postamble.carId[0], m_StreamInterface->VNC_CarData_X_CarID);
-    strcpy (&rtdmHeader.postamble.deviceId[0], m_RtdmXmlData->dataRecorderCfg.deviceId);
-
-    /* Data Recorder ID - from .xml file */
-    rtdmHeader.postamble.dataRecordId = htons ((UINT16) m_RtdmXmlData->dataRecorderCfg.id);
-
-    /* Data Recorder Version - from .xml file */
-    rtdmHeader.postamble.dataRecordVersion = htons (
-                    (UINT16) m_RtdmXmlData->dataRecorderCfg.version);
-
-    /* First TimeStamp -  seconds */
-    rtdmHeader.postamble.firstTimeStampSecs = htonl (oldest->seconds);
-
-    /* First TimeStamp - msecs */
-    rtdmHeader.postamble.firstTimeStampMsecs = htons (oldest->msecs);
-
-    /* Last TimeStamp -  seconds */
-    rtdmHeader.postamble.lastTimeStampSecs = htonl (newest->seconds);
-
-    /* Last TimeStamp - msecs */
-    rtdmHeader.postamble.lastTimeStampMsecs = htons (newest->msecs);
-
-    rtdmHeader.postamble.numStreams = htonl (numStreams);
-
-    /* The CRC is calculated on the "postamble" part of the RTDM header only */
-    rtdmHeaderCrc = 0;
-    rtdmHeaderCrc = crc32 (rtdmHeaderCrc, ((UINT8 *) &rtdmHeader.postamble),
-                    sizeof(rtdmHeader.postamble));
-    rtdmHeader.preamble.headerChecksum = htonl (rtdmHeaderCrc);
-
-    /* Update the FTP file with the RTDM header */
-    FileWriteMacro(ftpFilePtr, &rtdmHeader, sizeof(rtdmHeader), FALSE);
-
-}
 
 /*****************************************************************************/
 /**
@@ -1163,14 +551,14 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
     UINT8 buffer[1];
     size_t amountRead = 0;
     StreamHeaderContent streamHeaderContent;
-    char *fileName = NULL; /* fully qualified filename */
+    char fileName[200]; /* fully qualified filename */
     BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Reset the stream header. If no valid streams are found, then the time stamp structure will
      * have "0" in it. */
     memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
 
-    fileName = CreateFileName (fileIndex);
+    CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
     fileSuccess = FileOpenMacro(fileName, "r+b", &pFile);
     if (!fileSuccess)
     {
@@ -1222,182 +610,6 @@ static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 file
 
     (void) FileCloseMacro(pFile);
 
-}
-
-/*****************************************************************************/
-/**
- * @brief       Counts the number of  valid streams in the stream (#.stream) files
- *
- *              This file scans through the list of all valid stream files
- *              counts the total number of streams in all of the valid stream files.
- *
- *  @returns UINT16 - the total number of streams encountered in the valid stream
- *                    files
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static UINT16 CountStreams (void)
-{
-    UINT16 streamCount = 0; /* maintains the total the number of streams */
-    UINT16 fileIndex = 0; /* used to scan through all valid .stream files */
-    FILE *streamFilePtr = NULL; /* File pointer to read stream files (#.stream) */
-    UINT8 buffer[1]; /* file read buffer */
-    UINT32 amountRead = 0; /* amount of data read from stream file */
-    UINT16 sIndex = 0; /* indexes into stream delimiter */
-    char *fileName = NULL; /* fully qualified filename */
-    BOOL fileSuccess = FALSE; /* return value for file operations */
-
-    /* Scan through all valid .stream files and tally the number of occurrences of "STRM" */
-    while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
-                    && (fileIndex < MAX_NUMBER_OF_STREAM_FILES ))
-    {
-        fileName = CreateFileName (m_ValidStreamFileListIndexes[fileIndex]);
-        /* Open the stream file for reading */
-        fileSuccess = FileOpenMacro(fileName, "r+b", &streamFilePtr);
-        if (fileSuccess)
-        {
-            while (1)
-            {
-                /* Search for delimiter */
-                amountRead = fread (&buffer, sizeof(UINT8), sizeof(buffer), streamFilePtr);
-
-                /* End of file reached */
-                if (amountRead != sizeof(buffer))
-                {
-                    break;
-                }
-
-                if (buffer[0] == m_StreamHeaderDelimiter[sIndex])
-                {
-                    sIndex++;
-                    if (sIndex == strlen (m_StreamHeaderDelimiter))
-                    {
-                        /* Stream delimiter found; increment stream count */
-                        streamCount++;
-                        sIndex = 0;
-                    }
-                }
-                else if ((buffer[0] == m_StreamHeaderDelimiter[0]) && (sIndex == 1))
-                {
-                    /* This handles the case where at least 1 binary 'S' leads the "STRM" */
-                    sIndex = 1;
-                }
-                else
-                {
-                    sIndex = 0;
-                }
-            }
-
-            sIndex = 0;
-
-            /* close stream file */
-            (void) FileCloseMacro(streamFilePtr);
-        }
-
-        fileIndex++;
-
-    }
-
-    return (streamCount);
-
-}
-
-/*****************************************************************************/
-/**
- * @brief       Updates the file to FTP'ed with all valid stream (*.stream) files
- *
- *              This file scans through the list of all valid stream files
- *              and appends each stream file to the file that is about to be
- *              FTP'ed.
- *
- *  @param ftpFilePtr - file pointer to ftp file (writes occur)
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void IncludeStreamFiles (FILE *ftpFilePtr)
-{
-    UINT16 fileIndex = 0; /* Used to scan through m_ValidStreamFileListIndexes */
-    FILE *streamFilePtr = NULL; /* Used to open the stream file for reading */
-    UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Stores the data read from the stream file */
-    UINT32 amount = 0; /* bytes or blocks read or written */
-    char *fileName = NULL; /* fully qualified file name */
-    BOOL fileSuccess = FALSE; /* return value for file operations */
-
-    /* Scan through all valid stream files. This list is ordered oldest to newest. */
-    while ((m_ValidStreamFileListIndexes[fileIndex] != INVALID_FILE_INDEX)
-                    && (fileIndex < MAX_NUMBER_OF_STREAM_FILES ))
-    {
-        fileName = CreateFileName (m_ValidStreamFileListIndexes[fileIndex]);
-        /* Open the stream file for reading */
-        fileSuccess = FileOpenMacro(fileName, "r+b", &streamFilePtr);
-        if (fileSuccess)
-        {
-            /* All's well, read from stream file and write to FTP file */
-            while (1)
-            {
-                /* Keep reading the stream file until all of the file is read */
-                amount = fread (&buffer[0], 1, sizeof(buffer), streamFilePtr);
-
-                /* End of file reached */
-                if (amount == 0)
-                {
-                    FileCloseMacro(streamFilePtr);
-                    break;
-                }
-
-                /* Keep writing the stream file to the FTP file */
-                (void) FileWriteMacro(ftpFilePtr, &buffer[0], amount, FALSE);
-            }
-        }
-
-        fileIndex++;
-
-    }
-}
-
-/*****************************************************************************/
-/**
- * @brief       Creates a filename #.stream file
- *
- *              This function creates a #.stream file based on the drive/directory
- *              and file index
- *
- *  @param fileName - path/filename of file to be verified
- *
- *  @return char * - pointer to the newly created file name
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static char *CreateFileName (UINT16 fileIndex)
-{
-    static char s_FileName[100]; /* Stores the newly created filename */
-    const char *extension = ".stream"; /* Holds the extension for the file */
-
-    memset (s_FileName, 0, sizeof(s_FileName));
-
-    strcat (s_FileName, DRIVE_NAME);
-    strcat (s_FileName, DIRECTORY_NAME);
-
-    /* Append the file index to the drive and directory */
-    sprintf (&s_FileName[strlen (s_FileName)], "%u", fileIndex);
-    /* Append the extension */
-    strcat (s_FileName, extension);
-
-    return (s_FileName);
 }
 
 /*****************************************************************************/
@@ -1550,7 +762,7 @@ static void CleanupDirectory (void)
 {
     INT32 osCallReturn = 0;  /* Return value from OS call */
     UINT16 index = 0;   /* Used to create base name of stream file */
-    char *fileName = NULL;  /* Fully qualified file name */
+    char fileName[200];  /* Fully qualified file name */
 
 #ifdef DELETE_ALL_STREAM_FILES_AT_BOOT
     index = 0;
@@ -1559,7 +771,7 @@ static void CleanupDirectory (void)
 #endif
     for (; index < CLEANUP_EXTRA_STREAM_FILES; index++)
     {
-        fileName = CreateFileName (index);
+        CreateStreamFileName (index, fileName, sizeof(fileName));
         /* Check if the file exists, if it doesn't don't try to delete it and move on */
         if (!FileExists (fileName))
         {
@@ -1817,7 +1029,7 @@ static void RtdmClearFileProcessing (void)
     char *clearFileName = DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME;    /* Clear file name */
     INT32 osCallReturn = 0; /* return value from OS calls */
     UINT16 fileIndex = 0;   /* Used to create stream file names */
-    char *streamFileName = NULL;    /* Stores the stream file name to be deleted */
+    char fileName[200];    /* Stores the stream file name to be deleted */
 
     /* Determine if clear.rtdm file exists */
     fileExists = FileExists(DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME);
@@ -1841,22 +1053,21 @@ static void RtdmClearFileProcessing (void)
     /* Scan through all stream files, and if they exist, delete them. */
     while (fileIndex < MAX_NUMBER_OF_STREAM_FILES)
     {
-        streamFileName = CreateFileName (fileIndex);
-        fileExists = FileExists(streamFileName);
+        CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
+        fileExists = FileExists(fileName);
         if (fileExists)
         {
             /* delete clear file */
-            osCallReturn = remove (streamFileName);
+            osCallReturn = remove (fileName);
             if (osCallReturn != 0)
             {
                 debugPrintf(RTDM_IELF_DBG_WARNING, "remove() %s failed ---> File: %s  Line#: %d\n",
-                                streamFileName, __FILE__, __LINE__);
+                                fileName, __FILE__, __LINE__);
             }
 
         }
         fileIndex++;
     }
-
 
     /* reset file index and file state */
     m_StreamFileState = CREATE_NEW;

@@ -101,6 +101,17 @@
 #define RTDM_IELF_GE_OR_EQ >=
 #endif
 
+/* Drive and directory where the stream files and other RTDM
+ * data file will be saved */
+#ifdef TEST_ON_PC
+#define DRIVE_NAME                          "D:\\"
+#define DIRECTORY_NAME                      "rtdmielf\\"
+#else
+#define DRIVE_NAME                          "/tffs0/"
+#define DIRECTORY_NAME                      "rtdmielf/"
+#endif
+
+
 #ifdef TEST_ON_PC
 #define LOG_DRIVE                          "D:\\"
 #define LOG_DIRECTORY                      "rtdmielf\\"
@@ -360,5 +371,7 @@ BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr,
 BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
 void GetTimeDateRtdm (char *dateTime, char *formatSpecifier, UINT32 dateTimeStrArrayLength);
 void WriteToLogFile (char *strLevel, char *strInfo);
+BOOL CreateStreamFileName (UINT16 fileIndex, char *fileName, UINT32 arrayLength);
+
 
 #endif /* RTDMUTILS_H_ */

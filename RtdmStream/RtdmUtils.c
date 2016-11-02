@@ -678,6 +678,48 @@ void WriteToLogFile (char *strLevel, char *strInfo)
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Creates a filename #.stream file
+ *
+ *              This function creates a #.stream file based on the drive/directory
+ *              and file index
+ *
+ *  @param fileIndex - index of file to be created
+ *  @param fileName - char array where new filename will be placed
+ *  @param arrayLength - size of the array for fileName
+ *
+ *  @return BOOL - TRUE if filename created successfully; FALSE otherwise
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+BOOL CreateStreamFileName (UINT16 fileIndex, char *fileName, UINT32 arrayLength)
+{
+    char baseExtension[20];
+    UINT16 startDotStreamIndex = 0;
+    const char *extension = ".stream";
+    INT32 strCmpReturn = 0;
+
+    strncpy(fileName, DRIVE_NAME DIRECTORY_NAME, arrayLength - 1);
+
+    /* Append the file index to the drive and directory */
+    snprintf (baseExtension, sizeof(baseExtension), "%u%s", fileIndex, extension);
+
+    strncat(fileName, baseExtension, arrayLength - strlen(baseExtension) - 1);
+
+    startDotStreamIndex = strlen(fileName) - strlen(extension);
+
+    /* To ensure the filename was created correctly, verify the string terminates with .stream */
+    strCmpReturn = strcmp (extension, &fileName[startDotStreamIndex]);
+
+    return ((strCmpReturn == 0) ? TRUE : FALSE);
+}
+
+
 
 #ifdef FOR_UNIT_TEST_ONLY
 void test(void)

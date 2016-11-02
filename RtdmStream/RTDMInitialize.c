@@ -101,6 +101,8 @@ void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
 
     InitializeFileIO (rtdmXmlData);
 
+    InitRtdmDanBuilder (rtdmXmlData, interface);
+
     /* Inform the 50 msec RTDM stream task that initialization is complete and stream
      * data can now be collected. */
     SetRtdmInitFinished ();
