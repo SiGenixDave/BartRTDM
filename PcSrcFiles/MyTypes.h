@@ -24,6 +24,7 @@ typedef UINT8 OS_TIMEDATE48[6];
 
 #define OS_SEM_Q_PRIORITY   1
 #define OS_SEM_EMPTY        1
+#define OS_SEM_FULL         1
 #define OS_NO_WAIT          1
 
 typedef struct

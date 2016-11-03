@@ -32,6 +32,7 @@
 #include "../RtdmStream/RtdmDataLog.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 #include "../RtdmStream/RtdmStreamExt.h"
+#include "../RtdmBuildFTPDan/RtdmBuildFTPDanExt.h"
 
 /*******************************************************************
  *

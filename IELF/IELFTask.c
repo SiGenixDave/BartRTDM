@@ -30,6 +30,7 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
+#include "../IELF/IELF.h"
 #include "../IELF/IELFTask.h"
 #include "../IELF/IELFCallback.h"
 
@@ -227,6 +228,7 @@ static UINT8 m_SystemId = 0;
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
+static void IelfInit (UINT8 systemId);
 static void CreateNewIELFOverlay (UINT8 reasonForReset, RTDMTimeStr *currentTime);
 static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
@@ -242,161 +244,35 @@ static void ScanForOpenEvents (void);
 static void SetEventLogIndex (void);
 static void IelfClearFileProcessing (RTDMTimeStr *currentTime);
 
-/*****************************************************************************/
-/**
- * @brief       Initializes the IELF software component
- *
- *              This function determines if all files that are required for
- *              the IELF requirement are present and valid. If not, the
- *              necessary files are created. The memory overlays for the
- *              IELF file and the daily event counter are either cleared
- *              or copied from disk.
- *
- * @param systemId - the system id as specified in the IELF file
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-void IelfInit (UINT8 systemId)
+#ifndef TEST_ON_PC
+#ifndef REMOVE_AFTER_TEST
+static void IelfLogTest (void)
 {
+    BOOL fileExists = FALSE; /* Becomes TRUE if IELF clear file is present */
+    char *log1 = DRIVE_NAME DIRECTORY_NAME "log1"; /*  */
+    char *log2 = DRIVE_NAME DIRECTORY_NAME "log2"; /*  */
 
-    /* TODO need to understand how DST is saved on VCU target and how time is adjusted
-     * in order to make sure CSV file created by windows app does the right thing
-     */
+    fileExists = FileExists (log1);
 
-    BOOL fileDataExists = FALSE; /* Becomes TRUE if the ielf.dat file exists */
-    BOOL fileCrcExists = FALSE; /* Becomes TRUE if the ielf.crc file exists */
-    UINT32 crc = 0; /* result of CRC calculation */
-    FILE *dataFilePtr = NULL; /* FILE pointer "ielf.dat" */
-    FILE *crcFilePtr = NULL; /* FILE pointer "ielf.crc" */
-    UINT32 calculatedCRC = 0; /* calculated CRC on file data read from "ielf.dat" */
-    UINT32 storedCRC = 0; /* stored CRC in file "ielf.crc" */
-    char *dataFileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.dat" */
-    char *crcFileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
-    UINT32 amountRead = 0; /* amount of bytes read from a file */
-    UINT16 index = 0; /* used as loop index */
-    BOOL fileSuccess = FALSE; /* determines if file opened/closed successfully */
-    INT16 osReturn = OK; /* result from OS call */
-    RTDMTimeStr currentTime; /* Stores the current system time */
-
-    /* Save the system Id */
-    m_SystemId = systemId;
-
-    /* Check for the existence of the storage directory; create it if it doesn't exist */
-    (void) CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
-
-    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Initialization\n");
-
-    /* "0" all structures */
-    memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
-    memset (&m_ActiveEvent, 0, sizeof(m_ActiveEvent));
-    memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
-
-    memset (&currentTime, 0, sizeof(currentTime));
-    GetEpochTime (&currentTime);
-
-    /* Set the pending event queue entries to empty */
-    for (index = 0; index < PENDING_EVENT_QUEUE_SIZE; index++)
+    if (fileExists)
     {
-        m_PendingEvent[index].id = EVENT_QUEUE_ENTRY_EMPTY;
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "LogIELFEvent(1)\n");
+        LogIELFEvent (1);
+        remove (log1);
     }
 
-    /* Determine if IELF data file and CRC file exist */
-    fileDataExists = FileExists (dataFileName);
-    fileCrcExists = FileExists (crcFileName);
+    fileExists = FileExists (log2);
 
-    /* If either file doesn't exist; create the files and return */
-    if (!fileDataExists || !fileCrcExists)
+    if (fileExists)
     {
-        CreateNewIELFOverlay (RESET_AFTER_DOWNLOAD, &currentTime);
-        crc = MemoryOverlayCRCCalc ();
-        (void) WriteIelfDataFile ();
-        (void) WriteIelfCRCFile (crc);
-        (void) WriteIelfEventCounterFile (currentTime.seconds);
-        return;
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "LogIELFEvent(2)\n");
+        LogIELFEvent (2);
+        remove (log2);
     }
-
-    /* Since both files exist, open them */
-    fileSuccess = FileOpenMacro(dataFileName, "r+b", &dataFilePtr);
-    if (fileSuccess)
-    {
-        fileSuccess = FileOpenMacro(crcFileName, "r+b", &crcFilePtr);
-    }
-
-    /* Get the stored CRC from the CRC file. The CRC file is updated every time the data file is
-     * updated */
-    if (fileSuccess)
-    {
-        amountRead = fread (&storedCRC, 1, sizeof(storedCRC), crcFilePtr);
-        if (amountRead != sizeof(storedCRC))
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR,
-                            "fread() failed: file name = %s ---> File: %s  Line#: %d\n",
-                            crcFileName, __FILE__, __LINE__);
-
-            osReturn = ERROR;
-        }
-    }
-
-    /* Load the data file into the memory overlay */
-    if ((osReturn == OK) && fileSuccess)
-    {
-        amountRead = fread (&m_FileOverlay, 1, sizeof(m_FileOverlay), dataFilePtr);
-        if (amountRead != sizeof(m_FileOverlay))
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR,
-                            "fread() failed: file name = %s ---> File: %s  Line#: %d\n",
-                            dataFileName, __FILE__, __LINE__);
-            osReturn = ERROR;
-        }
-    }
-
-    /* Compare the calculated CRC with the stored CRC. If they aren't equal assume a corrupt file
-     * and reinitialize all data
-     */
-    if ((osReturn == OK) && fileSuccess)
-    {
-        calculatedCRC = 0;
-        calculatedCRC = crc32 (calculatedCRC, (const UINT8 *) &m_FileOverlay,
-                        sizeof(m_FileOverlay));
-
-        if (calculatedCRC != storedCRC)
-        {
-            CreateNewIELFOverlay (RESET_AFTER_DOWNLOAD, &currentTime);
-            crc = MemoryOverlayCRCCalc ();
-            (void) WriteIelfDataFile ();
-            (void) WriteIelfCRCFile (crc);
-            (void) WriteIelfEventCounterFile (currentTime.seconds);
-        }
-    }
-
-    if ((osReturn == OK) && fileSuccess)
-    {
-        osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_EMPTY, &m_SemaphoreId);
-        if (osReturn != OK)
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "IELF semaphore could not be created\n");
-        }
-
-        /* Verify daily event counter file */
-        InitDailyEventCounter (currentTime.seconds);
-
-        /* Look for "open" events (the end of the event wasn't detected... no end time) from the previous
-         * power/reset cycle and add them to the posted queue */
-        ScanForOpenEvents ();
-
-        /* Set event log index by examining firstRecordIndex and lastRecordIndex */
-        SetEventLogIndex ();
-    }
-
-    (void) FileCloseMacro(crcFilePtr);
-    (void) FileCloseMacro(dataFilePtr);
 
 }
+#endif
+#endif
 
 /*****************************************************************************/
 /**
@@ -413,6 +289,8 @@ void IelfInit (UINT8 systemId)
  *              If any change to either the daily event counter or the IELF
  *              are required, the memory overlay for both are written to disk.
  *
+ * @param interface - structure used to communicate info to/from IELF component (currently unused)
+ *
  *//*
  * Revision History:
  *
@@ -420,7 +298,7 @@ void IelfInit (UINT8 systemId)
  * Description   : Original Release
  *
  *****************************************************************************/
-void ServicePostedEvents (void)
+void IELF (TYPE_IELF_IF *interface)
 {
     UINT16 index = 0; /* Used as a loop index */
     BOOL eventOver = FALSE; /* Becomes TRUE when a logged event is no longer active */
@@ -430,6 +308,16 @@ void ServicePostedEvents (void)
     INT32 accessSemaResource = -1; /* Becomes 0 if semaphore successfully acquired and any pending events
      transferred to active event queue */
     UINT32 crc = 0; /* CRC calculation of memory overlay */
+    static BOOL ielfInitialized = FALSE;    /* Becomes TRUE after IELF component inialized */
+
+    /* INitialize the IELF component */
+    if (!ielfInitialized)
+    {
+        /* TODO need a system ID from somewhere (0x12 is used for the time being) */
+        IelfInit (0x12);
+        ielfInitialized = TRUE;
+        return;
+    }
 
     /* Get the current time in case an event has become inactive */
     memset (&currentTime, 0, sizeof(currentTime));
@@ -443,9 +331,14 @@ void ServicePostedEvents (void)
         return;
     }
 
+#ifndef TEST_ON_PC
+#ifndef REMOVE_AFTER_TEST
+    IelfLogTest ();
+#endif	
+#endif
 
     /* Determine if the user (via the PTU) has requested all IELF data to be cleared */
-    IelfClearFileProcessing(&currentTime);
+    IelfClearFileProcessing (&currentTime);
 
     /* Get any new events just logged; copy from Pending to Posted. If semaphore couldn't be acquired, any
      * pending events will have to be copied from Pending to Posted on the next cycle. If fileWriteNecessary
@@ -454,10 +347,8 @@ void ServicePostedEvents (void)
     accessSemaResource = DequeuePendingEvents (&fileWriteNecessary);
     if (accessSemaResource != 0)
     {
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s ",
-                        "Couldn't acquire or release semaphore in ServicePostedEvents()\n");
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s ", "Couldn't acquire or release semaphore in IELF()\n");
     }
-
 
     for (index = 0; index < ACTIVE_EVENT_QUEUE_SIZE; index++)
     {
@@ -585,6 +476,163 @@ INT32 LogIELFEvent (UINT16 eventId)
     }
 
     return (0);
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Initializes the IELF software component
+ *
+ *              This function determines if all files that are required for
+ *              the IELF requirement are present and valid. If not, the
+ *              necessary files are created. The memory overlays for the
+ *              IELF file and the daily event counter are either cleared
+ *              or copied from disk.
+ *
+ * @param systemId - the system id as specified in the IELF file
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void IelfInit (UINT8 systemId)
+{
+
+    /* TODO need to understand how DST is saved on VCU target and how time is adjusted
+     * in order to make sure CSV file created by windows app does the right thing
+     */
+
+    BOOL fileDataExists = FALSE; /* Becomes TRUE if the ielf.dat file exists */
+    BOOL fileCrcExists = FALSE; /* Becomes TRUE if the ielf.crc file exists */
+    UINT32 crc = 0; /* result of CRC calculation */
+    FILE *dataFilePtr = NULL; /* FILE pointer "ielf.dat" */
+    FILE *crcFilePtr = NULL; /* FILE pointer "ielf.crc" */
+    UINT32 calculatedCRC = 0; /* calculated CRC on file data read from "ielf.dat" */
+    UINT32 storedCRC = 0; /* stored CRC in file "ielf.crc" */
+    char *dataFileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.dat" */
+    char *crcFileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
+    UINT32 amountRead = 0; /* amount of bytes read from a file */
+    UINT16 index = 0; /* used as loop index */
+    BOOL fileSuccess = FALSE; /* determines if file opened/closed successfully */
+    INT16 osReturn = OK; /* result from OS call */
+    RTDMTimeStr currentTime; /* Stores the current system time */
+
+    /* Save the system Id */
+    m_SystemId = systemId;
+
+    /* Check for the existence of the storage directory; create it if it doesn't exist */
+    (void) CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
+
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Initialization\n");
+
+    /* "0" all structures */
+    memset (&m_PendingEvent, 0, sizeof(m_PendingEvent));
+    memset (&m_ActiveEvent, 0, sizeof(m_ActiveEvent));
+    memset (&m_DailyEventCounterOverlay, 0, sizeof(m_DailyEventCounterOverlay));
+
+    memset (&currentTime, 0, sizeof(currentTime));
+    GetEpochTime (&currentTime);
+
+    /* Set the pending event queue entries to empty */
+    for (index = 0; index < PENDING_EVENT_QUEUE_SIZE; index++)
+    {
+        m_PendingEvent[index].id = EVENT_QUEUE_ENTRY_EMPTY;
+    }
+
+    /* Determine if IELF data file and CRC file exist */
+    fileDataExists = FileExists (dataFileName);
+    fileCrcExists = FileExists (crcFileName);
+
+    /* If either file doesn't exist; create the files and return */
+    if (!fileDataExists || !fileCrcExists)
+    {
+        CreateNewIELFOverlay (RESET_AFTER_DOWNLOAD, &currentTime);
+        crc = MemoryOverlayCRCCalc ();
+        (void) WriteIelfDataFile ();
+        (void) WriteIelfCRCFile (crc);
+        (void) WriteIelfEventCounterFile (currentTime.seconds);
+        return;
+    }
+
+    /* Since both files exist, open them */
+    fileSuccess = FileOpenMacro(dataFileName, "r+b", &dataFilePtr);
+    if (fileSuccess)
+    {
+        fileSuccess = FileOpenMacro(crcFileName, "r+b", &crcFilePtr);
+    }
+
+    /* Get the stored CRC from the CRC file. The CRC file is updated every time the data file is
+     * updated */
+    if (fileSuccess)
+    {
+        amountRead = fread (&storedCRC, 1, sizeof(storedCRC), crcFilePtr);
+        if (amountRead != sizeof(storedCRC))
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR,
+                            "fread() failed: file name = %s ---> File: %s  Line#: %d\n",
+                            crcFileName, __FILE__, __LINE__);
+
+            osReturn = ERROR;
+        }
+    }
+
+    /* Load the data file into the memory overlay */
+    if ((osReturn == OK) && fileSuccess)
+    {
+        amountRead = fread (&m_FileOverlay, 1, sizeof(m_FileOverlay), dataFilePtr);
+        if (amountRead != sizeof(m_FileOverlay))
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR,
+                            "fread() failed: file name = %s ---> File: %s  Line#: %d\n",
+                            dataFileName, __FILE__, __LINE__);
+            osReturn = ERROR;
+        }
+    }
+
+    /* Compare the calculated CRC with the stored CRC. If they aren't equal assume a corrupt file
+     * and reinitialize all data
+     */
+    if ((osReturn == OK) && fileSuccess)
+    {
+        calculatedCRC = 0;
+        calculatedCRC = crc32 (calculatedCRC, (const UINT8 *) &m_FileOverlay,
+                        sizeof(m_FileOverlay));
+
+        if (calculatedCRC != storedCRC)
+        {
+            CreateNewIELFOverlay (RESET_AFTER_DOWNLOAD, &currentTime);
+            crc = MemoryOverlayCRCCalc ();
+            (void) WriteIelfDataFile ();
+            (void) WriteIelfCRCFile (crc);
+            (void) WriteIelfEventCounterFile (currentTime.seconds);
+        }
+    }
+
+    if ((osReturn == OK) && fileSuccess)
+    {
+        /* Create the semaphore and set state to FULL (i.e. available) */
+        osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_FULL, &m_SemaphoreId);
+        if (osReturn != OK)
+        {
+            debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "IELF semaphore could not be created\n");
+        }
+
+        /* Verify daily event counter file */
+        InitDailyEventCounter (currentTime.seconds);
+
+        /* Look for "open" events (the end of the event wasn't detected... no end time) from the previous
+         * power/reset cycle and add them to the posted queue */
+        ScanForOpenEvents ();
+
+        /* Set event log index by examining firstRecordIndex and lastRecordIndex */
+        SetEventLogIndex ();
+    }
+
+    (void) FileCloseMacro(crcFilePtr);
+    (void) FileCloseMacro(dataFilePtr);
+
 }
 
 /*****************************************************************************/
@@ -1282,7 +1330,6 @@ static void SetEventLogIndex (void)
     }
 }
 
-
 /*****************************************************************************/
 /**
  * @brief       This function examines the specified drive/directory for a
@@ -1300,13 +1347,13 @@ static void SetEventLogIndex (void)
  *****************************************************************************/
 static void IelfClearFileProcessing (RTDMTimeStr *currentTime)
 {
-    BOOL fileExists = FALSE;    /* Becomes TRUE if IELF clear file is present */
-    char *clearFileName = DRIVE_NAME DIRECTORY_NAME IELF_CLEAR_FILENAME;    /* Clear file name */
+    BOOL fileExists = FALSE; /* Becomes TRUE if IELF clear file is present */
+    char *clearFileName = DRIVE_NAME DIRECTORY_NAME IELF_CLEAR_FILENAME; /* Clear file name */
     INT32 osCallReturn = 0; /* return value from OS calls */
-    UINT32 crc = 0;  /* calculated CRC of the IELF data file */
+    UINT32 crc = 0; /* calculated CRC of the IELF data file */
 
     /* Determine if clear.rtdm file exists */
-    fileExists = FileExists(DRIVE_NAME DIRECTORY_NAME IELF_CLEAR_FILENAME);
+    fileExists = FileExists (clearFileName);
 
     /* The file doesn't exist, so do nothing */
     if (!fileExists)
@@ -1325,7 +1372,7 @@ static void IelfClearFileProcessing (RTDMTimeStr *currentTime)
     }
 
     /* Clear the memory overlay */
-    CreateNewIELFOverlay(RESET_BY_PTU, currentTime);
+    CreateNewIELFOverlay (RESET_BY_PTU, currentTime);
 
     /* Clear all active logged events */
     memset (&m_ActiveEvent, 0, sizeof(m_ActiveEvent));

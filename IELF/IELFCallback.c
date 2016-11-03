@@ -36,6 +36,23 @@
 
 #include "IELFTask.h"
 
+/*******************************************************************
+ *
+ *     C  O  N  S  T  A  N  T  S
+ *
+ *******************************************************************/
+
+/*******************************************************************
+ *
+ *     E  N  U  M  S
+ *
+ *******************************************************************/
+
+/*******************************************************************
+ *
+ *    S  T  R  U  C  T  S
+ *
+ *******************************************************************/
 /** @brief maps the event Id to the callback function that determines when the event conditions
  * are no longer present */
 typedef struct
@@ -47,17 +64,41 @@ typedef struct
 
 } IELFCallbackMap;
 
-#ifndef TEST_ON_PC
-static IELFCallbackMap ielfCallbackMap[] =
-{
-    {   1, x},
 
+/*******************************************************************
+ *
+ *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
+ *
+ *******************************************************************/
+ 
+#ifndef TEST_ON_PC
+#ifndef REMOVE_AFTER_TEST
+static BOOL Ev1OverCheck(void);
+static BOOL Ev2OverCheck(void);
+#endif
+#endif
+
+/*******************************************************************
+ *
+ *    S  T  A  T  I  C      V  A  R  I  A  B  L  E  S
+ *
+ *******************************************************************/
+
+  
+#ifndef TEST_ON_PC
+#ifndef REMOVE_AFTER_TEST
+const static IELFCallbackMap m_IelfCallbackMap[] =
+{
+    { 1, Ev1OverCheck},
+    { 2, Ev2OverCheck},
 };
+#endif
 #else
-static IELFCallbackMap ielfCallbackMap[] =
-    {
-        { 1, Sim1EventOver },
-          { 2, Sim2EventOver }, };
+const static IELFCallbackMap m_IelfCallbackMap[] =
+{
+    { 1, Sim1EventOver },
+    { 2, Sim2EventOver }, 
+};
 #endif
 
 /*****************************************************************************/
@@ -86,12 +127,12 @@ EventOverCallback GetIELFCallback (UINT16 eventCode)
     UINT16 index = 0;   /* loop index */
 
     /* Scan through the map */
-    while (index < sizeof(ielfCallbackMap) / sizeof(IELFCallbackMap))
+    while (index < sizeof(m_IelfCallbackMap) / sizeof(IELFCallbackMap))
     {
-        if (ielfCallbackMap[index].eventCode == eventCode)
+        if (m_IelfCallbackMap[index].eventCode == eventCode)
         {
             /* Callback found */
-            callback = ielfCallbackMap[index].callback;
+            callback = m_IelfCallbackMap[index].callback;
             break;
         }
         index++;
@@ -100,4 +141,36 @@ EventOverCallback GetIELFCallback (UINT16 eventCode)
     return (callback);
 
 }
+
+#ifndef TEST_ON_PC
+#ifndef REMOVE_AFTER_TEST
+static BOOL Ev1OverCheck(void)
+{
+    static INT32 count = 0;
+    count++;
+    if (count >= 10)
+    {
+        count = 0;
+        return TRUE;
+    }
+    return FALSE;
+
+}
+
+BOOL Ev2OverCheck(void)
+{
+    static INT32 count = 0;
+    count++;
+    if (count >= 5)
+    {
+        count = 0;
+        return TRUE;
+    }
+    return FALSE;
+
+}
+#endif
+#endif
+
+
 

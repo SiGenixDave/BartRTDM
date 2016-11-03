@@ -201,7 +201,7 @@ void RtdmBuildFTPDan (void)
     {
         buildSendInProgress = TRUE;
         BuildSendRtdmFile ();
-        buildSendInProgress = TRUE;
+        buildSendInProgress = FALSE;
     }
     else
     {

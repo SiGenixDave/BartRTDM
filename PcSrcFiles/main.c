@@ -18,17 +18,13 @@
 #include "../PcSrcFiles/usertypes.h"
 #include "../PcSrcFiles/MySleep.h"
 
-#include "../IELF/IELFTask.h"
+#include "../IELF/IELF.h"
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RTDMInitialize.h"
 
-
-
 TYPE_RTDMSTREAM_IF mStreamInfo;
-
-
 
 extern void CreateUIThread (void);
 int debug;
@@ -36,7 +32,6 @@ char fileName[15];
 
 int main (void)
 {
-
 
     mStreamInfo.VNC_CarData_S_WhoAmISts = TRUE;
 
@@ -56,20 +51,18 @@ int main (void)
     setbuf(stdout,NULL); /* this disables buffering for stdout. */
 #endif
 
-    printf("Hello World\n");
+    printf ("Hello World\n");
 
     /* RTDMInitialize (&mStreamInfo); */
     /* DAS can't single step debug when another thread is spawned */
 #if 0
     CreateUIThread();
 #endif
-    IelfInit (0x12);
 
     while (TRUE)
     {
         RtdmStream (&mStreamInfo);
-        RtdmBuildFTPDan();
-        ServicePostedEvents();
+        IELF (NULL);
         MySleep (50);
         mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
     }
