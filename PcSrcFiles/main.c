@@ -13,6 +13,7 @@
 #include <string.h>
 #include <conio.h>
 
+#include "../IELF/IELFTask.h"
 #include "../PcSrcFiles/MyTypes.h"
 #include "../PcSrcFiles/MyFuncs.h"
 #include "../PcSrcFiles/usertypes.h"
@@ -23,7 +24,6 @@
 #include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RTDMInitialize.h"
 
-#include "../IELF/IELF.h"
 
 
 TYPE_RTDMSTREAM_IF mStreamInfo;

@@ -30,7 +30,7 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
-#include "../IELF/IELF.h"
+#include "IELFTask.h"
 #include "../IELF/IELFCallback.h"
 
 #include "../RtdmStream/RtdmUtils.h"
