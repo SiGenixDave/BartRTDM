@@ -342,7 +342,7 @@ static void BuildSendRtdmFile (void)
     }
 #endif
 
-    /* TODO delete all temporary files */
+    /* delete all temporary files */
     DeleteAllCopyStreamFiles ();
 
 #ifndef TEST_ON_PC
@@ -422,7 +422,7 @@ static BOOL CreateCopyStreamFileName (UINT16 fileIndex, char *fileName, UINT32 a
 
     startDotStreamIndex = strlen (fileName) - strlen (extension);
 
-    /* To ensure the filename was created correctly, verify the string terminates with .stream */
+    /* To ensure the filename was created correctly, verify the string terminates with .streamCopy */
     strCmpReturn = strcmp (extension, &fileName[startDotStreamIndex]);
 
     return ((strCmpReturn == 0) ? TRUE : FALSE);
