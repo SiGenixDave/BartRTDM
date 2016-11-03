@@ -13,12 +13,12 @@
 #include <string.h>
 #include <conio.h>
 
-#include "../IELF/IELFTask.h"
 #include "../PcSrcFiles/MyTypes.h"
 #include "../PcSrcFiles/MyFuncs.h"
 #include "../PcSrcFiles/usertypes.h"
 #include "../PcSrcFiles/MySleep.h"
 
+#include "../IELF/IELFTask.h"
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmXml.h"

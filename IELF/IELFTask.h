@@ -17,8 +17,8 @@
  *
  *****************************************************************************/
 
-#ifndef IELF_H
-#define IELF_H
+#ifndef IELFTASK_H
+#define IELFTASK_H
 
 typedef BOOL (*EventOverCallback) (void);
 
@@ -26,5 +26,5 @@ void IelfInit (UINT8 systemId);
 void ServicePostedEvents (void);
 INT32 LogIELFEvent (UINT16 eventId);
 
-#endif /* IELF_H */
+#endif /* IELFTASK_H */
 
