@@ -541,6 +541,13 @@ static void IelfInit (UINT8 systemId)
         m_PendingEvent[index].id = EVENT_QUEUE_ENTRY_EMPTY;
     }
 
+    /* Create the semaphore and set state to FULL (i.e. available) */
+    osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_FULL, &m_SemaphoreId);
+    if (osReturn != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "IELF semaphore could not be created\n");
+    }
+
     /* Determine if IELF data file and CRC file exist */
     fileDataExists = FileExists (dataFileName);
     fileCrcExists = FileExists (crcFileName);
@@ -612,13 +619,6 @@ static void IelfInit (UINT8 systemId)
 
     if ((osReturn == OK) && fileSuccess)
     {
-        /* Create the semaphore and set state to FULL (i.e. available) */
-        osReturn = os_sb_create (OS_SEM_Q_PRIORITY, OS_SEM_FULL, &m_SemaphoreId);
-        if (osReturn != OK)
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "IELF semaphore could not be created\n");
-        }
-
         /* Verify daily event counter file */
         InitDailyEventCounter (currentTime.seconds);
 
