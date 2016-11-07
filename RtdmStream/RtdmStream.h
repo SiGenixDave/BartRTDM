@@ -35,13 +35,14 @@ typedef struct dataBlock_RtdmStream
     UINT8             RTDMDataLogState;                        /* output State of RTDM Data Log, RUN, STOP, RESTART, FULL */
     UINT16            RTDMMainBuffCount;                       /* output MD data stream message */
     UINT32            RTDM_Send_Counter;                       /* output counter for number of messages sent */
-    BOOL              RTDMTriggerFileIOTask;                   /* output trigger to send MD data stream */
+    BOOL              RTDMTriggerFileIOTask;                   /* output trigger to write to stream file */
     UINT16            RTDMSignalCount;                         /* output number of signals read from config.xml */
     UINT16            RTDMSampleSize;                          /* output size of the current sample */
     UINT16            RTDMMainBuffSize;                        /* output Main buffer size [n] */
     UINT16            RTDMSendTime;                            /* output Max time before sending stream */
     UINT16            RTDMStreamError;                         /* output Error Code for Stream */
     UINT16            RTDMSampleCount;                         /* output Number of samples in stream */
+    BOOL              RTDMTriggerFtpDanFile;                   /* output trigger to build/FTP DAN file over ECN */
 }   TYPE_RTDMSTREAM_IF;
 
 #ifdef __cplusplus

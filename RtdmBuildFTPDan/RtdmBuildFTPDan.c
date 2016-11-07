@@ -38,6 +38,7 @@
 #include "../RtdmStream/RTDMInitialize.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 #include "../RtdmFileIO/RtdmFileIO.h"
+#include "../RtdmBuildFTPDan/RtdmBuildFTPDan.h"
 
 /*******************************************************************
  *
@@ -152,7 +153,8 @@ static void PopulateValidFileTimeStamps (void);
 static void SortValidFileTimeStamps (void);
 static UINT16 GetNewestStreamFileIndex (void);
 static UINT16 GetOldestStreamFileIndex (void);
-static char * CreateFTPFileName (FILE **ptr);
+static void CreateFTPFileName (FILE **ftpFilePtr, char remoteFileName[], UINT16 sizeRemoteFileName,
+                char localFileName[], UINT16 sizeLocalFileName);
 static void IncludeXMLFile (FILE *ftpFilePtr);
 static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStampStr *newest,
                 UINT16 numStreams);
@@ -192,8 +194,7 @@ void InitRtdmDanBuilder (RtdmXmlStr *rtdmXmlData, struct dataBlock_RtdmStream *s
  * Description   : Original Release
  *
  *****************************************************************************/
-/* TODO void RtdmBuildFTPDan (TYPE_RTDMBUILDFTPDAN_IF *interface) */
-void RtdmBuildFTPDan (void)
+void RtdmBuildFTPDan (TYPE_RTDMBUILDFTPDAN_IF *interface)
 {
     static BOOL buildSendInProgress = FALSE;
 
@@ -239,19 +240,22 @@ static void BuildSendRtdmFile (void)
     TimeStampStr newestTimeStamp; /* newest time stamp (required for RTDM header) */
     TimeStampStr oldestTimeStamp; /* oldest time stamp (required for RTDM header) */
     UINT16 streamCount = 0; /* number of streams in all #.stream files */
-    char *fileName = NULL; /* filename of .dan file */
-    char fullyQualifiedName[200] = DRIVE_NAME DIRECTORY_NAME; /* will be complete filename of .dan file including path */
+    char remoteFileName[200]; /* filename of remote .dan file */
+    char localFileName[200]; /* will be complete filename of .dan file including path */
 
 #ifndef TEST_ON_PC
     INT16 ftpStatus = 0;
     INT16 ftpError = 0;
 #endif
 
+    memset (&remoteFileName, 0, sizeof(remoteFileName));
+    memset (&localFileName, 0, sizeof(localFileName));
+
     /* Copy all stream files as they exist so they can be processed> This is done to avoid any race
      * conditions when stream data is being captured. */
     CopyAllStreamFiles ();
 
-    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "SpawSpawnFTPDatalog() invoked\n");
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "BuildSendRtdmFile() invoked\n");
 
     /* Determine all current valid stream files */
     PopulateValidStreamFileList ();
@@ -297,14 +301,17 @@ static void BuildSendRtdmFile (void)
     PrintIntegerContents(RTDM_IELF_DBG_LOG, streamCount);
 
     /* Create filename and open it for writing */
-    fileName = CreateFTPFileName (&ftpFilePtr);
+    CreateFTPFileName (&ftpFilePtr, remoteFileName, sizeof(remoteFileName), localFileName,
+                    sizeof(localFileName));
 
-    debugPrintf(RTDM_IELF_DBG_INFO, "FTP Client Send compilation DAN filename = %s\n", fileName);
+    debugPrintf(RTDM_IELF_DBG_INFO, "FTP Client Send compilation DAN filename = %s\n",
+                    remoteFileName);
 
     if (ftpFilePtr == NULL)
     {
         /* TODO handle error */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file", fileName);
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s %s\n", "Couldn't open compilation DAN file",
+                        remoteFileName);
         return;
     }
 
@@ -320,25 +327,25 @@ static void BuildSendRtdmFile (void)
     /* Close file pointer */
     FileCloseMacro(ftpFilePtr);
 
-    /* Send newly create file to FTP server */
-    strcat (fullyQualifiedName, fileName);
-
 #ifndef TEST_ON_PC
 
-    /* TODO check return value for success or fail, ftpStatus indicates the type of error. Need to get IP
-     * address of server from somewhere.  */
-    ftpError = ftpc_file_put("10.0.7.13", /* In: name of server host */
+    /* TODO Need to get IP address of server from somewhere.  */
+    ftpError = ftpc_file_put("10.0.7.11", /* In: name of server host */
                     "dsmail", /* In: user name for server login */
                     "", /* In: password for server login */
                     "", /* In: account for server login. Typically "". */
                     "", /* In: directory to cd to before storing file */
-                    fileName, /* In: filename to put on server */
-                    fullyQualifiedName, /* In: filename of local file to copy to server */
+                    remoteFileName, /* In: filename to put on server */
+                    localFileName, /* In: filename of local file to copy to server */
                     &ftpStatus); /* Out: Status on the operation */
 
     if (ftpStatus != OK)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "FTP Error: %d  FTP Status = %d\n", ftpError, ftpStatus);
+    }
+    else
+    {
+        debugPrintf(RTDM_IELF_DBG_INFO, "File %s successfully FTP'ed to destination\n", localFileName);
     }
 #endif
 
@@ -347,7 +354,7 @@ static void BuildSendRtdmFile (void)
 
 #ifndef TEST_ON_PC
     /* Delete file when FTP send complete */
-    remove (fullyQualifiedName);
+    remove (localFileName);
 #endif
 }
 
@@ -634,22 +641,22 @@ static UINT16 GetOldestStreamFileIndex (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static char * CreateFTPFileName (FILE **ftpFilePtr)
+static void CreateFTPFileName (FILE **ftpFilePtr, char remoteFileName[], UINT16 sizeRemoteFileName,
+                char localFileName[], UINT16 sizeLocalFileName)
 {
     BOOL fileSuccess = FALSE; /* return value for file operations */
     char consistId[17]; /* Stores the consist id */
     char carId[17]; /* Stores the car id */
     char deviceId[17]; /* Stores the device id */
     UINT32 maxCopySize; /* Used to ensure memory is not overwritten */
+    UINT32 snPrintChars = 0; /* Used to ensure filenames could fit in the allocated buffer */
 
     const char *extension = ".dan"; /* Required extension to FTP file */
     const char *rtdmFill = "rtdm____________"; /* Required filler */
 
-    static char s_FileName[256]; /* FTP file name returned from function */
     char dateTime[64]; /* stores the date/time inthe required format */
 
     /* Set all default chars */
-    memset (s_FileName, 0, sizeof(s_FileName));
     memset (consistId, '_', sizeof(consistId));
     memset (carId, '_', sizeof(carId));
     memset (deviceId, '_', sizeof(deviceId));
@@ -679,24 +686,32 @@ static char * CreateFTPFileName (FILE **ftpFilePtr)
     debugPrintf(RTDM_IELF_DBG_INFO, "ANSI Date time = %s\n", dateTime);
 
     /* Create the filename by concatenating in the proper order */
-    strcat (s_FileName, DRIVE_NAME);
-    strcat (s_FileName, DIRECTORY_NAME);
-    strcat (s_FileName, consistId);
-    strcat (s_FileName, carId);
-    strcat (s_FileName, deviceId);
-    strcat (s_FileName, rtdmFill);
-    strcat (s_FileName, dateTime);
-    strcat (s_FileName, extension);
+    snPrintChars = snprintf (localFileName, sizeLocalFileName, "%s%s%s%s%s%s%s", DRIVE_NAME DIRECTORY_NAME,
+                    consistId, carId, deviceId, rtdmFill, dateTime, extension);
+
+    if (snPrintChars > sizeLocalFileName)
+    {
+        *ftpFilePtr = NULL;
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "Buffer not large enough to store local filename for FTP transfer\n");
+        return;
+    }
+
+    snPrintChars = snprintf (remoteFileName, sizeRemoteFileName, "%s%s%s%s%s%s", consistId, carId, deviceId,
+                    rtdmFill, dateTime, extension);
+
+    if (snPrintChars > sizeRemoteFileName)
+    {
+        *ftpFilePtr = NULL;
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "Buffer not large enough to store remote filename for FTP transfer\n");
+        return;
+    }
 
     /* Try opening the file for writing and leave open */
-    fileSuccess = FileOpenMacro(s_FileName, "wb+", ftpFilePtr);
+    fileSuccess = FileOpenMacro(localFileName, "wb+", ftpFilePtr);
     if (!fileSuccess)
     {
         *ftpFilePtr = NULL;
     }
-
-    /* Return the FTP file name */
-    return (s_FileName);
 
 }
 

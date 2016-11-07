@@ -198,6 +198,7 @@ void RtdmStream (struct dataBlock_RtdmStream *interface)
     /* Always reset this flag on entry. Used to trigger OS Event to File IO event driven task. Flag is
      * recognized after this call exits. */
     interface->RTDMTriggerFileIOTask = FALSE;
+    interface->RTDMTriggerFtpDanFile = FALSE;
 
     /* Initialize the RTDM component on the first call to this function only and wait for it to finish.
      * The entire initialization process takes place in the RTDM_FILEIO_TASK (event driven low priority task) */
@@ -212,6 +213,22 @@ void RtdmStream (struct dataBlock_RtdmStream *interface)
     {
         NormalStreamProcessing (interface);
     }
+
+    /* TODO - the trigger to send DAN file over network needs to come from somewhere ??? */
+#ifndef REMOVE_AFTER_TEST
+    extern void RtdmBuildFTPDan (INT16 *);
+    /* If file exists, trigger FTP send */
+    if (FileExists (DRIVE_NAME DIRECTORY_NAME "ftpdan"))
+    {
+        remove (DRIVE_NAME DIRECTORY_NAME "ftpdan");
+#ifdef TEST_ON_PC
+        RtdmBuildFTPDan (NULL);
+#else
+        interface->RTDMTriggerFtpDanFile = TRUE;
+#endif
+    }
+#endif
+
 }
 
 /*****************************************************************************/
