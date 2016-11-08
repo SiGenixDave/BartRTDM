@@ -30,7 +30,6 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
-
 #include "../RtdmStream/RtdmUtils.h"
 
 #include "../RtdmStream/RtdmStream.h"
@@ -45,8 +44,6 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-
-
 
 /* If DELETE_ALL_STREAM_FILES_AT_BOOT is defined, all stream files will be removed after every
  * power cycle or reset */
@@ -67,7 +64,6 @@
 /* The name of the file uploaded by the PTU to indicate that the RTDM data should be cleared */
 #define RTDM_CLEAR_FILENAME     "Clear.rtdm"
 
-
 /*******************************************************************
  *
  *     E  N  U  M  S
@@ -82,15 +78,6 @@ typedef enum
     APPEND_TO_EXISTING
 } StreamFileState;
 
-/** @brief Determines the type of time stamp to get from a #.stream file */
-typedef enum
-{
-    /** Used to get the oldest time stamp from a #.stream file */
-    OLDEST_TIMESTAMP,
-    /** Used to get the newest time stamp from a #.stream file */
-    NEWEST_TIMESTAMP
-} TimeStampAge;
-
 /** @brief Bit mask used to determine the function to be performed */
 typedef enum
 {
@@ -100,8 +87,8 @@ typedef enum
     INIT_RTDM_SYSTEM = 0x01,
     /** Writes to a #.stream file */
     WRITE_FILE = 0x02,
-    /** Used to compile, build and send a .dan file to the MDS only */
-    COMPILE_FTP_FILE = 0x04,
+    /** Used to close existing #.stream file in preparation for building and FTPing .dan file to the MDS only */
+    CLOSE_CURRENT_STREAM_FILE = 0x04,
 } FileAction;
 
 /*******************************************************************
@@ -140,13 +127,12 @@ static struct dataBlock_RtdmStream *m_StreamInterface = NULL;
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 /** @brief Determines whether to create or append to a #.stream file */
 static StreamFileState m_StreamFileState;
-/** @brief The header which delimits streams from each other */
-static const char *m_StreamHeaderDelimiter = "STRM";
 /** @brief Type of file action to be performed. */
 static FileAction m_FileAction = 0;
 /** @brief Holds information when about the stream to be written. */
 static RtdmFileWrite m_FileWrite;
-
+/** @brief TODO */
+static BOOL m_StreamDataAvailable = FALSE;
 
 /*******************************************************************
  *
@@ -154,13 +140,13 @@ static RtdmFileWrite m_FileWrite;
  *
  *******************************************************************/
 static void InitFileIndex (void);
-static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex);
 static BOOL VerifyFileIntegrity (const char *filename);
 static void CleanupDirectory (void);
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
+static void CloseStreamFile (void);
 static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 amount, BOOL creaetFile);
 static void RtdmClearFileProcessing (void);
 
@@ -183,7 +169,7 @@ static void RtdmClearFileProcessing (void);
  *****************************************************************************/
 void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
 {
-    UINT16 errorCode = NO_ERROR;    /* return value from function call */
+    UINT16 errorCode = NO_ERROR; /* return value from function call */
 
     m_RtdmXmlData = rtdmXmlData;
 
@@ -239,8 +225,20 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
         }
         if ((m_FileAction & WRITE_FILE) != 0)
         {
+            /* Update the current stream file */
             WriteStreamFile ();
             m_FileAction &= ~(WRITE_FILE);
+        }
+        if ((m_FileAction & CLOSE_CURRENT_STREAM_FILE) != 0)
+        {
+            /* Action requested when the network wants a DAN file. This call effectively closes
+             * the newest stream file so that it can be used for compilation and a new stream
+             * file (the next in line) will be written to. The next in line file will be ignored
+             * for the DAN file compilation to avoid race issues. NOTE: It is assumed that
+             * all compilation will complete before the next in line stream file fills up
+             */
+            CloseStreamFile ();
+            m_FileAction &= ~(CLOSE_CURRENT_STREAM_FILE);
         }
     }
 
@@ -326,6 +324,73 @@ UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 s
 
 /*****************************************************************************/
 /**
+ * @brief       Accessor function for static variable m_StreamFileIndex
+ *
+ *              This function allows other modules to access the current
+ *              value of m_StreamFileIndex.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+UINT16 GetCurrentStreamFileIndex (void)
+{
+    return (m_StreamFileIndex);
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Accessor function for static variable m_StreamDataAvailable
+ *
+ *              This function allows other modules to access the current
+ *              value of m_StreamDataAvailable.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+BOOL GetStreamDataAvailable (void)
+{
+    return (m_StreamDataAvailable);
+}
+
+/*****************************************************************************/
+/**
+ * @brief       Mutator function for static variable m_StreamDataAvailable
+ *
+ *              This function allows other modules to change the current
+ *              value of m_StreamDataAvailable.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+void SetStreamDataAvailable (BOOL streamDataAvailable)
+{
+    m_StreamDataAvailable = streamDataAvailable;
+}
+
+void CloseCurrentStreamFile (void)
+{
+#ifdef TEST_ON_PC
+    CloseStreamFile ();
+#else
+    /* Indicate the type of background action to perform */
+    m_FileAction |= CLOSE_CURRENT_STREAM_FILE;
+#endif
+}
+
+/*****************************************************************************/
+/**
  * @brief       Causes the OS to trigger a File I/O operation
  *
  *              This function sets the OS BOOL flag to TRUE to trigger
@@ -377,7 +442,7 @@ static void WriteStreamFile (void)
         { 0, 0 }; /* maintains the first time stamp in the current stream file */
     INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
     StreamHeaderStr streamHeader; /* holds the current stream header */
-    char fileName[200]; /* filename of the #.stream file */
+    char fileName[MAX_CHARS_IN_FILENAME]; /* filename of the #.stream file */
 
 #ifdef FIXED_TIME_CYCLE_NS
     static BOOL oneFileWriteComplete = FALSE;
@@ -392,8 +457,7 @@ static void WriteStreamFile (void)
      * be deleted. This file is placed in the directory by the PTU upon user
      * request to clear all stream data (i.e. remove all stream files)
      */
-    RtdmClearFileProcessing();
-
+    RtdmClearFileProcessing ();
 
     /* Verify there is stream data in the buffer; if not abort */
     if (m_FileWrite.bytesInBuffer == 0)
@@ -460,6 +524,38 @@ static void WriteStreamFile (void)
 
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Closes the current stream file
+ *
+ *              This function closes the current stream file. It then sets
+ *              the oldest file index so that the compilation process to
+ *              build the .dan file that will be FTPed to a remote server can
+ *              begin.
+ *
+ *              IMPORTANT: This function must be run at a higher priority
+ *              than the RtdmBuildFTPDan.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void CloseStreamFile (void)
+{
+    /* Close stream file. This code snippet causes the file indexer to move to the next file */
+    m_StreamFileState = CREATE_NEW;
+    m_StreamFileIndex++;
+    if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
+    {
+        m_StreamFileIndex = 0;
+    }
+
+    m_StreamDataAvailable = TRUE;
+}
 
 /*****************************************************************************/
 /**
@@ -488,14 +584,14 @@ static void InitFileIndex (void)
     TimeStampStr timeStamp; /* Used to get the oldest stream time stamp from a file */
     UINT32 newestTimestampSeconds = 0; /* Used to check a file with for a newer stream */
     UINT16 newestFileIndex = INVALID_FILE_INDEX; /* will hold the newest file index */
-    char fileName[200];
+    char fileName[MAX_CHARS_IN_FILENAME]; /* Used to store stream filename */
 
     memset (&timeStamp, 0, sizeof(timeStamp));
 
     /* Find the most recent valid file and point to the next file for writing */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
     {
-        (void)CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
+        (void) CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
         fileOK = VerifyFileIntegrity (fileName);
         if (fileOK == TRUE)
         {
@@ -525,92 +621,6 @@ static void InitFileIndex (void)
     m_StreamFileState = CREATE_NEW;
 }
 
-
-/*****************************************************************************/
-/**
- * @brief       Gets a time stamp from a stream file (#.stream)
- *
- *              Opens the desired stream file and either gets the newest or oldest
- *              time stamp in the file.
- *
- *  @param timeStamp - populated with either the oldest or newest time stamp
- *  @param age - informs function to get either the oldest or newest time stamp
- *  @param fileIndex - indicates the name of the stream file (i.e 0 cause "0.stream" to be opened)
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex)
-{
-    FILE *pFile = NULL;
-    UINT16 sIndex = 0;
-    UINT8 buffer[1];
-    size_t amountRead = 0;
-    StreamHeaderContent streamHeaderContent;
-    char fileName[200]; /* fully qualified filename */
-    BOOL fileSuccess = FALSE; /* return value for file operations */
-
-    /* Reset the stream header. If no valid streams are found, then the time stamp structure will
-     * have "0" in it. */
-    memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
-
-    CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
-    fileSuccess = FileOpenMacro(fileName, "r+b", &pFile);
-    if (!fileSuccess)
-    {
-        return;
-    }
-
-    while (1)
-    {
-        /* TODO revisit and read more than 1 byte at a time
-         * Search for delimiter. Design decision to read only a byte at a time. If more than 1 byte is
-         * read into a buffer, than more complex logic is needed */
-        amountRead = fread (&buffer, sizeof(UINT8), sizeof(buffer), pFile);
-
-        /* End of file reached */
-        if (amountRead != sizeof(buffer))
-        {
-            break;
-        }
-
-        if (buffer[0] == m_StreamHeaderDelimiter[sIndex])
-        {
-            sIndex++;
-            /* Delimiter found if inside of "if" is reached */
-            if (sIndex == strlen (m_StreamHeaderDelimiter))
-            {
-                /* Read the entire stream header, which occurs directly after the stream, delimiter */
-                fread (&streamHeaderContent, sizeof(streamHeaderContent), 1, pFile);
-
-                /* Get out of while loop on first occurrence */
-                if (age == OLDEST_TIMESTAMP)
-                {
-                    break;
-                }
-                else
-                {
-                    sIndex = 0;
-                }
-            }
-        }
-        else
-        {
-            sIndex = 0;
-        }
-    }
-
-    /* Copy the stream header time stamp into the passed argument */
-    timeStamp->seconds = ntohl (streamHeaderContent.postamble.timeStampUtcSecs);
-    timeStamp->msecs = ntohs (streamHeaderContent.postamble.timeStampUtcMsecs);
-
-    (void) FileCloseMacro(pFile);
-
-}
 
 /*****************************************************************************/
 /**
@@ -644,7 +654,10 @@ static BOOL VerifyFileIntegrity (const char *filename)
     StreamHeaderStr streamHeader; /* Overlaid on bytes read from the file */
     BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
     UINT16 sampleSize = 0; /* sample size read from stream header */
-    BOOL fileSuccess = FALSE;  /* return value for file operations */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
+    char const * streamHeaderDelimiter = NULL; /* Pointer to stream header string */
+
+    streamHeaderDelimiter = GetStreamHeader ();
 
     /* Check if the file exists */
     if (!FileExists (filename))
@@ -681,14 +694,14 @@ static BOOL VerifyFileIntegrity (const char *filename)
         }
 
         /* Search for delimiter */
-        if (buffer == m_StreamHeaderDelimiter[sIndex])
+        if (buffer == streamHeaderDelimiter[sIndex])
         {
             sIndex++;
-            if (sIndex == strlen (m_StreamHeaderDelimiter))
+            if (sIndex == strlen (streamHeaderDelimiter))
             {
                 /* Set the index strlen(streamHeaderDelimiter) backwards so that it points at the
                  * first char in streamHeaderDelimiter */
-                lastStrmIndex = (INT32) (byteCount - strlen (m_StreamHeaderDelimiter));
+                lastStrmIndex = (INT32) (byteCount - strlen (streamHeaderDelimiter));
                 sIndex = 0;
             }
         }
@@ -760,9 +773,9 @@ static BOOL VerifyFileIntegrity (const char *filename)
  *****************************************************************************/
 static void CleanupDirectory (void)
 {
-    INT32 osCallReturn = 0;  /* Return value from OS call */
-    UINT16 index = 0;   /* Used to create base name of stream file */
-    char fileName[200];  /* Fully qualified file name */
+    INT32 osCallReturn = 0; /* Return value from OS call */
+    UINT16 index = 0; /* Used to create base name of stream file */
+    char fileName[MAX_CHARS_IN_FILENAME]; /* Fully qualified file name */
 
 #ifdef DELETE_ALL_STREAM_FILES_AT_BOOT
     index = 0;
@@ -813,12 +826,12 @@ static void CleanupDirectory (void)
  *****************************************************************************/
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
 {
-    UINT8 buffer[FILE_READ_BUFFER_SIZE];    /* Holds data read from file to be truncated */
-    UINT32 amountRead = 0;  /* The amount of data read from the file */
+    UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Holds data read from file to be truncated */
+    UINT32 amountRead = 0; /* The amount of data read from the file */
     FILE *pReadFile = NULL; /* File pointer to the file to be truncated */
-    FILE *pWriteFile = NULL;    /* File pointer to the temporary file */
-    UINT32 byteCount = 0;   /* Accumulates the total number of bytes read */
-    UINT32 remainingBytesToWrite = 0;   /* Maintains the number of remaining bytes to write */
+    FILE *pWriteFile = NULL; /* File pointer to the temporary file */
+    UINT32 byteCount = 0; /* Accumulates the total number of bytes read */
+    UINT32 remainingBytesToWrite = 0; /* Maintains the number of remaining bytes to write */
     INT32 osCallReturn = 0; /* return value from OS calls */
     const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream"; /* Fully qualified file name of temporary file */
     BOOL fileSuccess = FALSE; /* return value for file operations */
@@ -946,8 +959,8 @@ static BOOL CreateCarConDevFile (void)
     if (fileSuccess)
     {
         /* TODO check that these have been updated by the output task responsible  */
-        fprintf (pFile, "%d\n", (INT32)(m_RtdmXmlData->dataRecorderCfg.id));
-        fprintf (pFile, "%d\n", (INT32)m_RtdmXmlData->dataRecorderCfg.version);
+        fprintf (pFile, "%d\n", (INT32) (m_RtdmXmlData->dataRecorderCfg.id));
+        fprintf (pFile, "%d\n", (INT32) m_RtdmXmlData->dataRecorderCfg.version);
         fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
         fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
         fprintf (pFile, "%s\n", m_RtdmXmlData->dataRecorderCfg.deviceId);
@@ -981,9 +994,9 @@ static BOOL CreateCarConDevFile (void)
  *****************************************************************************/
 static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL createFile)
 {
-    FILE *wrtFile = NULL;   /* FILE pointer to the file that is to be written */
-    char *fopenArgString = NULL;    /* The file specification string (either create or append) */
-    BOOL fileSuccess = FALSE;   /* return value for file operations */
+    FILE *wrtFile = NULL; /* FILE pointer to the file that is to be written */
+    char *fopenArgString = NULL; /* The file specification string (either create or append) */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
 
     if (createFile)
     {
@@ -1005,7 +1018,6 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL
     return (fileSuccess);
 }
 
-
 /*****************************************************************************/
 /**
  * @brief       This function examines the specified drive/directory for a
@@ -1025,14 +1037,14 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL
  *****************************************************************************/
 static void RtdmClearFileProcessing (void)
 {
-    BOOL fileExists = FALSE;    /* Becomes TRUE if RTDM clear file is present */
-    char *clearFileName = DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME;    /* Clear file name */
+    BOOL fileExists = FALSE; /* Becomes TRUE if RTDM clear file is present */
+    char *clearFileName = DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME; /* Clear file name */
     INT32 osCallReturn = 0; /* return value from OS calls */
-    UINT16 fileIndex = 0;   /* Used to create stream file names */
-    char fileName[200];    /* Stores the stream file name to be deleted */
+    UINT16 fileIndex = 0; /* Used to create stream file names */
+    char fileName[MAX_CHARS_IN_FILENAME]; /* Stores the stream file name to be deleted */
 
     /* Determine if clear.rtdm file exists */
-    fileExists = FileExists(DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME);
+    fileExists = FileExists (DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME);
 
     /* The file doesn't exist, so do nothing */
     if (!fileExists)
@@ -1051,10 +1063,10 @@ static void RtdmClearFileProcessing (void)
     }
 
     /* Scan through all stream files, and if they exist, delete them. */
-    while (fileIndex < MAX_NUMBER_OF_STREAM_FILES)
+    while (fileIndex < MAX_NUMBER_OF_STREAM_FILES )
     {
         CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
-        fileExists = FileExists(fileName);
+        fileExists = FileExists (fileName);
         if (fileExists)
         {
             /* delete clear file */

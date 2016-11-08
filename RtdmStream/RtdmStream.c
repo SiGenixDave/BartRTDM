@@ -222,8 +222,11 @@ void RtdmStream (struct dataBlock_RtdmStream *interface)
     {
         remove (DRIVE_NAME DIRECTORY_NAME "ftpdan");
 #ifdef TEST_ON_PC
+        CloseCurrentStreamFile ();
         RtdmBuildFTPDan (NULL);
 #else
+        /* This needs to happen when the network requests a DAN file */
+        CloseCurrentStreamFile ();
         interface->RTDMTriggerFtpDanFile = TRUE;
 #endif
     }

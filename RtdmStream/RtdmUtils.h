@@ -75,6 +75,13 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
+
+
+#define MAX_CHARS_IN_FILENAME       200
+
+
+
+
 /* Undefine RTDM_IELF_DEBUG if all debug info for RTDM/IELF is to be turned off */
 #define RTDM_IELF_DEBUG
 
@@ -173,6 +180,15 @@ typedef enum
     /** attribute is INT32 type */
     INT32_XML_TYPE
 } XmlSignalType;
+
+/** @brief Determines the type of time stamp to get from a #.stream file */
+typedef enum
+{
+    /** Used to get the oldest time stamp from a #.stream file */
+    OLDEST_TIMESTAMP,
+    /** Used to get the newest time stamp from a #.stream file */
+    NEWEST_TIMESTAMP
+} TimeStampAge;
 
 /*******************************************************************
  *
@@ -372,6 +388,8 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
 void GetTimeDateRtdm (char *dateTime, char *formatSpecifier, UINT32 dateTimeStrArrayLength);
 void WriteToLogFile (char *strLevel, char *strInfo);
 BOOL CreateStreamFileName (UINT16 fileIndex, char *fileName, UINT32 arrayLength);
+void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex);
+const char *GetStreamHeader (void);
 
 
 #endif /* RTDMUTILS_H_ */

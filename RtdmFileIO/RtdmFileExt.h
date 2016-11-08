@@ -26,14 +26,16 @@
  *
  *******************************************************************/
 /* Total time stream data is logged, old data will be overwritten */
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (1.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (5.0/60.0)
 /* Each #.stream file contains this many hours worth of stream data */
-#define SINGLE_FILE_TIMESPAN_HOURS          (0.25)
+#define SINGLE_FILE_TIMESPAN_HOURS          (1.0/60.0)
 
 /* Convert the above define to milliseconds */
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
-/* This will be the max total amount of stream files */
-#define MAX_NUMBER_OF_STREAM_FILES          (UINT16)(REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS)
+/* This will be the max total amount of stream files. The "+ 1" takes into account the file being written to while
+ * the others are being compiled  */
+#define MAX_NUMBER_OF_STREAM_FILES          (UINT16)((REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS) + 1)
+
 
 /*******************************************************************
  *
@@ -63,5 +65,10 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData);
 UINT32 RtdmSystemInitialize (struct dataBlock_RtdmStream *interface);
 UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime);
+UINT16 GetCurrentStreamFileIndex (void);
+BOOL GetStreamDataAvailable (void);
+void SetStreamDataAvailable (BOOL streamDataAvailable);
+void CloseCurrentStreamFile (void);
+
 
 #endif /* RTDMFILEEXT_H_ */

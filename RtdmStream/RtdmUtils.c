@@ -72,6 +72,9 @@
  * used to prevent memory leaks. */
 static FILE *filePtrList[MAX_OPEN_FILES];
 
+/** @brief The header which delimits streams from each other */
+static const char *m_StreamHeaderDelimiter = "STRM";
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
@@ -719,6 +722,97 @@ BOOL CreateStreamFileName (UINT16 fileIndex, char *fileName, UINT32 arrayLength)
     return ((strCmpReturn == 0) ? TRUE : FALSE);
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Gets a time stamp from a stream file (#.stream)
+ *
+ *              Opens the desired stream file and either gets the newest or oldest
+ *              time stamp in the file.
+ *
+ *  @param timeStamp - populated with either the oldest or newest time stamp
+ *  @param age - informs function to get either the oldest or newest time stamp
+ *  @param fileIndex - indicates the name of the stream file (i.e 0 cause "0.stream" to be opened)
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex)
+{
+    FILE *pFile = NULL; /* file pointer to stream file */
+    UINT16 sIndex = 0; /* Used as in index into stream delimiter */
+    UINT8 buffer[1]; /* file read buffer */
+    size_t amountRead = 0; /* amount of data read from stream file */
+    StreamHeaderContent streamHeaderContent; /* stores the entire stream header */
+    char fileName[MAX_CHARS_IN_FILENAME]; /* fully qualified filename */
+    BOOL fileSuccess = FALSE; /* return value for file operations */
+
+    /* Reset the stream header. If no valid streams are found, then the time stamp structure will
+     * have "0" in it. */
+    memset (&streamHeaderContent, 0, sizeof(streamHeaderContent));
+
+    /* Open the stream file for reading */
+    (void) CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
+    fileSuccess = FileOpenMacro(fileName, "r+b", &pFile);
+    if (!fileSuccess)
+    {
+        return;
+    }
+
+    while (1)
+    {
+        /* Search for delimiter. Design decision to read only a byte at a time. If more than 1 byte is
+         * read into a buffer, than more complex logic is needed */
+        amountRead = fread (&buffer, sizeof(UINT8), sizeof(buffer), pFile);
+
+        /* End of file reached */
+        if (amountRead != sizeof(buffer))
+        {
+            break;
+        }
+
+        /* Search for "STRM" */
+        if (buffer[0] == m_StreamHeaderDelimiter[sIndex])
+        {
+            sIndex++;
+            /* Delimiter found if inside of "if" is reached */
+            if (sIndex == strlen (m_StreamHeaderDelimiter))
+            {
+                /* Read the entire stream header, which occurs directly after the stream, delimiter */
+                fread (&streamHeaderContent, sizeof(streamHeaderContent), 1, pFile);
+
+                /* Get out of while loop on first occurrence */
+                if (age == OLDEST_TIMESTAMP)
+                {
+                    break;
+                }
+                else
+                {
+                    sIndex = 0;
+                }
+            }
+        }
+        else
+        {
+            sIndex = 0;
+        }
+    }
+
+    /* Copy the stream header time stamp into the passed argument */
+    timeStamp->seconds = ntohl (streamHeaderContent.postamble.timeStampUtcSecs);
+    timeStamp->msecs = ntohs (streamHeaderContent.postamble.timeStampUtcMsecs);
+
+    (void) FileCloseMacro(pFile);
+
+}
+
+const char * GetStreamHeader (void)
+{
+    return (m_StreamHeaderDelimiter);
+}
 
 
 #ifdef FOR_UNIT_TEST_ONLY

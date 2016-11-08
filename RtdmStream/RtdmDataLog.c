@@ -267,43 +267,6 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
 
 /*****************************************************************************/
 /**
- * @brief       Network request to download RTDM data log
- *
- *              This function is called whenever a request is made to download
- *              the stream files to the MDs over the network. This function,
- *              due to the amount of time it takes to execute, MUST be
- *              executed on a low priority background task.
- *
- *
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-void FTPDataLog (void)
-{
-    RTDMTimeStr currentTime; /* stores the system time */
-
-    /* Get the system time */
-    GetEpochTime (&currentTime);
-
-    /* Close existing data log file */
-    PrepareForFileWrite (m_RTDMDataLogPingPongPtr, m_RTDMDataLogIndex, m_SampleCount, &currentTime);
-
-    /* Swap data stream memory buffers */
-    SwapBuffers ();
-
-    /* Spawn new task to concatenate all the previous 24 hours worth of streams
-     * to a single file and then FTP that file to the FTP server */
-    /* TODO Will need info about FTP server
-     BuildSendRtdmFtpFile (); */
-
-}
-
-/*****************************************************************************/
-/**
  * @brief       Switches data log buffer pointer
  *
  *              This function switches the data log buffer pointer. Two buffers

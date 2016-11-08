@@ -13,6 +13,11 @@ void MySleep (int time)
     Sleep (time);
 }
 
+void os_t_delay (int time)
+{
+    Sleep (time);
+}
+
 extern void FTPDataLog ();
 static void UserInterfaceMain ()
 {
@@ -23,7 +28,6 @@ static void UserInterfaceMain ()
     switch (ch)
     {
         case '0':
-            FTPDataLog ();
             break;
         case '1':
         case '2':
