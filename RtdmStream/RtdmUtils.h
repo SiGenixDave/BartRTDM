@@ -20,19 +20,15 @@
 #ifndef RTDMUTILS_H_
 #define RTDMUTILS_H_
 
+#ifdef TEST_ON_PC
 #include <string.h>
+#endif
 
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
-
-/* RTDM Header Version */
-#define RTDM_HEADER_VERSION         2
-
-/* Stream Header Verion */
-#define STREAM_HEADER_VERSION       2
 
 /* Must be 0 as defined in the ICD; placed in RTDM and STRM header */
 #define BIG_ENDIAN                 0
@@ -75,11 +71,21 @@
 #define FIFO_POLICY                 100
 #define STOP_POLICY                 101
 
-
-
 #define MAX_CHARS_IN_FILENAME       200
 
+/* Used to define the byte buffer size when reading files */
+#define FILE_READ_BUFFER_SIZE               1024
 
+
+/* Drive and directory where the stream files and other RTDM
+ * data file will be saved */
+#ifdef TEST_ON_PC
+#define DRIVE_NAME                          "D:\\"
+#define DIRECTORY_NAME                      "rtdmielf\\"
+#else
+#define DRIVE_NAME                          "/ata0/"
+#define DIRECTORY_NAME                      "rtdmielf/"
+#endif
 
 
 /* Undefine RTDM_IELF_DEBUG if all debug info for RTDM/IELF is to be turned off */
@@ -107,17 +113,6 @@
 #else
 #define RTDM_IELF_GE_OR_EQ >=
 #endif
-
-/* Drive and directory where the stream files and other RTDM
- * data file will be saved */
-#ifdef TEST_ON_PC
-#define DRIVE_NAME                          "D:\\"
-#define DIRECTORY_NAME                      "rtdmielf\\"
-#else
-#define DRIVE_NAME                          "/tffs0/"
-#define DIRECTORY_NAME                      "rtdmielf/"
-#endif
-
 
 #ifdef TEST_ON_PC
 #define LOG_DRIVE                          "D:\\"
@@ -390,6 +385,8 @@ void WriteToLogFile (char *strLevel, char *strInfo);
 BOOL CreateStreamFileName (UINT16 fileIndex, char *fileName, UINT32 arrayLength);
 void GetTimeStamp (TimeStampStr *timeStamp, TimeStampAge age, UINT16 fileIndex);
 const char *GetStreamHeader (void);
+BOOL VerifyFileIntegrity (const char *filename);
+
 
 
 #endif /* RTDMUTILS_H_ */

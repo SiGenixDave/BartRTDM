@@ -54,8 +54,6 @@
  */
 #define CLEANUP_EXTRA_STREAM_FILES          (MAX_NUMBER_OF_STREAM_FILES + 100)
 
-/* Used to define the byte buffer size when reading files */
-#define FILE_READ_BUFFER_SIZE               1024
 /* Indicates an invalid file index or file doesn't exist */
 #define INVALID_FILE_INDEX                  0xFFFF
 /* Indicates an invalid time stamp or the file doesn't exist  */
@@ -140,9 +138,7 @@ static BOOL m_StreamDataAvailable = FALSE;
  *
  *******************************************************************/
 static void InitFileIndex (void);
-static BOOL VerifyFileIntegrity (const char *filename);
 static void CleanupDirectory (void);
-static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
@@ -555,6 +551,8 @@ static void CloseStreamFile (void)
     }
 
     m_StreamDataAvailable = TRUE;
+
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "CloseStreamFile() ended... stream data available for compiling\n");
 }
 
 /*****************************************************************************/
@@ -622,138 +620,6 @@ static void InitFileIndex (void)
 }
 
 
-/*****************************************************************************/
-/**
- * @brief       Verifies a #.stream file integrity
- *
- *              This function verifies that the final stream "STRM" section
- *              in the file has the correct number of bytes. IMPORTANT: There
- *              is no CRC check performed. It assumes that all bytes prior to the last
- *              stream are written correctly. This check is performed in case a
- *              file write was interrupted because of a power cycle or the like.
- *
- *  @param fileName - path/filename of file to be verified
- *
- *  @return BOOL - TRUE if the file is valid or made valid; FALSE if the file doesn't exist
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static BOOL VerifyFileIntegrity (const char *filename)
-{
-    FILE *pFile = NULL; /* File pointer */
-    UINT8 buffer; /* Stores byte read file */
-    UINT32 amountRead = 0; /* Amount of bytes read on a single read */
-    UINT32 expectedBytesRemaining = 0; /* Amount of bytes that should be remaining in the file */
-    UINT32 byteCount = 0; /* Total amount of bytes read */
-    INT32 lastStrmIndex = -1; /* Byte offset to the last "STRM" in the file, Intentionally set to -1 for a n error check */
-    UINT16 sIndex = 0; /* Used to index in to streamHeaderDelimiter */
-    StreamHeaderStr streamHeader; /* Overlaid on bytes read from the file */
-    BOOL purgeResult = FALSE; /* Becomes TRUE if file truncated successfully */
-    UINT16 sampleSize = 0; /* sample size read from stream header */
-    BOOL fileSuccess = FALSE; /* return value for file operations */
-    char const * streamHeaderDelimiter = NULL; /* Pointer to stream header string */
-
-    streamHeaderDelimiter = GetStreamHeader ();
-
-    /* Check if the file exists */
-    if (!FileExists (filename))
-    {
-        debugPrintf(RTDM_IELF_DBG_INFO,
-                        "VerifyFileIntegrity(): File %s doesn't exist ---> File: %s  Line#: %d\n",
-                        filename, __FILE__, __LINE__);
-        return (FALSE);
-    }
-
-    fileSuccess = FileOpenMacro((char * ) filename, "r+b", &pFile);
-
-    if (!fileSuccess)
-    {
-        return (FALSE);
-    }
-
-    /* Ensure the file pointer points to the beginning of the file */
-    fseek (pFile, 0L, SEEK_SET);
-
-    /* Keep searching the entire file for "STRM". When the end of file is reached
-     * "lastStrmIndex" will hold the byte offset in "filename" to the last "STRM"
-     * encountered.
-     */
-    while (1)
-    {
-        amountRead = fread (&buffer, sizeof(UINT8), 1, pFile);
-        byteCount += amountRead;
-
-        /* End of file reached */
-        if (amountRead != 1)
-        {
-            break;
-        }
-
-        /* Search for delimiter */
-        if (buffer == streamHeaderDelimiter[sIndex])
-        {
-            sIndex++;
-            if (sIndex == strlen (streamHeaderDelimiter))
-            {
-                /* Set the index strlen(streamHeaderDelimiter) backwards so that it points at the
-                 * first char in streamHeaderDelimiter */
-                lastStrmIndex = (INT32) (byteCount - strlen (streamHeaderDelimiter));
-                sIndex = 0;
-            }
-        }
-        else
-        {
-            sIndex = 0;
-        }
-    }
-
-    /* Since lastStrmIndex was never updated in the above loop (maintained its function
-     * invocation value), then no "STRM"s were discovered.
-     */
-    if (lastStrmIndex == -1)
-    {
-        debugPrintf(RTDM_IELF_DBG_WARNING, "%s", "No STRMs found in file\n");
-        FileCloseMacro(pFile);
-        return (FALSE);
-    }
-
-    /* Move the file pointer to the last stream */
-    fseek (pFile, (INT32) lastStrmIndex, SEEK_SET);
-    /* Clear the stream header and overlay it on to the last stream header */
-    memset (&streamHeader, 0, sizeof(streamHeader));
-
-    amountRead = fread (&streamHeader, 1, sizeof(streamHeader), pFile);
-    expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + sizeof(streamHeader) - 8);
-
-    /* Verify the entire streamHeader amount could be read and the expected bytes remaining are in fact there */
-    sampleSize = ntohs (streamHeader.content.postamble.sampleSize);
-    if ((sampleSize != expectedBytesRemaining) || (amountRead != sizeof(streamHeader)))
-    {
-        debugPrintf(RTDM_IELF_DBG_WARNING, "%s",
-                        "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
-        (void) FileCloseMacro(pFile);
-
-        /* If lastStrmIndex = 0, that indicates the first and only stream in the file is corrupted and therefore the
-         * entire file should be deleted. */
-        if (lastStrmIndex == 0)
-        {
-            remove (filename);
-            return (FALSE);
-        }
-
-        /* Remove the last "STRM" from the end of the file */
-        purgeResult = TruncateFile (filename, (UINT32) lastStrmIndex);
-        return (purgeResult);
-
-    }
-
-    (void) FileCloseMacro(pFile);
-    return (TRUE);
-}
 
 /*****************************************************************************/
 /**
@@ -804,134 +670,6 @@ static void CleanupDirectory (void)
     }
 }
 
-/*****************************************************************************/
-/**
- * @brief       Removes all desired data from the end of a file
- *
- *              This function creates a temporary file and copies the first
- *              "desiredFileSize" bytes from "fileName" into the temporary
- *              file. It then deletes the original fileName from the file system.
- *              It then renames the temporary filename to "fileName".
- *
- *  @param fileName - path/filename of file to delete some end of file data
- *  @param desiredFileSize - the number of bytes to maintain from the original file
- *
- *  @return BOOL - TRUE if all OS/file calls; FALSE otherwise
- *//*
- * Revision History:
- *
- * Date & Author : 01DEC2016 - D.Smail
- * Description   : Original Release
- *
- *****************************************************************************/
-static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
-{
-    UINT8 buffer[FILE_READ_BUFFER_SIZE]; /* Holds data read from file to be truncated */
-    UINT32 amountRead = 0; /* The amount of data read from the file */
-    FILE *pReadFile = NULL; /* File pointer to the file to be truncated */
-    FILE *pWriteFile = NULL; /* File pointer to the temporary file */
-    UINT32 byteCount = 0; /* Accumulates the total number of bytes read */
-    UINT32 remainingBytesToWrite = 0; /* Maintains the number of remaining bytes to write */
-    INT32 osCallReturn = 0; /* return value from OS calls */
-    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream"; /* Fully qualified file name of temporary file */
-    BOOL fileSuccess = FALSE; /* return value for file operations */
-
-    /* Open the file to be truncated for reading */
-    fileSuccess = FileOpenMacro((char * ) fileName, "rb", &pReadFile);
-
-    if (fileSuccess)
-    {
-        fileSuccess = FileOpenMacro((char * ) tempFileName, "wb+", &pWriteFile);
-    }
-
-    if (fileSuccess)
-    {
-        /* Ensure the respective file pointers are set to the beginning of the file */
-        osCallReturn = fseek (pWriteFile, 0L, SEEK_SET);
-        if (osCallReturn != 0)
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
-                            __LINE__);
-            (void) FileCloseMacro(pWriteFile);
-            (void) FileCloseMacro(pReadFile);
-            return (FALSE);
-        }
-        osCallReturn = fseek (pReadFile, 0L, SEEK_SET);
-        if (osCallReturn != 0)
-        {
-            debugPrintf(RTDM_IELF_DBG_ERROR, "fseek() failed ---> File: %s  Line#: %d\n", __FILE__,
-                            __LINE__);
-            (void) FileCloseMacro(pWriteFile);
-            (void) FileCloseMacro(pReadFile);
-            return (FALSE);
-        }
-    }
-
-    while (1)
-    {
-        /* Read the file */
-        amountRead = fread (&buffer, 1, sizeof(buffer), pReadFile);
-        byteCount += amountRead;
-
-        /* End of file reached, should never enter here because file updates should occur and exit before the end of file
-         * is reached.  */
-        if (amountRead == 0)
-        {
-            FileCloseMacro(pWriteFile);
-            FileCloseMacro(pReadFile);
-            return (FALSE);
-        }
-
-        /* Check if the amount of bytes read is less than the desired file size */
-        if (byteCount < desiredFileSize)
-        {
-            fileSuccess = FileWriteMacro(pWriteFile, buffer, sizeof(buffer), FALSE);
-            if (!fileSuccess)
-            {
-                (void) FileCloseMacro(pWriteFile);
-                (void) FileCloseMacro(pReadFile);
-                return (FALSE);
-            }
-        }
-        else
-        {
-            /* Calculate how many bytes to write to the file now that the system has read more
-             * bytes than the desired amount to write.
-             */
-            remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
-            fileSuccess = FileWriteMacro(pWriteFile, buffer, remainingBytesToWrite, FALSE);
-            if (!fileSuccess)
-            {
-                (void) FileCloseMacro(pWriteFile);
-                (void) FileCloseMacro(pReadFile);
-                return (FALSE);
-            }
-
-            (void) FileCloseMacro(pWriteFile);
-            (void) FileCloseMacro(pReadFile);
-
-            /* Delete the file that was being truncated */
-            osCallReturn = remove (fileName);
-            if (osCallReturn != 0)
-            {
-                debugPrintf(RTDM_IELF_DBG_ERROR, "remove() failed ---> File: %s  Line#: %d\n",
-                                __FILE__, __LINE__);
-                return (FALSE);
-            }
-            /* Rename the temporary file to the fileName */
-            rename (tempFileName, fileName);
-            if (osCallReturn != 0)
-            {
-                debugPrintf(RTDM_IELF_DBG_ERROR, "rename() failed ---> File: %s  Line#: %d\n",
-                                __FILE__, __LINE__);
-                return (FALSE);
-            }
-
-            return (TRUE);
-        }
-    }
-
-}
 
 /*****************************************************************************/
 /**
