@@ -86,6 +86,8 @@ static BOOL Ev2OverCheck(void);
 
   
 #ifndef TEST_ON_PC
+/** @brief Array structure that contains the log id and callback function
+ * that determines when the event is over. */
 #ifndef REMOVE_AFTER_TEST
 const static IELFCallbackMap m_IelfCallbackMap[] =
 {

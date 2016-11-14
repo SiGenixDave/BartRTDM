@@ -26,9 +26,9 @@
  *
  *******************************************************************/
 /* Total time stream data is logged, old data will be overwritten */
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (5.0/60.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (60.0/60.0)
 /* Each #.stream file contains this many hours worth of stream data */
-#define SINGLE_FILE_TIMESPAN_HOURS          (1.0/60.0)
+#define SINGLE_FILE_TIMESPAN_HOURS          (15.0/60.0)
 
 /* Convert the above define to milliseconds */
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)

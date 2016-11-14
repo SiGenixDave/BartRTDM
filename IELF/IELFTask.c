@@ -74,8 +74,11 @@
 /** @brief Identifies that the entry in either the pending or active event list is available (id
  * is set to this value if entry is available). */
 #define EVENT_QUEUE_ENTRY_EMPTY             -1
+/** @brief This is stored in failure end indicating that an event was logged but that
+ * the conditions that caused the event have not gone away. Also used on a power cycle
+ * to indicate that an event occurred but wasn't "closed" prior to reset or a power off or
+ * cycle. */
 #define EVENT_LOGGED_WAITING_FOR_CLOSE      0xFFFFFFFF
-
 /** @brief The same event can only be logged MAX_ALLOWED_EVENTS_PER_DAY this many times per day. However,
  * if the same event occurs more per day, the event counter is incremented regardless. */
 #define MAX_ALLOWED_EVENTS_PER_DAY          10
@@ -647,6 +650,8 @@ static void IelfInit (UINT8 systemId)
  *              logged from any task with any priority and is placed on the
  *              pending queue.
  *
+ * param fileUpdateRequired - set TRUE if an IELF file write is required
+ *
  *
  *//*
  * Revision History:
@@ -838,6 +843,9 @@ static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
  *              This function creates a fresh copy of the IELF memory overlay.
  *              It clears all logged events and event counters.
  *
+ * @param reasonForReset - reason why the IELF file was reset (cleared)
+ * @param currentTime - pointer to the current system time
+ *
  *//*
  * Revision History:
  *
@@ -944,6 +952,8 @@ static UINT32 MemoryOverlayCRCCalc (void)
  *              This CRC file is used to verify the integrity of the IELF
  *              file.
  *
+ * @param crc - crc that is written to the IELF CRC file
+ *
  *//*
  * Revision History:
  *
@@ -1020,7 +1030,7 @@ static BOOL BothTimesToday (UINT32 seconds1, UINT32 seconds2)
  *              was updated was yesterday or before, then a new file is created.
  *
  *
- *  @param currentTimeSecs - current system time (UTC seconds)
+ *  @param utcSeconds - current system time (UTC seconds)
  *
  *//*
  * Revision History:
@@ -1114,7 +1124,7 @@ static void InitDailyEventCounter (UINT32 utcSeconds)
  *              The time the file updated was made as well as the file's contents CRC is
  *              maintained in this file.
  *
- *  @param currentTimeSecs - current system time (UTC seconds)
+ *  @param utcSeconds - current system time (UTC seconds)
  *
  *  @returns BOOL - TRUE if event counter file updated successfully, FALSE otherwise
  *
@@ -1337,6 +1347,8 @@ static void SetEventLogIndex (void)
  *              will be uploaded by the PTU upon user command if the user
  *              wishes to clear all IELF data. This method is the best way
  *              to gracefully clear the IELF data.
+ *
+ * @param currentTime - pointer to the current system time structure
  *
  *//*
  * Revision History:

@@ -147,6 +147,8 @@ static void IncludeRTDMHeader (FILE *ftpFilePtr, TimeStampStr *oldest, TimeStamp
                 UINT16 numStreams);
 static UINT16 CountStreams (void);
 static void IncludeStreamFiles (FILE *ftpFilePtr);
+static void AddOSDelayToReduceCpuLoad ();
+
 
 /*****************************************************************************/
 /**
@@ -403,6 +405,9 @@ static void PopulateValidStreamFileList (UINT16 currentFileIndex)
         m_ValidStreamFileListIndexes[fileIndex] = INVALID_FILE_INDEX;
         (void) CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
         fileOK = VerifyFileIntegrity (fileName);
+
+        AddOSDelayToReduceCpuLoad ();
+
         /* If valid file is found and is OK, populate the valid file array with the fileIndex */
         if (fileOK)
         {
@@ -446,6 +451,7 @@ static void PopulateValidFileTimeStamps (void)
                     && (arrayIndex < MAX_NUMBER_OF_STREAM_FILES ))
     {
         GetTimeStamp (&timeStamp, OLDEST_TIMESTAMP, m_ValidStreamFileListIndexes[arrayIndex]);
+        AddOSDelayToReduceCpuLoad ();
         m_ValidTimeStampList[arrayIndex] = timeStamp.seconds;
         arrayIndex++;
     }
@@ -840,6 +846,8 @@ static UINT16 CountStreams (void)
                 }
             }
 
+            AddOSDelayToReduceCpuLoad ();
+
             sIndex = 0;
 
             /* close stream file */
@@ -908,10 +916,33 @@ static void IncludeStreamFiles (FILE *ftpFilePtr)
             }
         }
 
+        AddOSDelayToReduceCpuLoad ();
         fileIndex++;
 
     }
 }
+
+/*****************************************************************************/
+/**
+ * @brief       Puts the build/send to sleep
+ *
+ *              This function suspends the build/send functionality in
+ *              order to reduce the CPU Load. This functionality is monolithic
+ *              and therefore needs to be suspended at times to reduce the
+ *              CPU load.
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void AddOSDelayToReduceCpuLoad (void)
+{
+    os_t_delay (500);
+}
+
 
 
 #ifdef UNUSED
