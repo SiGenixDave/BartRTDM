@@ -60,7 +60,10 @@
 #define INVALID_TIME_STAMP                  0xFFFFFFFF
 
 /* The name of the file uploaded by the PTU to indicate that the RTDM data should be cleared */
-#define RTDM_CLEAR_FILENAME     "Clear.rtdm"
+#define RTDM_CLEAR_FILENAME                 "Clear.rtdm"
+
+/* TODO */
+
 
 /*******************************************************************
  *
@@ -131,6 +134,8 @@ static FileAction m_FileAction = 0;
 static RtdmFileWrite m_FileWrite;
 /** @brief TODO */
 static BOOL m_StreamDataAvailable = FALSE;
+/** @brief memory overlay of file "StreamFileIndex.txt" */
+static char *m_StreamFileSentOverlay;
 
 /*******************************************************************
  *
@@ -138,6 +143,7 @@ static BOOL m_StreamDataAvailable = FALSE;
  *
  *******************************************************************/
 static void InitFileIndex (void);
+static void InitFileTracker (void);
 static void CleanupDirectory (void);
 static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
@@ -180,6 +186,8 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
     CreateCarConDevFile ();
 
     InitFileIndex ();
+
+    InitFileTracker ();
 
 }
 
@@ -385,6 +393,35 @@ void CloseCurrentStreamFile (void)
 #endif
 }
 
+void CreateStreamFileIndexFile (void)
+{
+    const char *indexFileName = DRIVE_NAME DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME;
+    FILE *filePointer = NULL;
+    BOOL fileOpened = FALSE;
+    BOOL fileUpdateSuccess = FALSE;
+
+    fileOpened = FileOpenMacro(indexFileName, "w+", &filePointer);
+    if (!fileOpened)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "New Stream file index file couldn't be created\n");
+        return;
+    }
+
+    fileUpdateSuccess = FileWriteMacro(filePointer, m_StreamFileSentOverlay, MAX_NUMBER_OF_STREAM_FILES, TRUE);
+    if (!fileUpdateSuccess)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "New Stream file index file couldn't be updated\n");
+    }
+
+
+}
+
+
+char *GetStreamFileSentOverlay (void)
+{
+    return m_StreamFileSentOverlay;
+}
+
 /*****************************************************************************/
 /**
  * @brief       Causes the OS to trigger a File I/O operation
@@ -477,6 +514,12 @@ static void WriteStreamFile (void)
             /* Write the stream */
             CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
+            /* Since we're creating a new stream file, set the stream file sent index to not sent and
+             * update the file
+             */
+            m_StreamFileSentOverlay[m_StreamFileIndex] = STREAM_FILE_NOT_SENT;
+            CreateStreamFileIndexFile();
+
             s_StartTime = m_FileWrite.time;
             m_StreamFileState = APPEND_TO_EXISTING;
 
@@ -552,7 +595,8 @@ static void CloseStreamFile (void)
 
     m_StreamDataAvailable = TRUE;
 
-    debugPrintf(RTDM_IELF_DBG_INFO, "%s", "CloseStreamFile() ended... stream data available for compiling\n");
+    debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                    "CloseStreamFile() ended... stream data available for compiling\n");
 }
 
 /*****************************************************************************/
@@ -619,6 +663,129 @@ static void InitFileIndex (void)
     m_StreamFileState = CREATE_NEW;
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Verifies the stream file tracker
+ *
+ *              Called at startup / system initialization. The stream file
+ *              tracker is used to determine what stream files have been compiled
+ *              and sent to the MDS over FTP. This function verifies the file exists
+ *              and if it does exist, verifies it has valid contents. If the
+ *              file doesn't exist, a new file is created and all files are assumed
+ *              not to been uploaded. If the file has too many or too little entries,
+ *              again, a new file is created.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
+static void InitFileTracker (void)
+{
+    BOOL fileExists = FALSE;
+    const char *indexFileName = DRIVE_NAME DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME;
+    UINT16 fileSize = 0;
+    FILE *filePointer = NULL;
+    INT32 allocReturnValue = -1;
+    INT32 amountRead = 0;
+    BOOL fileCorrupt = FALSE;
+    UINT16 index = 0;
+
+    /* If file exists, verify that it has the correct entries and the correct # of entries */
+    allocReturnValue = AllocateMemoryAndClear (MAX_NUMBER_OF_STREAM_FILES,
+                    (void **) &m_StreamFileSentOverlay);
+
+    if (allocReturnValue != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s",
+                        "Couldn't allocate memory for 'm_StreamFileSentOverlay'\n");
+        return;
+    }
+
+    /* Set the memory overlay to the default values */
+    for (index = 0; index < MAX_NUMBER_OF_STREAM_FILES ; index++)
+    {
+        m_StreamFileSentOverlay[index] = STREAM_FILE_NOT_SENT;
+    }
+
+    /* Verify file exists */
+    fileExists = FileExists (indexFileName);
+
+    if (!fileExists)
+    {
+        CreateStreamFileIndexFile ();
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                        "New Stream file index file created because no file exists\n");
+        return;
+    }
+
+    /* Verify the file size is correct */
+    fileExists = FileOpenMacro(indexFileName, "r+", &filePointer);
+
+    if (!fileExists)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "Error opening Stream file index file\n");
+    }
+
+    /* Each character in the stream index file must map directly to a stream file */
+    fseek (filePointer, 0L, SEEK_END);
+    fileSize = ftell (filePointer);
+    fseek (filePointer, 0L, SEEK_SET);
+
+    if (fileSize != MAX_NUMBER_OF_STREAM_FILES)
+    {
+        FileCloseMacro(filePointer);
+        CreateStreamFileIndexFile ();
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                        "New Stream file index file created because original file is incorrect size\n");
+        return;
+    }
+
+    /* Create image in memory so that every time there is an update, the entire image is written to file */
+    amountRead = fread (m_StreamFileSentOverlay, 1, MAX_NUMBER_OF_STREAM_FILES, filePointer);
+    if (amountRead != MAX_NUMBER_OF_STREAM_FILES)
+    {
+        FileCloseMacro(filePointer);
+        CreateStreamFileIndexFile ();
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "fread() failed: file name = %s ---> File: %s  Line#: %d\n", indexFileName,
+                        __FILE__, __LINE__);
+        return;
+    }
+
+    FileCloseMacro(filePointer);
+
+    /* Verify only "STREAM_FILE_SENTs" and "STREAM_FILE_NOT_SENTs" are in the file. Each character
+     * represents the state of the stream file. So, the 1st character in the file represents the state of
+     * "0.stream", the 2nd character in the file represents the state of "1.stream", etc. */
+    for (index = 0; index < MAX_NUMBER_OF_STREAM_FILES ; index++)
+    {
+        if ((m_StreamFileSentOverlay[index] != STREAM_FILE_SENT)
+                        && (m_StreamFileSentOverlay[index] != STREAM_FILE_NOT_SENT))
+        {
+            fileCorrupt = TRUE;
+            break;
+        }
+    }
+
+    /* File was corrupt so try to create a new file */
+    if (fileCorrupt)
+    {
+        /* Set the memory overlay to the default values */
+        for (index = 0; index < MAX_NUMBER_OF_STREAM_FILES ; index++)
+        {
+            m_StreamFileSentOverlay[index] = STREAM_FILE_NOT_SENT;
+        }
+        CreateStreamFileIndexFile ();
+        debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                        "New Stream file index file created because original file was corrupt\n");
+
+    }
+
+}
 
 
 /*****************************************************************************/
@@ -669,7 +836,6 @@ static void CleanupDirectory (void)
         }
     }
 }
-
 
 /*****************************************************************************/
 /**
@@ -816,12 +982,17 @@ static void RtdmClearFileProcessing (void)
             }
 
         }
+        m_StreamFileSentOverlay[fileIndex] = STREAM_FILE_NOT_SENT;
         fileIndex++;
     }
+
+    /* Update the stream file sent index file */
+    CreateStreamFileIndexFile();
 
     /* reset file index and file state */
     m_StreamFileState = CREATE_NEW;
     m_StreamFileIndex = 0;
+
 
 }
 

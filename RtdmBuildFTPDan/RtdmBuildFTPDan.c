@@ -149,7 +149,6 @@ static UINT16 CountStreams (void);
 static void IncludeStreamFiles (FILE *ftpFilePtr);
 static void AddOSDelayToReduceCpuLoad ();
 
-
 /*****************************************************************************/
 /**
  * @brief       Function invoked by OS when trigger BOOL set TRUE
@@ -392,15 +391,27 @@ static void PopulateValidStreamFileList (UINT16 currentFileIndex)
     UINT16 fileIndex = 0; /* Used to index through all possible stream files */
     UINT16 arrayIndex = 0; /* increments every time a valid stream file is found */
     char fileName[MAX_CHARS_IN_FILENAME]; /* used to store the stream file name */
+    char *streamFileSentOverlay = NULL; /* pointer to stream file sent overlay */
+
+    streamFileSentOverlay = GetStreamFileSentOverlay ();
 
     /* Scan all files to determine what files are valid */
     for (fileIndex = 0; fileIndex < MAX_NUMBER_OF_STREAM_FILES ; fileIndex++)
     {
-        /* Don't process the stream file that is currently being updated */
+        /* Don't process the stream file that is currently being updated or any stream
+         * files that have been sent in a previous FTP upload */
         if (fileIndex == currentFileIndex)
         {
+            debugPrintf(RTDM_IELF_DBG_INFO, "%d.stream not FTPed because it is the newest file being updated\n", fileIndex);
             continue;
         }
+
+        if (streamFileSentOverlay[fileIndex] == STREAM_FILE_SENT)
+        {
+            debugPrintf(RTDM_IELF_DBG_INFO, "%d.stream not FTPed because it has not been updated since the last transfer\n", fileIndex);
+            continue;
+        }
+
         /* Invalidate the index to ensure that */
         m_ValidStreamFileListIndexes[fileIndex] = INVALID_FILE_INDEX;
         (void) CreateStreamFileName (fileIndex, fileName, sizeof(fileName));
@@ -412,9 +423,13 @@ static void PopulateValidStreamFileList (UINT16 currentFileIndex)
         if (fileOK)
         {
             m_ValidStreamFileListIndexes[arrayIndex] = fileIndex;
+            streamFileSentOverlay[fileIndex] = STREAM_FILE_SENT;
             arrayIndex++;
         }
     }
+
+    /* Update the stream sent index file */
+    CreateStreamFileIndexFile();
 
 }
 
@@ -942,8 +957,6 @@ static void AddOSDelayToReduceCpuLoad (void)
 {
     os_t_delay (500);
 }
-
-
 
 #ifdef UNUSED
 static UINT32 CopyFile (const char *fileToCopy, const char *copiedFile)

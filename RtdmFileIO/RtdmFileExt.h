@@ -26,9 +26,9 @@
  *
  *******************************************************************/
 /* Total time stream data is logged, old data will be overwritten */
-#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (60.0/60.0)
+#define REQUIRED_NV_LOG_TIMESPAN_HOURS      (15.0/60.0)
 /* Each #.stream file contains this many hours worth of stream data */
-#define SINGLE_FILE_TIMESPAN_HOURS          (15.0/60.0)
+#define SINGLE_FILE_TIMESPAN_HOURS          (1.0/60.0)
 
 /* Convert the above define to milliseconds */
 #define SINGLE_FILE_TIMESPAN_MSECS          (UINT32)(SINGLE_FILE_TIMESPAN_HOURS * 60.0 * 60.0 * 1000)
@@ -36,6 +36,10 @@
  * the others are being compiled  */
 #define MAX_NUMBER_OF_STREAM_FILES          (UINT16)((REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS) + 1)
 
+/* TODO Add comments */
+#define STREAM_FILE_INDEX_FILENAME          "StreamFileIndex.txt"
+#define STREAM_FILE_SENT                    '1'
+#define STREAM_FILE_NOT_SENT                '0'
 
 /*******************************************************************
  *
@@ -69,6 +73,8 @@ UINT16 GetCurrentStreamFileIndex (void);
 BOOL GetStreamDataAvailable (void);
 void SetStreamDataAvailable (BOOL streamDataAvailable);
 void CloseCurrentStreamFile (void);
+void CreateStreamFileIndexFile (void);
+char *GetStreamFileSentOverlay (void);
 
 
 #endif /* RTDMFILEEXT_H_ */

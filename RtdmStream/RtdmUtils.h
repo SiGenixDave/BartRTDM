@@ -377,7 +377,7 @@ BOOL FileExists (const char *fileName);
 INT32 AllocateMemoryAndClear (UINT32 size, void **memory);
 BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile,
                 char *calledFromFile, INT32 lineNumber);
-BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr,
+BOOL FileOpen (const char *fileName, char *openAttributes, FILE **filePtr,
                 char *calledFromFile, INT32 lineNumber);
 BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber);
 void GetTimeDateRtdm (char *dateTime, char *formatSpecifier, UINT32 dateTimeStrArrayLength);

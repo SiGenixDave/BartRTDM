@@ -518,7 +518,7 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
  * Description   : Original Release
  *
  *****************************************************************************/
-BOOL FileOpen (char *fileName, char *openAttributes, FILE **filePtr, char *calledFromFile,
+BOOL FileOpen (const char *fileName, char *openAttributes, FILE **filePtr, char *calledFromFile,
                 INT32 lineNumber)
 {
     INT16 osReturn = 0; /* return value from OS call */
