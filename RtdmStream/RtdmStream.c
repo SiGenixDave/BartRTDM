@@ -277,7 +277,7 @@ static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface)
     UINT16 result = 0;
     UINT32 bufferChangeAmount = 0; /* Amount of bytes that need to be captured for sample */
     RTDMTimeStr currentTime; /* current system time */
-    BOOL networkAvailable = FALSE; /* TRUE if netowrk is available */
+    BOOL networkAvailable = FALSE; /* TRUE if network is available */
 
     /* Get the system time */
     result = GetEpochTime (&currentTime);

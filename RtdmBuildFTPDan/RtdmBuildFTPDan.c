@@ -251,6 +251,8 @@ static void BuildSendRtdmFile (void)
 
     debugPrintf(RTDM_IELF_DBG_INFO, "%s", "BuildSendRtdmFile() invoked\n");
 
+    /* TODO Handshake required with FTP server to send the data */
+
     /* Wait until the newest stream file has been closed */
     streamDataAvailable = GetStreamDataAvailable ();
     while (!streamDataAvailable)

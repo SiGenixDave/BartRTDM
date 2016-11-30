@@ -10,7 +10,7 @@
  *
  * Project      :  IELF (Embedded)
  *//**
- * \file IELF.c
+ * \file IELFTask.c
  *//*
  *
  * Revision: 01DEC2016 - D.Smail : Original Release
@@ -51,7 +51,7 @@
 #define IELF_CRC_FILENAME                   "ielf.crc"
 /** @brief file name used to store IELF daily event log counters */
 #define IELF_DAILY_EVENT_COUNTER_FILENAME   "ielfevnt.dat"
-/* The name of the file uploaded by the PTU to indicate that the IELF data should be cleared */
+/** @brief The name of the file uploaded by the PTU to indicate that the IELF data should be cleared */
 #define IELF_CLEAR_FILENAME                 "Clear.ielf"
 /** @brief specified version used in IELF file */
 #define IELF_VERSION                        0x30000000
@@ -193,8 +193,12 @@ typedef struct
 /** @brief Used to maintain the individual daily event count. Image stored on disk. */
 typedef struct
 {
+    /** Maintains each unique event's daily event count. Determines whether or not to log event. */
     UINT16 count[MAX_NUMBER_OF_UNIQUE_EVENTS] __attribute__ ((packed));
+    /** The time of day when the daily event counter file was last updated. Used to determine whether
+     * or not to clear the file contents, especially needed for power cycles and resets. */
     UINT32 utcSeconds __attribute__ ((packed));
+    /** Used to verify the file integrity */
     UINT32 crc __attribute__ ((packed));
 
 } DailyEventCounter;
@@ -236,12 +240,12 @@ static void CreateNewIELFOverlay (UINT8 reasonForReset, RTDMTimeStr *currentTime
 static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent);
 static INT32 DequeuePendingEvents (BOOL *fileUpdateRequired);
 static UINT32 MemoryOverlayCRCCalc (void);
-static BOOL WriteIelfDataFile ();
+static BOOL WriteIelfDataFile (void);
 static BOOL WriteIelfCRCFile (UINT32 crc);
 static BOOL BothTimesToday (UINT32 seconds1, UINT32 seconds2);
 static void InitDailyEventCounter (UINT32 utcSeconds);
 static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds);
-static void ServiceEventCounter (UINT32 currentTimeSecs);
+static void ServiceDailyEventCounter (UINT32 currentTimeSecs);
 static void UpdateRecordIndexes (void);
 static void ScanForOpenEvents (void);
 static void SetEventLogIndex (void);
@@ -311,7 +315,7 @@ void IELF (TYPE_IELF_IF *interface)
     INT32 accessSemaResource = -1; /* Becomes 0 if semaphore successfully acquired and any pending events
      transferred to active event queue */
     UINT32 crc = 0; /* CRC calculation of memory overlay */
-    static BOOL ielfInitialized = FALSE;    /* Becomes TRUE after IELF component inialized */
+    static BOOL ielfInitialized = FALSE; /* Becomes TRUE after IELF component inialized */
 
     /* INitialize the IELF component */
     if (!ielfInitialized)
@@ -331,6 +335,7 @@ void IELF (TYPE_IELF_IF *interface)
      */
     if (errorCode != NO_ERROR)
     {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "Could not properly access system time\n");
         return;
     }
 
@@ -402,7 +407,8 @@ void IELF (TYPE_IELF_IF *interface)
         (void) WriteIelfEventCounterFile (currentTime.seconds);
     }
 
-    ServiceEventCounter (currentTime.seconds);
+    /* Determine if the daily event counter needs to be reset */
+    ServiceDailyEventCounter (currentTime.seconds);
 
 }
 
@@ -471,11 +477,12 @@ INT32 LogIELFEvent (UINT16 eventId)
         debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Couldn't return semaphore in LogIELFEvent()\n");
     }
 
+    /* Check if the pending queue is full... the above "while" loop never encountered "break" */
     if (index == PENDING_EVENT_QUEUE_SIZE)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "%s",
                         "Couldn't insert event into pending event queue... its FULL\n");
-        return (-3);
+        return (-2);
     }
 
     return (0);
@@ -764,12 +771,16 @@ static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
         evOverCallback = GetIELFCallback (pendingEvent->id);
         if (evOverCallback == NULL)
         {
-            debugPrintf(RTDM_IELF_DBG_ERROR,
-                            "IELF Event: NO CALLBACK PRESENT for event id = %d ... Event not logged\n",
+            debugPrintf(RTDM_IELF_DBG_INFO, "IELF Event: NO CALLBACK PRESENT for event id = %d\n",
                             pendingEvent->id);
-            /* Set to TRUE because we want the calling function to free up space in the pending queue */
+
+            debugPrintf(RTDM_IELF_DBG_INFO, "%s",
+                            "Event will be logged with identical start and end times if daily event count hasn't been exceeded\n");
+
+            /* Set to TRUE because we want the calling function to free up space in the pending queue. A check
+             * is also done further down in this function on this flag to determine whether or not
+             * to add an event to the active queue. If this flag is TRUE, then it won't. */
             eventProcessed = TRUE;
-            return (eventProcessed);
         }
 
         /* Update the event counter */
@@ -779,31 +790,42 @@ static BOOL AddEventToActiveQueue (PendingEventQueueStr *pendingEvent)
         {
             m_FileOverlay.eventCounter[pendingEvent->id].overflowFlag++;
         }
-        eventProcessed = TRUE;
 
         /* Determine that the maximum allowed events per day hasn't been exceeded */
         if (m_DailyEventCounterOverlay.count[pendingEvent->id] < MAX_ALLOWED_EVENTS_PER_DAY)
         {
-            debugPrintf(RTDM_IELF_DBG_INFO,
-                            "IELF Event Logged with event id = %d and added to active queue\n",
-                            pendingEvent->id);
 
             m_DailyEventCounterOverlay.count[pendingEvent->id]++;
 
-            m_ActiveEvent[index].eventActive = TRUE;
-            m_ActiveEvent[index].id = pendingEvent->id;
+            if (!eventProcessed)
+            {
+                m_ActiveEvent[index].eventActive = TRUE;
+                m_ActiveEvent[index].id = pendingEvent->id;
 
-            /* Look up the callback based on the event Id and insert the callback */
-            m_ActiveEvent[index].eventOverCallback = GetIELFCallback (pendingEvent->id);
+                /* Look up the callback based on the event Id and insert the callback */
+                m_ActiveEvent[index].eventOverCallback = GetIELFCallback (pendingEvent->id);
 
-            /* Save this so when the event is over, the code know where to insert the end time in the
-             * event structure
-             */
-            m_ActiveEvent[index].logIndex = m_LogIndex;
+                /* Save this so when the event is over, the code know where to insert the end time in the
+                 * event structure
+                 */
+                m_ActiveEvent[index].logIndex = m_LogIndex;
+
+                debugPrintf(RTDM_IELF_DBG_INFO,
+                                "IELF Event Logged with event id = %d and added to active queue\n",
+                                pendingEvent->id);
+
+            }
 
             m_FileOverlay.event[m_LogIndex].eventId = pendingEvent->id;
             m_FileOverlay.event[m_LogIndex].failureBeginning = pendingEvent->time;
-            m_FileOverlay.event[m_LogIndex].failureEnd = EVENT_LOGGED_WAITING_FOR_CLOSE;
+            if (!eventProcessed)
+            {
+                m_FileOverlay.event[m_LogIndex].failureEnd = EVENT_LOGGED_WAITING_FOR_CLOSE;
+            }
+            else
+            {
+                m_FileOverlay.event[m_LogIndex].failureEnd = pendingEvent->time;
+            }
 
             /* TODO Fill out remainder of structure (dst, clock inaccurate, etc) */
 
@@ -901,7 +923,7 @@ static void CreateNewIELFOverlay (UINT8 reasonForReset, RTDMTimeStr *currentTime
  * Description   : Original Release
  *
  *****************************************************************************/
-static BOOL WriteIelfDataFile ()
+static BOOL WriteIelfDataFile (void)
 {
     const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.flt" */
     FILE *pFile = NULL; /* FILE pointer to "ielf.flt" */
@@ -1181,7 +1203,7 @@ static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds)
  * Description   : Original Release
  *
  *****************************************************************************/
-static void ServiceEventCounter (UINT32 currentTimeSecs)
+static void ServiceDailyEventCounter (UINT32 currentTimeSecs)
 {
     BOOL sameDay = FALSE; /* Becomes TRUE if the current time and the last time the
      event counter was updated is the same day */

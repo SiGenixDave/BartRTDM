@@ -62,7 +62,8 @@
 /* The name of the file uploaded by the PTU to indicate that the RTDM data should be cleared */
 #define RTDM_CLEAR_FILENAME                 "Clear.rtdm"
 
-/* TODO */
+
+#define STREAM_FILE_INDEX_FILENAME          "StreamFileIndex.txt"
 
 
 /*******************************************************************
@@ -383,6 +384,21 @@ void SetStreamDataAvailable (BOOL streamDataAvailable)
     m_StreamDataAvailable = streamDataAvailable;
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Requests the current stream file to be closed
+ *
+ *              This function is invoked to set the flag in the event driven
+ *              File IO task to close the current stream file (the stream file
+ *              that is being written to).
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 void CloseCurrentStreamFile (void)
 {
 #ifdef TEST_ON_PC
@@ -393,13 +409,33 @@ void CloseCurrentStreamFile (void)
 #endif
 }
 
+/*****************************************************************************/
+/**
+ * @brief       Creates the stream file index file
+ *
+ *              This function copies the memory overlay of the stream index file
+ *              to a file. This file is used to track the stream files that were
+ *              already compiled and sent to the FTP server. This avoids
+ *              compiling and sending files that have already been sent to the
+ *              FTP server.
+ *
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 void CreateStreamFileIndexFile (void)
 {
-    const char *indexFileName = DRIVE_NAME DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME;
-    FILE *filePointer = NULL;
-    BOOL fileOpened = FALSE;
-    BOOL fileUpdateSuccess = FALSE;
+    const char *indexFileName = DRIVE_NAME DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME; /* full path name to stream index file*/
+    FILE *filePointer = NULL;   /* FILE pointer to the stream index file */
+    BOOL fileOpened = FALSE;    /* Becomes TRUE if the stream index file is opened successfully */
+    BOOL fileUpdateSuccess = FALSE; /* Becomes TRUE if the stream index file is written successfully */
 
+    /* Attempt to create the stream index file. The entire stream index is written, so always create
+     * a new file */
     fileOpened = FileOpenMacro(indexFileName, "w+", &filePointer);
     if (!fileOpened)
     {
@@ -407,19 +443,34 @@ void CreateStreamFileIndexFile (void)
         return;
     }
 
+    /* Attempt to write the stream index file.  */
     fileUpdateSuccess = FileWriteMacro(filePointer, m_StreamFileSentOverlay, MAX_NUMBER_OF_STREAM_FILES, TRUE);
     if (!fileUpdateSuccess)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "%s", "New Stream file index file couldn't be updated\n");
     }
 
-
 }
 
-
+/*****************************************************************************/
+/**
+ * @brief       Accessor function for stream index memory overlay
+ *
+ *              This function allows other modules to access the current
+ *              state of the stream file index memory overlay
+ *
+ * @returns char * - pointer to the stream file index memory overlay
+ *
+ *//*
+ * Revision History:
+ *
+ * Date & Author : 01DEC2016 - D.Smail
+ * Description   : Original Release
+ *
+ *****************************************************************************/
 char *GetStreamFileSentOverlay (void)
 {
-    return m_StreamFileSentOverlay;
+    return (m_StreamFileSentOverlay);
 }
 
 /*****************************************************************************/
@@ -593,6 +644,7 @@ static void CloseStreamFile (void)
         m_StreamFileIndex = 0;
     }
 
+    /* Set flag to inform the world that the newest stream file has been closed */
     m_StreamDataAvailable = TRUE;
 
     debugPrintf(RTDM_IELF_DBG_INFO, "%s",

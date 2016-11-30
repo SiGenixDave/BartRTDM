@@ -37,7 +37,6 @@
 #define MAX_NUMBER_OF_STREAM_FILES          (UINT16)((REQUIRED_NV_LOG_TIMESPAN_HOURS / SINGLE_FILE_TIMESPAN_HOURS) + 1)
 
 /* TODO Add comments */
-#define STREAM_FILE_INDEX_FILENAME          "StreamFileIndex.txt"
 #define STREAM_FILE_SENT                    '1'
 #define STREAM_FILE_NOT_SENT                '0'
 
