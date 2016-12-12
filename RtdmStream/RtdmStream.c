@@ -139,12 +139,12 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
         m_MemoryAllocationError = TRUE;
     }
 
-    PrintIntegerContents(RTDM_IELF_DBG_LOG, rtdmXmlData->metaData.maxStreamDataSize);
+    PrintIntegerContents(RTDM_IELF_DBG_LOG, rtdmXmlData->metaData.maxSampleDataSize);
 
     /* All of the following are used to store old signal id and data (previous sample), new signal
      * id and data (current sample), and changed signal id and data.
      */
-    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxStreamDataSize,
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxSampleDataSize,
                     (void **) &m_NewSignalData);
     if (returnValue != OK)
     {
@@ -153,7 +153,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
         m_MemoryAllocationError = TRUE;
     }
 
-    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxStreamDataSize,
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxSampleDataSize,
                     (void **) &m_OldSignalData);
     if (returnValue != OK)
     {
@@ -162,7 +162,7 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
         m_MemoryAllocationError = TRUE;
     }
 
-    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxStreamDataSize,
+    returnValue = AllocateMemoryAndClear (rtdmXmlData->metaData.maxSampleDataSize,
                     (void **) &m_ChangedSignalData);
     if (returnValue != OK)
     {
@@ -379,8 +379,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
         return;
     }
 
-    /* Fill m_StreamData with samples of data if data changed or the amount of time
-     * between captures exceeds the allowed amount */
+    /* Fill m_StreamData with samples of data if data changed  */
     if (newChangedDataBytes != 0)
     {
         /* Copy the time stamp and signal count into main buffer */
@@ -400,7 +399,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     }
 
     /* determine if next data change entry might overflow buffer */
-    if ((s_StreamBufferIndex + m_RtdmXmlData->metaData.maxStreamHeaderDataSize)
+    if ((s_StreamBufferIndex + m_RtdmXmlData->metaData.maxSampleHeaderDataSize)
                     >= m_RtdmXmlData->outputStreamCfg.bufferSize)
     {
         streamBecauseBufferFull = TRUE;
@@ -429,8 +428,10 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
 
         debugPrintf(RTDM_IELF_DBG_LOG, "STREAM SENT %d\n", m_SampleCount);
 
-        /* Reset the sample count and the buffer index */
+        /* Reset the sample count */
         m_SampleCount = 0;
+        /* Reset the buffer index; this index is placed directly after the stream header. The stream
+         * header is populated just prior to sending the data */
         s_StreamBufferIndex = sizeof(StreamHeaderStr);
 
     }
@@ -482,13 +483,13 @@ static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
     else
     {
         /* Populate change buffer with all signals because compression is disabled */
-        memcpy (m_ChangedSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
-        signalChangeBufferSize = m_RtdmXmlData->metaData.maxStreamDataSize;
+        memcpy (m_ChangedSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxSampleDataSize);
+        signalChangeBufferSize = m_RtdmXmlData->metaData.maxSampleDataSize;
         signalCount = (UINT16) m_RtdmXmlData->metaData.signalCount;
     }
 
     /* Always copy the new signals for the next comparison */
-    memcpy (m_OldSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxStreamDataSize);
+    memcpy (m_OldSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxSampleDataSize);
 
     /*********************************** Begin HEADER ***********************************************************/
     /* timeStamp - Seconds */
@@ -515,8 +516,8 @@ static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
  *              This function populates the new signal data buffer with the signal id and
  *              the most recent data. The signal id is always 2 bytes and the data size
  *              is either 1, 2, or 4 bytes. This function also performs network byte
- *              ordering in case this code is ever executed on a little Endian  machine.
- *              Currently, the DAN viewer only supports big Endian.
+ *              ordering in case this code is ever executed on a little endian machine.
+ *              Currently, the DAN viewer only supports big endian.
  *
  *//*
  * Revision History:
@@ -536,14 +537,14 @@ static void PopulateSignalsWithNewSamples (void)
     UINT32 var32 = 0; /* Stores 32 bit variable data */
     void *varPtr = NULL; /* points at either var8, var16, or var32 */
 
-    memset (m_NewSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxStreamDataSize));
+    memset (m_NewSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxSampleDataSize));
 
     for (index = 0; index < m_RtdmXmlData->metaData.signalCount; index++)
     {
         signalId = htons (m_RtdmXmlData->signalDesription[index].id);
         /* Copy the signal Id */
-        memcpy (&m_NewSignalData[bufferIndex], &signalId, sizeof(UINT16));
-        bufferIndex += sizeof(UINT16);
+        memcpy (&m_NewSignalData[bufferIndex], &signalId, sizeof(signalId));
+        bufferIndex += sizeof(signalId);
 
         /* Copy the contents of the variable */
         switch (m_RtdmXmlData->signalDesription[index].signalType)
@@ -614,7 +615,7 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *curre
     INT32 timeDiff = 0; /* time difference (msecs) */
 
     /* Clear the changed signal buffer */
-    memset (m_ChangedSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxStreamDataSize));
+    memset (m_ChangedSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxSampleDataSize));
 
     for (index = 0; index < m_RtdmXmlData->metaData.signalCount; index++)
     {

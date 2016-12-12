@@ -190,163 +190,191 @@ typedef enum
  *    S  T  R  U  C  T  S
  *
  *******************************************************************/
-/* Main Stream buffer to be send out via MD message */
+/** @brief Time stamp included with every stream sample */
 typedef struct
 {
+    /** UTC seconds */
     UINT32 seconds __attribute__ ((packed));
+    /** UTC milliseconds */
     UINT16 msecs __attribute__ ((packed));
+    /** real time clock accuracy */
     UINT8 accuracy;
 } TimeStampStr;
 
-/* Structure to contain header for stream data */
+/** @brief Structure header for every stream sample */
 typedef struct
 {
+    /** Time stamp of the sample */
     TimeStampStr timeStamp;
+    /** number of data entries included in the sample */
     UINT16 count __attribute__ ((packed));
 } DataSampleStr;
 
+/** @brief Structure header for every stream, this part of the header is not CRC'ed */
 typedef struct
 {
+    /** Endianess of the system */
     UINT8 endianness;
+    /** The size of the entire stream header */
     UINT16 headerSize __attribute__ ((packed));
+    /** The header CRC */
     UINT32 headerChecksum __attribute__ ((packed));
 } StreamHeaderPreambleStr;
 
-/* Structure created to support ease of CRC calculation for preamble's header checksum */
+/** @brief Structure created to support ease of CRC calculation for preamble's header checksum */
 typedef struct
 {
+    /** The header version */
     UINT8 version;
+    /** The consist id */
     UINT8 consistId[16];
+    /** The card id */
     UINT8 carId[16];
+    /** The device id */
     UINT8 deviceId[16];
+    /** The data recorder id */
     UINT16 dataRecorderId __attribute__ ((packed));
+    /** The data recorder version */
     UINT16 dataRecorderVersion __attribute__ ((packed));
+    /** The time stamp UTC seconds */
     UINT32 timeStampUtcSecs __attribute__ ((packed));
+    /** The time stamp UTC milliseconds */
     UINT16 timeStampUtcMsecs __attribute__ ((packed));
+    /** The time stamp real time clock UTC accuracy */
     UINT8 timeStampUtcAccuracy;
+    /** The MDS receive seconds (always 0) */
     UINT32 mdsStreamReceiveSecs __attribute__ ((packed));
+    /** The MDS receive milliseconds (always 0) */
     UINT16 mdsStreamReceiveMsecs __attribute__ ((packed));
+    /** The number of bytes  in the stream payload */
     UINT16 sampleSize __attribute__ ((packed));
+    /** The CRC of the samples (payload data) */
     UINT32 samplesChecksum __attribute__ ((packed));
+    /** The number of discrete samples in the stream */
     UINT16 numberOfSamples __attribute__ ((packed));
 } StreamHeaderPostambleStr;
 
+/** @brief Structure that contains the entire stream header less the stream delimiter */
 typedef struct
 {
+    /** Non-CRC'ed version of the stream header */
     StreamHeaderPreambleStr preamble;
+    /** CRC'ed portion of the stream header */
     StreamHeaderPostambleStr postamble;
 } StreamHeaderContent;
 
-/* Structure to contain variables in the Stream header of the message */
+/** @brief Structure that contains the entire stream header including the stream delimiter */
 typedef struct
 {
+    /** The stream header delimiter */
     char Delimiter[4];
+    /** The entire stream header */
     StreamHeaderContent content;
 } StreamHeaderStr;
 
-/** @brief */
+/** @brief Holds the system time */
 typedef struct RTDMTimeStr
 {
-    /** */
+    /** The seconds portion of the system time (seconds since the Epoch - midnight Jan 1, 1970) */
     UINT32 seconds;
-    /** */
+    /** The nanoseconds portion of the system time (value can't be greater than 1E9) */
     UINT32 nanoseconds;
 } RTDMTimeStr;
 
-/** @brief */
+/** @brief Describes the characteristics of the variable being sampled */
 typedef struct
 {
-    /** */
+    /** The id of the variable that is extracted from the XML configuration file */
     UINT16 id;
-    /** */
+    /** The variable address in memory */
     void *variableAddr;
-    /** */
+    /** The signal type (size & sign) of the variable */
     XmlSignalType signalType;
-    /** */
+    /** The previous system the variable's state/value was captured */
     RTDMTimeStr signalUpdateTime;
 } SignalDescriptionStr;
 
-/** @brief */
+/** @brief Stores all attributes from "DataRecorderCfg" member from XML configuration file */
 typedef struct
 {
-    /** */
+    /** The id */
     UINT32 id;
-    /** */
+    /** The version */
     UINT32 version;
-    /** */
+    /** The device id (dynamically allocated size) */
     char *deviceId;
-    /** */
+    /** The name (dynamically allocated size) */
     char *name;
-    /** */
+    /** The description (dynamically allocated size) */
     char *description;
-    /** */
+    /** The type (dynamically allocated size) */
     char *type;
-    /** */
+    /** The sampling rate */
     UINT32 samplingRate;
-    /** */
+    /** Data compression enabled */
     BOOL compressionEnabled;
-    /** */
+    /** The minimum recording rate */
     UINT32 minRecordingRate;
-    /** */
+    /** The no change failure period */
     UINT32 noChangeFailurePeriod;
 
 } XmlDataRecorderCfgStr;
 
-/** @brief */
+/** @brief Stores all attributes from "DataLogFileCfg" member from XML configuration file */
 typedef struct
 {
-    /** */
+    /** data log file functionality enabled */
     BOOL enabled;
-    /** */
+    /** the file count */
     UINT32 filesCount;
-    /** */
+    /** the number of samples in the file */
     UINT32 numberSamplesInFile;
-    /** */
+    /** files full policy (dynamically allocated size) */
     char *filesFullPolicy;
-    /** */
+    /** The max number of samples allowed before saving to a file  */
     UINT32 numberSamplesBeforeSave;
-    /** */
+    /** The max amount of time allowed to expire before saving o a file */
     UINT32 maxTimeBeforeSaveMs;
-    /** */
+    /** The path to where the folders are to be saved (dynamically allocated size) */
     char *folderPath;
 
 } XmlDataLogFileCfgStr;
 
-/** @brief */
+/** @brief  Stores all attributes from "OutputStreamCfg" member from XML configuration file */
 typedef struct
 {
-    /** */
+    /** streaming functionality enabled */
     BOOL enabled;
-    /** */
+    /** the communication id used for streaming data */
     UINT32 comId;
-    /** */
+    /** the max buffer size before streaming begins */
     UINT32 bufferSize;
-    /** */
+    /** the max allowed time (msecs) allowed to expire before streaming the data */
     UINT32 maxTimeBeforeSendMs;
 } XmlOutputStreamCfgStr;
 
-/** @brief */
+/** @brief Data calculations necessary for use by the RTDM after the entire XML file has been parsed */
 typedef struct
 {
-    /** */
-    UINT32 maxStreamHeaderDataSize;
-    /** */
-    UINT32 maxStreamDataSize;
-    /** */
+    /** The maximum size of the stream buffer which includes header and payload data */
+    UINT32 maxSampleHeaderDataSize;
+    /** The max stream data size */
+    UINT32 maxSampleDataSize;
+    /** The number of signals (variables) to be processed */
     UINT32 signalCount;
 
 } XmlMetaDataStr;
 
-/** @brief */
+/** @brief Contains all information relating to the XML configuration file */
 typedef struct
 {
-    /** */
+    /** DataRecorder configuration information */
     XmlDataRecorderCfgStr dataRecorderCfg;
-    /** */
+    /** Data Log File configuration information */
     XmlDataLogFileCfgStr dataLogFileCfg;
-    /** */
+    /** Output Stream configuration information */
     XmlOutputStreamCfgStr outputStreamCfg;
-    /** */
+    /** Meta data pertaining to the XML file; not embedded in the file, but calculated from file contents */
     XmlMetaDataStr metaData;
     /** allocated at runtime based on the number of signals discovered in the configuration file */
     SignalDescriptionStr *signalDesription;

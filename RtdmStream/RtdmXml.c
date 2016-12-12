@@ -102,13 +102,14 @@ typedef struct
     const UINT16 errorCode;
 } XmlAttributeDataStr;
 
+/** @brief Describes the entire data element including all attributes */
 typedef struct
 {
     /** The name of the element */
     const char *elementName;
     /** Pointer to all attribute related data */
     const XmlAttributeDataStr *xmlAttibuteData;
-    /** */
+    /** The amount of attributes to scan for in the XML data element */
     const UINT16 numAttributes;
 
 } XmlElementDataStr;
@@ -191,7 +192,7 @@ static const XmlAttributeDataStr m_DataRecorderCfgAttributes[] =
             &m_RtdmXmlData.dataRecorderCfg.noChangeFailurePeriod,
             NO_NO_CHANGE_FAILURE_PERIOD } };
 
-/** @brief */
+/** @brief All attributes of the DataLogFileCfg data element */
 static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
     {
         { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.dataLogFileCfg.enabled, NO_DATALOG_CFG_ENABLED },
@@ -209,7 +210,7 @@ static const XmlAttributeDataStr m_DataLogFileCfgAttributes[] =
           { "folderPath", STRING_DTYPE, &m_RtdmXmlData.dataLogFileCfg.folderPath,
           NO_NEED_DEFINE }, };
 
-/** @brief */
+/** @brief All attributes of the OutputStreamCfg data element */
 static const XmlAttributeDataStr m_OutputStreamCfgAttributes[] =
     {
         { "enabled", BOOLEAN_DTYPE, &m_RtdmXmlData.outputStreamCfg.enabled, NO_DATALOG_CFG_ENABLED },
@@ -219,17 +220,17 @@ static const XmlAttributeDataStr m_OutputStreamCfgAttributes[] =
           { "maxTimeBeforeSendMs", U32_DTYPE, &m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs,
           NO_MAX_TIME_BEFORE_SEND }, };
 
-/** @brief */
+/** @brief Describes the DataRecorderCfg data element */
 static XmlElementDataStr m_DataRecorderCfg =
     { "DataRecorderCfg", m_DataRecorderCfgAttributes, sizeof(m_DataRecorderCfgAttributes)
                       / sizeof(XmlAttributeDataStr) };
 
-/** @brief */
+/** @brief Describes the DataLogFileCfg data element */
 static XmlElementDataStr m_DataLogFileCfg =
     { "DataLogFileCfg", m_DataLogFileCfgAttributes, sizeof(m_DataLogFileCfgAttributes)
                       / sizeof(XmlAttributeDataStr) };
 
-/** @brief */
+/** @brief Describes the OutputStreamCfg  data element */
 static XmlElementDataStr m_OutputStreamCfg =
     { "OutputStreamCfg", m_OutputStreamCfgAttributes, sizeof(m_OutputStreamCfgAttributes)
                       / sizeof(XmlAttributeDataStr) };
@@ -281,7 +282,7 @@ UINT16 InitializeXML (struct dataBlock_RtdmStream *interface, RtdmXmlStr **rtdmX
     }
 
     interface->RTDMSignalCount = (UINT16) m_RtdmXmlData.metaData.signalCount;
-    interface->RTDMSampleSize = (UINT16) m_RtdmXmlData.metaData.maxStreamHeaderDataSize;
+    interface->RTDMSampleSize = (UINT16) m_RtdmXmlData.metaData.maxSampleHeaderDataSize;
     interface->RTDMSendTime = (UINT16) m_RtdmXmlData.outputStreamCfg.maxTimeBeforeSendMs;
     interface->RTDMMainBuffSize = (UINT16) m_RtdmXmlData.outputStreamCfg.bufferSize;
 
@@ -382,14 +383,10 @@ static UINT16 ReadProcessXmlFile (void)
     ProcessXmlFileParams (&m_OutputStreamCfg);
 
     /*************************************************************************
-     *  POST PROCESS SOME OF THE XML DATA THAT IS NOT A DIRECT CONVERSION
+     * BEGIN: POST PROCESS SOME OF THE XML DATA THAT IS NOT A DIRECT CONVERSION
      *************************************************************************/
-    /* Time must be a minimum of 1 second */
-    if (m_RtdmXmlData.dataRecorderCfg.minRecordingRate < 1000)
-    {
-        m_RtdmXmlData.dataRecorderCfg.minRecordingRate = 1000;
-    }
-
+    /* All code between BEGIN and END was inherited from R.Ciocca. Not sure why
+     * these checks were made... */
     /* Time must be a minimum of 1 second */
     if (m_RtdmXmlData.dataLogFileCfg.maxTimeBeforeSaveMs < 1000)
     {
@@ -408,6 +405,10 @@ static UINT16 ReadProcessXmlFile (void)
         dm_free (0, m_ConfigXmlBufferPtr);
         return (NO_BUFFERSIZE);
     }
+    /*************************************************************************
+     * END:  POST PROCESS SOME OF THE XML DATA THAT IS NOT A DIRECT CONVERSION
+     *************************************************************************/
+
 
     /***************************************************************************/
     /* Start loop for finding signal Id's. This section determines which PCU
@@ -420,7 +421,7 @@ static UINT16 ReadProcessXmlFile (void)
     /***************************************************************************/
 
     /* Add sample header size */
-    m_RtdmXmlData.metaData.maxStreamHeaderDataSize = (UINT16) (m_RtdmXmlData.metaData.maxStreamDataSize
+    m_RtdmXmlData.metaData.maxSampleHeaderDataSize = (UINT16) (m_RtdmXmlData.metaData.maxSampleDataSize
                     + sizeof(DataSampleStr));
 
     /* original code but now returning the amount of memory needed */
@@ -675,7 +676,6 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     {
         debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
                         __FILE__, __LINE__);
-        /* TODO flag error */
     }
 
     /*********************************************************************************************/
@@ -814,7 +814,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
     /* This final total indicates the amount of memory needed to store all signal ids
      * an signals. Used for allocating memory later in the initialization process
      */
-    m_RtdmXmlData.metaData.maxStreamDataSize = (UINT16) dataAllocationBytes;
+    m_RtdmXmlData.metaData.maxSampleDataSize = (UINT16) dataAllocationBytes;
 
     /* Update the final signal count to the calling funtion */
     *numberofSignals = signalCount;
@@ -829,7 +829,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
  *
  *              The variable addresses of the signals to be read is not known
  *              until runtime. Therefore, the addresses can't be populated
- *              at compile time and this must be populated here. The addresses
+ *              at compile time and this must be populated here.
  *
  *  @param interface - pointer to the signals that are read
  *

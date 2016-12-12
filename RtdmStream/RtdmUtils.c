@@ -372,8 +372,9 @@ UINT16 CreateVerifyStorageDirectory (char *pathName)
     else
     {
         /* This is an error condition */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Can't create storage directory %s\n", pathName);
-        /* TODO need error code */
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Can't create storage directory %s, error code returned by OS is %d\n", pathName, errno);
+        /* TODO VCU is returning a value other than 17 even though the directory exists. A real
+         * error needs to be declared so that RTDM processing doesn't take place.  */
         errorCode = 0xFFFF;
     }
 
@@ -631,8 +632,7 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
  *
  *  @param dateTime - pointer to string
  *  @param formatSpecifier - how the dateTime is to be formatted; must be YYMMDDHHMMSS
- *  @param calledFromFile - filename that function was invoked from (debug only)
- *  @param lineNumber - line # in file that function was invoked from (debug only)
+ *  @param dateTimeStrArrayLength - array length of dateTime
  *
  *  @return BOOL - TRUE if file close was successful; FALSE otherwise
  *
@@ -651,7 +651,7 @@ void GetTimeDateRtdm (char *dateTime, char *formatSpecifier, UINT32 dateTimeStrA
     OS_STR_TIME_ANSI ansiTime; /* Stores the ANSI time (structure) */
 
     /* Get the current time */
-    GetEpochTime (&rtdmTime);
+    (void)GetEpochTime (&rtdmTime);
 
     /* Convert to ANSI time */
     os_c_localtime (rtdmTime.seconds, &ansiTime);
@@ -876,7 +876,7 @@ const char * GetStreamHeader (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-BOOL VerifyFileIntegrity (const char *filename)
+BOOL VerifyFileIntegrity (const char *fileName)
 {
     FILE *pFile = NULL; /* File pointer */
     UINT8 buffer; /* Stores byte read file */
@@ -894,15 +894,15 @@ BOOL VerifyFileIntegrity (const char *filename)
     streamHeaderDelimiter = GetStreamHeader ();
 
     /* Check if the file exists */
-    if (!FileExists (filename))
+    if (!FileExists (fileName))
     {
         debugPrintf(RTDM_IELF_DBG_INFO,
                         "VerifyFileIntegrity(): File %s doesn't exist ---> File: %s  Line#: %d\n",
-                        filename, __FILE__, __LINE__);
+                        fileName, __FILE__, __LINE__);
         return (FALSE);
     }
 
-    fileSuccess = FileOpenMacro((char * ) filename, "r+b", &pFile);
+    fileSuccess = FileOpenMacro((char * ) fileName, "r+b", &pFile);
 
     if (!fileSuccess)
     {
@@ -975,12 +975,12 @@ BOOL VerifyFileIntegrity (const char *filename)
          * entire file should be deleted. */
         if (lastStrmIndex == 0)
         {
-            remove (filename);
+            remove (fileName);
             return (FALSE);
         }
 
         /* Remove the last "STRM" from the end of the file */
-        purgeResult = TruncateFile (filename, (UINT32) lastStrmIndex);
+        purgeResult = TruncateFile (fileName, (UINT32) lastStrmIndex);
         return (purgeResult);
 
     }

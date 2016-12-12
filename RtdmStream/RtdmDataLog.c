@@ -73,7 +73,7 @@ static UINT8 *m_RTDMDataLogPongPtr = NULL;
  * and writes to compact FLASH.. */
 static UINT8 *m_RTDMDataLogPingPongPtr = NULL;
 
-/** @brief */
+/** @brief Pointer to RTDM XML data structure */
 static RtdmXmlStr *m_RtdmXmlData = NULL;
 
 /** @brief Used to index into the current write buffer pointed to by m_RTDMDataLogPingPongPtr */
@@ -122,7 +122,7 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
      * interval.
      */
     rawDataLogAllocation = rtdmXmlData->dataLogFileCfg.numberSamplesBeforeSave
-                    * rtdmXmlData->metaData.maxStreamHeaderDataSize;
+                    * rtdmXmlData->metaData.maxSampleHeaderDataSize;
 
     /* Allocate memory to store the log data in the "ping" buffer */
     returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_RTDMDataLogPingPtr);
@@ -162,6 +162,8 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
  *              buffer is full or the maximum amount of time has expired
  *
  *  @param changedSignalData - pointer to changed signal data (formatted and ready to
+ *                             write with signal id and data
+ *  @param newSignalData - pointer to new signal data (formatted and ready to
  *                             write with signal id and data
  *  @param dataAmount - amount of data in the changedSignal pointer
  *  @param dataSample - pointer to stream data header (timestamp, accuracy and count)
@@ -210,9 +212,9 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
 
         /* Copy the changed data into main buffer */
         memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], newSignalData,
-                        m_RtdmXmlData->metaData.maxStreamDataSize);
+                        m_RtdmXmlData->metaData.maxSampleDataSize);
 
-        m_RTDMDataLogIndex += m_RtdmXmlData->metaData.maxStreamDataSize;
+        m_RTDMDataLogIndex += m_RtdmXmlData->metaData.maxSampleDataSize;
 
         m_SampleCount++;
 
@@ -234,7 +236,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
 
         m_SampleCount++;
 
-        debugPrintf(RTDM_IELF_DBG_LOG, "Data Log Sample Populated %d\n", m_SampleCount);
+        debugPrintf(RTDM_IELF_DBG_LOG, "Data Log Sample Populated %u\n", m_SampleCount);
     }
 
     /* Get the time difference between the saved time & the current time */
@@ -246,7 +248,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
                     || (timeDiff >= (INT32) m_RtdmXmlData->dataLogFileCfg.maxTimeBeforeSaveMs))
     {
 
-        debugPrintf(RTDM_IELF_DBG_LOG, "Data Log Saved - Sample Count =  %d: Time Diff = %d\n",
+        debugPrintf(RTDM_IELF_DBG_LOG, "Data Log Saved - Sample Count =  %u: Time Diff = %d\n",
                         m_SampleCount, timeDiff);
 
         /* Write the data in the current buffer to the .stream file. The file write
