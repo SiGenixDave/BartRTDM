@@ -44,6 +44,12 @@
  *
  *******************************************************************/
 
+#ifdef TEST_ON_PC
+#define IELF_DIRECTORY_NAME                 "ielf\\"
+#else
+#define IELF_DIRECTORY_NAME                 "ielf/"
+#endif
+
 /** @brief file name used to store IELF file */
 #define IELF_DATA_FILENAME                  "ielf.flt"
 /** @brief file name used to store IELF CRC file which is used to verify the integrity of the
@@ -315,9 +321,9 @@ void IELF (TYPE_IELF_IF *interface)
     INT32 accessSemaResource = -1; /* Becomes 0 if semaphore successfully acquired and any pending events
      transferred to active event queue */
     UINT32 crc = 0; /* CRC calculation of memory overlay */
-    static BOOL ielfInitialized = FALSE; /* Becomes TRUE after IELF component inialized */
+    static BOOL ielfInitialized = FALSE; /* Becomes TRUE after IELF component initialized */
 
-    /* INitialize the IELF component */
+    /* Initialize the IELF component */
     if (!ielfInitialized)
     {
         /* TODO need a system ID from somewhere (0x12 is used for the time being) */
@@ -521,8 +527,8 @@ static void IelfInit (UINT8 systemId)
     FILE *crcFilePtr = NULL; /* FILE pointer "ielf.crc" */
     UINT32 calculatedCRC = 0; /* calculated CRC on file data read from "ielf.dat" */
     UINT32 storedCRC = 0; /* stored CRC in file "ielf.crc" */
-    char *dataFileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.dat" */
-    char *crcFileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
+    char *dataFileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.dat" */
+    char *crcFileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
     UINT32 amountRead = 0; /* amount of bytes read from a file */
     UINT16 index = 0; /* used as loop index */
     BOOL fileSuccess = FALSE; /* determines if file opened/closed successfully */
@@ -533,7 +539,7 @@ static void IelfInit (UINT8 systemId)
     m_SystemId = systemId;
 
     /* Check for the existence of the storage directory; create it if it doesn't exist */
-    (void) CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
+    (void) CreateVerifyStorageDirectory (DRIVE_NAME IELF_DIRECTORY_NAME);
 
     debugPrintf(RTDM_IELF_DBG_INFO, "%s", "IELF Initialization\n");
 
@@ -925,7 +931,7 @@ static void CreateNewIELFOverlay (UINT8 reasonForReset, RTDMTimeStr *currentTime
  *****************************************************************************/
 static BOOL WriteIelfDataFile (void)
 {
-    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.flt" */
+    const char *fileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_DATA_FILENAME; /* "ielf.flt" */
     FILE *pFile = NULL; /* FILE pointer to "ielf.flt" */
     BOOL fileSuccess = FALSE; /* Becomes true if file successfully opened */
 
@@ -985,7 +991,7 @@ static UINT32 MemoryOverlayCRCCalc (void)
  *****************************************************************************/
 static BOOL WriteIelfCRCFile (UINT32 crc)
 {
-    const char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
+    const char *fileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_CRC_FILENAME; /* "ielf.crc" */
     FILE *pFile = NULL; /* FILE pointer to "ielf.crc" */
     BOOL fileSuccess = FALSE; /* Becomes true if file successfully opened */
 
@@ -1063,7 +1069,7 @@ static BOOL BothTimesToday (UINT32 seconds1, UINT32 seconds2)
  *****************************************************************************/
 static void InitDailyEventCounter (UINT32 utcSeconds)
 {
-    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
+    char *fileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
     FILE *pFile = NULL; /* FILE pointer to "ielfevnt.dat" */
     BOOL fileExists = FALSE; /* Becomes TRUE if "ielfevnt.dat" exists */
     BOOL fileLastUpdateWasToday = FALSE; /* Becomes TRUE if "ielfevnt.dat" was updated today */
@@ -1159,7 +1165,7 @@ static void InitDailyEventCounter (UINT32 utcSeconds)
  *****************************************************************************/
 static BOOL WriteIelfEventCounterFile (UINT32 utcSeconds)
 {
-    char *fileName = DRIVE_NAME DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
+    char *fileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_DAILY_EVENT_COUNTER_FILENAME; /* "ielfevnt.dat" */
     FILE *pFile = NULL; /* FILE pointer to "ielfevnt.dat" */
     BOOL fileSuccess = FALSE; /* Becomes TRUE if file operation successful */
     UINT32 crc = 0; /* Calculated CRC of memory overlay of daily event counter */
@@ -1382,7 +1388,7 @@ static void SetEventLogIndex (void)
 static void IelfClearFileProcessing (RTDMTimeStr *currentTime)
 {
     BOOL fileExists = FALSE; /* Becomes TRUE if IELF clear file is present */
-    char *clearFileName = DRIVE_NAME DIRECTORY_NAME IELF_CLEAR_FILENAME; /* Clear file name */
+    char *clearFileName = DRIVE_NAME IELF_DIRECTORY_NAME IELF_CLEAR_FILENAME; /* Clear file name */
     INT32 osCallReturn = 0; /* return value from OS calls */
     UINT32 crc = 0; /* calculated CRC of the IELF data file */
 

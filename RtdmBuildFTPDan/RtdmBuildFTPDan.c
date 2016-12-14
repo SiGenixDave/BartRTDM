@@ -649,7 +649,7 @@ static void CreateFTPFileName (FILE **ftpFilePtr, char remoteFileName[], UINT16 
 
     /* Create the filename by concatenating in the proper order */
     snPrintChars = snprintf (localFileName, sizeLocalFileName, "%s%s%s%s%s%s%s",
-    DRIVE_NAME DIRECTORY_NAME, consistId, carId, deviceId, rtdmFill, dateTime, extension);
+    DRIVE_NAME RTDM_DIRECTORY_NAME, consistId, carId, deviceId, rtdmFill, dateTime, extension);
 
     if (snPrintChars > sizeLocalFileName)
     {

@@ -1,0 +1,12 @@
+<map id="RtdmStream" name="RtdmStream">
+<area shape="rect" id="node2" href="$_rtdm_file_ext_8h.html#a9e7b5a53dd9236c47a673ff5d5f79fa3" title="Initializes the RTDM File I/O component. " alt="" coords="173,56,329,83"/>
+<area shape="rect" id="node9" href="$_rtdm_stream_8c.html#ad8e4dfea2ac392f87e4765e2b26e2bba" title="Responsible for gathering stream data and processing it. " alt="" coords="157,107,344,133"/>
+<area shape="rect" id="node11" href="$_rtdm_utils_8c.html#a8f4089aef4c6fc590163f46f57f49843" title="Determined if a file exists. " alt="" coords="211,157,291,184"/>
+<area shape="rect" id="node3" href="$_rtdm_file_i_o_8c.html#af788565d7f19b7446f9f732a68386402" title="Causes the OS to trigger a File I/O operation. " alt="" coords="392,56,591,83"/>
+<area shape="rect" id="node4" href="$_rtdm_file_i_o_8c.html#a411b6b48000d99b8e753325df093b1c4" title="Function invoked by OS when trigger BOOL set TRUE. " alt="" coords="639,56,729,83"/>
+<area shape="rect" id="node5" href="$_r_t_d_m_initialize_8c.html#aaf4ee2331ff055f5bfeae051f4d23293" title="Responsible for initializing the RTDM functionality. " alt="" coords="777,5,960,32"/>
+<area shape="rect" id="node7" href="$_rtdm_file_i_o_8c.html#a475576dbdbf7556c640cec0ef22bb282" title="Creates or appends a stream to a #.stream file. " alt="" coords="807,56,930,83"/>
+<area shape="rect" id="node8" href="$_rtdm_file_i_o_8c.html#adfca07aca62bf5f9070c095e4f2f999d" title="Closes the current stream file. " alt="" coords="805,107,932,133"/>
+<area shape="rect" id="node6" href="$_rtdm_utils_8c.html#afb182e9d86d4c2b584aa416f6d0d7507" title="Verifies the storage directory exists and creates it if it doesn&#39;t. " alt="" coords="1008,5,1219,32"/>
+<area shape="rect" id="node10" href="$_rtdm_utils_8c.html#ac471e5b77f303b378914c1d6e63ccfd9" title="Reads the system time. " alt="" coords="434,107,549,133"/>
+</map>

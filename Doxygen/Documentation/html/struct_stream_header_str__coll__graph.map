@@ -1,0 +1,5 @@
+<map id="StreamHeaderStr" name="StreamHeaderStr">
+<area shape="rect" id="node2" href="$struct_stream_header_content.html" title="Structure that contains the entire stream header less the stream delimiter. " alt="" coords="132,95,300,121"/>
+<area shape="rect" id="node3" href="$struct_stream_header_preamble_str.html" title="Structure header for every stream, this part of the header is not CRC&#39;ed. " alt="" coords="5,5,203,32"/>
+<area shape="rect" id="node4" href="$struct_stream_header_postamble_str.html" title="Structure created to support ease of CRC calculation for preamble&#39;s header checksum. " alt="" coords="227,5,431,32"/>
+</map>

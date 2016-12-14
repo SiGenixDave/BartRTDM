@@ -1,0 +1,4 @@
+<map id="RtdmHeaderStr" name="RtdmHeaderStr">
+<area shape="rect" id="node2" href="$struct_rtdm_header_preamble_str.html" title="Preamble of RTDM header, CRC IS NOT calculated on this section of data. " alt="" coords="5,5,188,32"/>
+<area shape="rect" id="node3" href="$struct_rtdm_header_postamble_str.html" title="Postamble of RTDM header, CRC IS calculated on this section of data ONLY. " alt="" coords="212,5,403,32"/>
+</map>

@@ -81,10 +81,10 @@
  * data file will be saved */
 #ifdef TEST_ON_PC
 #define DRIVE_NAME                          "D:\\"
-#define DIRECTORY_NAME                      "rtdmielf\\"
+#define RTDM_DIRECTORY_NAME                 "rtdm\\"
 #else
 #define DRIVE_NAME                          "/ata0/"
-#define DIRECTORY_NAME                      "rtdmielf/"
+#define RTDM_DIRECTORY_NAME                 "rtdm/"
 #endif
 
 
@@ -116,10 +116,10 @@
 
 #ifdef TEST_ON_PC
 #define LOG_DRIVE                          "D:\\"
-#define LOG_DIRECTORY                      "rtdmielf\\"
+#define LOG_DIRECTORY                      "rtdm\\"
 #else
-#define LOG_DRIVE                          "/ata0/"
-#define LOG_DIRECTORY                      "rtdmielf/"
+#define LOG_DRIVE                          "/usb0/"
+#define LOG_DIRECTORY                      "rtdm/"
 #endif
 
 #define debugPrintf(debugLevel, fmt, args...)  \

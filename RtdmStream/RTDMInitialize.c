@@ -87,7 +87,7 @@ void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
 
     RtdmXmlStr *rtdmXmlData = NULL;
 	
-    CreateVerifyStorageDirectory (DRIVE_NAME DIRECTORY_NAME);
+    CreateVerifyStorageDirectory (DRIVE_NAME RTDM_DIRECTORY_NAME);
 
     debugPrintf(RTDM_IELF_DBG_INFO, "%s", "RTDM Initialization\n");
 

@@ -1,0 +1,89 @@
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:24: warning: Compound dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/IELF/IELF.h:25: warning: Member TYPE_IELF_IF (typedef) of file IELF.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/IELF/IELFCallback.c:76: warning: Member Ev1OverCheck(void) (function) of file IELFCallback.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/IELF/IELFCallback.c:77: warning: Member Ev2OverCheck(void) (function) of file IELFCallback.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/IELF/IELFTask.c:256: warning: Member IelfLogTest(void) (function) of file IELFTask.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileExt.h:29: warning: Member REQUIRED_NV_LOG_TIMESPAN_HOURS (macro definition) of file RtdmFileExt.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileExt.h:31: warning: Member SINGLE_FILE_TIMESPAN_HOURS (macro definition) of file RtdmFileExt.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileExt.h:34: warning: Member SINGLE_FILE_TIMESPAN_MSECS (macro definition) of file RtdmFileExt.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileExt.h:37: warning: Member MAX_NUMBER_OF_STREAM_FILES (macro definition) of file RtdmFileExt.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileExt.h:40: warning: Member STREAM_FILE_SENT (macro definition) of file RtdmFileExt.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileExt.h:41: warning: Member STREAM_FILE_NOT_SENT (macro definition) of file RtdmFileExt.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileIO.c:55: warning: Member CLEANUP_EXTRA_STREAM_FILES (macro definition) of file RtdmFileIO.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileIO.c:58: warning: Member INVALID_FILE_INDEX (macro definition) of file RtdmFileIO.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileIO.c:60: warning: Member INVALID_TIME_STAMP (macro definition) of file RtdmFileIO.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileIO.c:63: warning: Member RTDM_CLEAR_FILENAME (macro definition) of file RtdmFileIO.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMFileIO/RtdmFileIO.c:66: warning: Member STREAM_FILE_INDEX_FILENAME (macro definition) of file RtdmFileIO.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.c:90: warning: Member NetworkAvailable(struct dataBlock_RtdmStream *interface, BOOL *networkAvailable) (function) of file RtdmStream.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.c:97: warning: Member Check_Fault(UINT16 error_code, RTDMTimeStr *currentTime) (function) of file RtdmStream.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.c:98: warning: Member SendStreamOverNetwork(struct dataBlock_RtdmStream *interface, RtdmXmlStr *rtdmXmlData, UINT8 *streamBuffer, UINT32 streamBufferSize) (function) of file RtdmStream.c is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:34: warning: Member BIG_ENDIAN (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:37: warning: Member NO_ERROR (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:38: warning: Member NO_NETWORK (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:39: warning: Member NO_XML_INPUT_FILE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:40: warning: Member BAD_READ_BUFFER (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:41: warning: Member NO_DATARECORDERCFG (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:42: warning: Member NO_CONFIG_ID (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:43: warning: Member NO_VERSION (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:44: warning: Member NO_SAMPLING_RATE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:45: warning: Member NO_COMPRESSION_ENABLED (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:46: warning: Member NO_MIN_RECORD_RATE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:47: warning: Member NO_DATALOG_CFG_ENABLED (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:48: warning: Member NO_FILES_COUNT (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:49: warning: Member NO_NUM_SAMPLES_IN_FILE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:50: warning: Member NO_FILE_FULL_POLICY (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:51: warning: Member NO_NUM_SAMPLES_BEFORE_SAVE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:52: warning: Member NO_MAX_TIME_BEFORE_SAVE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:53: warning: Member NO_NO_CHANGE_FAILURE_PERIOD (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:54: warning: Member NO_OUTPUT_STREAM_ENABLED (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:55: warning: Member NO_MAX_TIME_BEFORE_SEND (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:56: warning: Member NO_SIGNALS (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:57: warning: Member SEND_MSG_FAILED (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:58: warning: Member BAD_TIME (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:59: warning: Member NO_COMID (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:60: warning: Member NO_BUFFERSIZE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:63: warning: Member NO_NEED_DEFINE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:65: warning: Member UNSUPPORTED_DATA_TYPE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:66: warning: Member VARIABLE_NOT_FOUND (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:69: warning: Member OPEN_FAIL (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:71: warning: Member FIFO_POLICY (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:72: warning: Member STOP_POLICY (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:74: warning: Member MAX_CHARS_IN_FILENAME (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:77: warning: Member FILE_READ_BUFFER_SIZE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:86: warning: Member DRIVE_NAME (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:87: warning: Member DIRECTORY_NAME (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:92: warning: Member RTDM_IELF_DEBUG (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:97: warning: Member RTDM_IELF_DBG_LOG (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:98: warning: Member RTDM_IELF_DBG_INFO (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:99: warning: Member RTDM_IELF_DBG_WARNING (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:100: warning: Member RTDM_IELF_DBG_ERROR (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:107: warning: Member RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:108: warning: Member RTDM_IELF_LOG_FILE_WRITE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:109: warning: Member RTDM_IELF_DBG_LEVEL (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:114: warning: Member RTDM_IELF_GE_OR_EQ (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:121: warning: Member LOG_DRIVE (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:122: warning: Member LOG_DIRECTORY (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:125: warning: Member debugPrintf(debugLevel, fmt, args...) (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:149: warning: Member PrintIntegerContents(debugLevel, a) (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:151: warning: Member FileCloseMacro(a) (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:152: warning: Member FileOpenMacro(a, b, c) (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmUtils.h:153: warning: Member FileWriteMacro(a, b, c, d) (macro definition) of file RtdmUtils.h is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:26: warning: Member oPCU_I1 (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:27: warning: Member RTCTimeAccuracy (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:28: warning: Member VNC_CarData_X_ConsistID (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:29: warning: Member VNC_CarData_X_CarID (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:30: warning: Member VNC_CarData_X_DeviceID (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:31: warning: Member VNC_CarData_S_WhoAmISts (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:32: warning: Member RTDMDataLogStop (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:33: warning: Member ClearTrig (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:35: warning: Member RTDMDataLogState (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:36: warning: Member RTDMMainBuffCount (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:37: warning: Member RTDM_Send_Counter (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:38: warning: Member RTDMTriggerFileIOTask (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:39: warning: Member RTDMSignalCount (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:40: warning: Member RTDMSampleSize (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:41: warning: Member RTDMMainBuffSize (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:42: warning: Member RTDMSendTime (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:43: warning: Member RTDMStreamError (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:44: warning: Member RTDMSampleCount (variable) of class dataBlock_RtdmStream is not documented.
+C:/Users/Dave/workspace/BART_RTDM/RTDMStream/RtdmStream.h:45: warning: Member RTDMTriggerFtpDanFile (variable) of class dataBlock_RtdmStream is not documented.

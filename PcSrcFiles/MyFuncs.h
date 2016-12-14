@@ -8,6 +8,8 @@
 #ifndef MYFUNCS_H_
 #define MYFUNCS_H_
 
+#define os_io_printf        printf
+
 struct OS_STR_TIME_POSIX;
 
 void GetTimeDateFromPc (char *dateTime);

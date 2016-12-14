@@ -218,9 +218,9 @@ void RtdmStream (struct dataBlock_RtdmStream *interface)
 #ifndef REMOVE_AFTER_TEST
     extern void RtdmBuildFTPDan (INT16 *);
     /* If file exists, trigger FTP send */
-    if (FileExists (DRIVE_NAME DIRECTORY_NAME "ftpdan"))
+    if (FileExists (DRIVE_NAME RTDM_DIRECTORY_NAME "ftpdan"))
     {
-        remove (DRIVE_NAME DIRECTORY_NAME "ftpdan");
+        remove (DRIVE_NAME RTDM_DIRECTORY_NAME "ftpdan");
 #ifdef TEST_ON_PC
         CloseCurrentStreamFile ();
         RtdmBuildFTPDan (NULL);

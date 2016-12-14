@@ -429,7 +429,7 @@ void CloseCurrentStreamFile (void)
  *****************************************************************************/
 void CreateStreamFileIndexFile (void)
 {
-    const char *indexFileName = DRIVE_NAME DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME; /* full path name to stream index file*/
+    const char *indexFileName = DRIVE_NAME RTDM_DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME; /* full path name to stream index file*/
     FILE *filePointer = NULL;   /* FILE pointer to the stream index file */
     BOOL fileOpened = FALSE;    /* Becomes TRUE if the stream index file is opened successfully */
     BOOL fileUpdateSuccess = FALSE; /* Becomes TRUE if the stream index file is written successfully */
@@ -738,7 +738,7 @@ static void InitFileIndex (void)
 static void InitFileTracker (void)
 {
     BOOL fileExists = FALSE;
-    const char *indexFileName = DRIVE_NAME DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME;
+    const char *indexFileName = DRIVE_NAME RTDM_DIRECTORY_NAME STREAM_FILE_INDEX_FILENAME;
     UINT16 fileSize = 0;
     FILE *filePointer = NULL;
     INT32 allocReturnValue = -1;
@@ -906,7 +906,7 @@ static void CleanupDirectory (void)
  *****************************************************************************/
 static BOOL CreateCarConDevFile (void)
 {
-    const char *ccdFileName = DRIVE_NAME DIRECTORY_NAME "CarConDev.dat"; /* Fully qualified file name */
+    const char *ccdFileName = DRIVE_NAME RTDM_DIRECTORY_NAME "CarConDev.dat"; /* Fully qualified file name */
     FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
     BOOL fileSuccess = FALSE; /* return value for file operations */
 
@@ -994,13 +994,13 @@ static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL
 static void RtdmClearFileProcessing (void)
 {
     BOOL fileExists = FALSE; /* Becomes TRUE if RTDM clear file is present */
-    char *clearFileName = DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME; /* Clear file name */
+    char *clearFileName = DRIVE_NAME RTDM_DIRECTORY_NAME RTDM_CLEAR_FILENAME; /* Clear file name */
     INT32 osCallReturn = 0; /* return value from OS calls */
     UINT16 fileIndex = 0; /* Used to create stream file names */
     char fileName[MAX_CHARS_IN_FILENAME]; /* Stores the stream file name to be deleted */
 
     /* Determine if clear.rtdm file exists */
-    fileExists = FileExists (DRIVE_NAME DIRECTORY_NAME RTDM_CLEAR_FILENAME);
+    fileExists = FileExists (DRIVE_NAME RTDM_DIRECTORY_NAME RTDM_CLEAR_FILENAME);
 
     /* The file doesn't exist, so do nothing */
     if (!fileExists)

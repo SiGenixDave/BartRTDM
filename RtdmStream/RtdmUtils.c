@@ -85,7 +85,6 @@ static const char *m_StreamHeaderDelimiter = "STRM";
  *******************************************************************/
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize);
 
-
 /*****************************************************************************/
 /**
  * @brief       Reads the system time
@@ -372,7 +371,9 @@ UINT16 CreateVerifyStorageDirectory (char *pathName)
     else
     {
         /* This is an error condition */
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Can't create storage directory %s, error code returned by OS is %d\n", pathName, errno);
+        debugPrintf(RTDM_IELF_DBG_ERROR,
+                        "Can't create storage directory %s, error code returned by OS is %d\n",
+                        pathName, errno);
         /* TODO VCU is returning a value other than 17 even though the directory exists. A real
          * error needs to be declared so that RTDM processing doesn't take place.  */
         errorCode = 0xFFFF;
@@ -483,8 +484,9 @@ BOOL FileWrite (FILE *filePtr, void *buffer, UINT32 bytesToWrite, BOOL closeFile
     /* Verify the amount of bytes written is correct */
     if (amountWritten != bytesToWrite)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR, "Write to file failed: Called from File: %s - Line#: %d\n",
-                        calledFromFile, lineNumber);
+        /* os_io_printf used instead of debugPrintf in case log file is being accessed */
+        os_io_printf ("Write to file failed: Called from File: %s - Line#: %d\n", calledFromFile,
+                        lineNumber);
         success = FALSE;
     }
 
@@ -529,8 +531,8 @@ BOOL FileOpen (const char *fileName, char *openAttributes, FILE **filePtr, char 
     osReturn = os_io_fopen (fileName, openAttributes, filePtr);
     if (osReturn == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
+        /* os_io_printf used instead of debugPrintf in case log file is being accessed */
+        os_io_printf ("os_io_fopen() failed: file name = %s ---> File: %s  Line#: %d\n", fileName,
                         calledFromFile, lineNumber);
 
         success = FALSE;
@@ -552,8 +554,7 @@ BOOL FileOpen (const char *fileName, char *openAttributes, FILE **filePtr, char 
 
         if (index == MAX_OPEN_FILES)
         {
-            debugPrintf(RTDM_IELF_DBG_INFO, "%s",
-                            "Open File Index is full; can't add file pointer to the list\n");
+            os_io_printf ("%s", "Open File Index is full; can't add file pointer to the list\n");
         }
     }
 
@@ -591,9 +592,9 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
     /* Verify OS call */
     if (osReturn == ERROR)
     {
-        debugPrintf(RTDM_IELF_DBG_ERROR,
-                        "os_io_fclose() failed: Called from ---> File: %s  Line#: %d\n",
-                        calledFromFile, (INT32)lineNumber);
+        /* os_io_printf used instead of debugPrintf in case log file is being accessed */
+        os_io_printf ("os_io_fclose() failed: Called from ---> File: %s  Line#: %d\n",
+                        calledFromFile, (INT32) lineNumber);
 
         success = FALSE;
     }
@@ -614,7 +615,7 @@ BOOL FileClose (FILE *filePtr, char *calledFromFile, UINT32 lineNumber)
 
         if (index == MAX_OPEN_FILES)
         {
-            debugPrintf(RTDM_IELF_DBG_INFO, "%s", "Could not find FILE * in the File Index list\n");
+            os_io_printf ("%s", "Could not find FILE * in the File Index list\n");
         }
     }
 
@@ -684,7 +685,7 @@ void GetTimeDateRtdm (char *dateTime, char *formatSpecifier, UINT32 dateTimeStrA
 void WriteToLogFile (char *strLevel, char *strInfo)
 {
     FILE *logFile = NULL; /* Pointer to log file */
-    char dateTime[40];  /* holds the date/time when file was updated */
+    char dateTime[40]; /* holds the date/time when file was updated */
 
 #ifdef TEST_ON_PC
     char rawDateTime[40];
@@ -696,12 +697,14 @@ void WriteToLogFile (char *strLevel, char *strInfo)
 #endif
 
     /* open the file and write the information */
-    FileOpenMacro (LOG_DRIVE LOG_DIRECTORY "log.txt", "a+", &logFile);
+    FileOpenMacro(LOG_DRIVE LOG_DIRECTORY "log.txt", "a+", &logFile);
 
-    FileWriteMacro (logFile, strLevel, strlen(strLevel), FALSE);
-    FileWriteMacro (logFile, dateTime, strlen(dateTime), FALSE);
-    FileWriteMacro (logFile, strInfo, strlen(strInfo), TRUE);
-
+    if (logFile != NULL)
+    {
+        FileWriteMacro(logFile, strLevel, strlen (strLevel), FALSE);
+        FileWriteMacro(logFile, dateTime, strlen (dateTime), FALSE);
+        FileWriteMacro(logFile, strInfo, strlen (strInfo), TRUE);
+    }
 
 }
 
@@ -731,14 +734,14 @@ BOOL CreateStreamFileName (UINT16 fileIndex, char *fileName, UINT32 arrayLength)
     const char *extension = ".stream";
     INT32 strCmpReturn = 0;
 
-    strncpy(fileName, DRIVE_NAME DIRECTORY_NAME, arrayLength - 1);
+    strncpy (fileName, DRIVE_NAME RTDM_DIRECTORY_NAME, arrayLength - 1);
 
     /* Append the file index to the drive and directory */
     snprintf (baseExtension, sizeof(baseExtension), "%u%s", fileIndex, extension);
 
-    strncat(fileName, baseExtension, arrayLength - strlen(baseExtension) - 1);
+    strncat (fileName, baseExtension, arrayLength - strlen (baseExtension) - 1);
 
-    startDotStreamIndex = strlen(fileName) - strlen(extension);
+    startDotStreamIndex = strlen (fileName) - strlen (extension);
 
     /* To ensure the filename was created correctly, verify the string terminates with .stream */
     strCmpReturn = strcmp (extension, &fileName[startDotStreamIndex]);
@@ -1018,7 +1021,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     UINT32 byteCount = 0; /* Accumulates the total number of bytes read */
     UINT32 remainingBytesToWrite = 0; /* Maintains the number of remaining bytes to write */
     INT32 osCallReturn = 0; /* return value from OS calls */
-    const char *tempFileName = DRIVE_NAME DIRECTORY_NAME "temp.stream"; /* Fully qualified file name of temporary file */
+    const char *tempFileName = DRIVE_NAME RTDM_DIRECTORY_NAME "temp.stream"; /* Fully qualified file name of temporary file */
     BOOL fileSuccess = FALSE; /* return value for file operations */
 
     /* Open the file to be truncated for reading */
@@ -1117,8 +1120,6 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     }
 
 }
-
-
 
 #ifdef FOR_UNIT_TEST_ONLY
 void test(void)

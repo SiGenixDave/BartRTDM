@@ -332,7 +332,7 @@ char *GetXMLConfigFileBuffer (void)
  *****************************************************************************/
 UINT16 CopyXMLConfigFile (void)
 {
-    const char *copyFileName = DRIVE_NAME DIRECTORY_NAME RTDM_XML_FILE;
+    const char *copyFileName = DRIVE_NAME RTDM_DIRECTORY_NAME RTDM_XML_FILE;
     FILE *copyFile = NULL;
 
     if (FileOpenMacro ((char *) copyFileName, "wb+", &copyFile) == ERROR)

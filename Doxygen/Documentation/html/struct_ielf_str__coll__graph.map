@@ -1,0 +1,4 @@
+<map id="IelfStr" name="IelfStr">
+<area shape="rect" id="node2" href="$struct_event_str.html" title="Used to maintain event information for each logged event. This information is part of the IELF file..." alt="" coords="5,5,83,32"/>
+<area shape="rect" id="node3" href="$struct_event_counter_str.html" title="Used to maintain event information regarding the number of occurrences of each unique event..." alt="" coords="107,5,235,32"/>
+</map>
