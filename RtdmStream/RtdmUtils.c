@@ -282,7 +282,7 @@ void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *r
                     maxCopySize);
 
     maxCopySize = sizeof(streamHeader->content.postamble.carId)
-                    > strlen (interface->VNC_CarData_X_ConsistID) ?
+                    > strlen (interface->VNC_CarData_X_CarID) ?
                     strlen (interface->VNC_CarData_X_CarID) :
                     sizeof(streamHeader->content.postamble.carId);
     memcpy (&streamHeader->content.postamble.carId[0], interface->VNC_CarData_X_CarID, maxCopySize);

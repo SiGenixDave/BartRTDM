@@ -133,7 +133,7 @@ static StreamFileState m_StreamFileState;
 static FileAction m_FileAction = 0;
 /** @brief Holds information when about the stream to be written. */
 static RtdmFileWrite m_FileWrite;
-/** @brief TODO */
+/** @brief Becomes true when stream file is closed */
 static BOOL m_StreamDataAvailable = FALSE;
 /** @brief memory overlay of file "StreamFileIndex.txt" */
 static char *m_StreamFileSentOverlay;
@@ -150,7 +150,7 @@ static BOOL CreateCarConDevFile (void);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
 static void CloseStreamFile (void);
-static BOOL CompactFlashWrite (char *fileName, UINT8 * buffer, INT32 amount, BOOL creaetFile);
+static BOOL WriteToDisk (char *fileName, UINT8 * buffer, INT32 amount, BOOL creaetFile);
 static void RtdmClearFileProcessing (void);
 
 /*****************************************************************************/
@@ -560,10 +560,11 @@ static void WriteStreamFile (void)
     {
         default:
         case CREATE_NEW:
-            /* Write the header */
-            CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            /* Write the header
+             * TODO Change name to generic name*/
+            WriteToDisk (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
             /* Write the stream */
-            CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+            WriteToDisk (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
             /* Since we're creating a new stream file, set the stream file sent index to not sent and
              * update the file
@@ -581,9 +582,9 @@ static void WriteStreamFile (void)
         case APPEND_TO_EXISTING:
             /* Open the file for appending */
             /* Write the header */
-            CompactFlashWrite (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
+            WriteToDisk (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
             /* Write the stream */
-            CompactFlashWrite (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+            WriteToDisk (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
 
             debugPrintf(RTDM_IELF_DBG_LOG, "%s", "FILEIO - Append Existing\n");
 
@@ -931,9 +932,11 @@ static BOOL CreateCarConDevFile (void)
 /*****************************************************************************/
 /**
  * @brief       This function writes data to the specified file (in this case,
- *              all file I/O is performed to/from the VCU Compact FLASH. An
+ *              all file I/O is performed to/from the VCU disk. An
  *              argument determines whether data is to be written to a new file
- *              or appended to an existing file.
+ *              or appended to an existing file. VCU disk is determined
+ *              by the software implementer and can be any file based storage
+ *              medium.
  *
  *  @param fileName - the full name of the file to write to
  *  @param buffer - the buffer from which data is written
@@ -948,7 +951,7 @@ static BOOL CreateCarConDevFile (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static BOOL CompactFlashWrite (char *fileName, UINT8 *buffer, INT32 amount, BOOL createFile)
+static BOOL WriteToDisk (char *fileName, UINT8 *buffer, INT32 amount, BOOL createFile)
 {
     FILE *wrtFile = NULL; /* FILE pointer to the file that is to be written */
     char *fopenArgString = NULL; /* The file specification string (either create or append) */
