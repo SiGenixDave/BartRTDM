@@ -257,36 +257,6 @@ static void ScanForOpenEvents (void);
 static void SetEventLogIndex (void);
 static void IelfClearFileProcessing (RTDMTimeStr *currentTime);
 
-#ifndef TEST_ON_PC
-#ifndef REMOVE_AFTER_TEST
-static void IelfLogTest (void)
-{
-    BOOL fileExists = FALSE; /* Becomes TRUE if IELF clear file is present */
-    char *log1 = DRIVE_NAME DIRECTORY_NAME "log1"; /*  */
-    char *log2 = DRIVE_NAME DIRECTORY_NAME "log2"; /*  */
-
-    fileExists = FileExists (log1);
-
-    if (fileExists)
-    {
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "LogIELFEvent(1)\n");
-        LogIELFEvent (1);
-        remove (log1);
-    }
-
-    fileExists = FileExists (log2);
-
-    if (fileExists)
-    {
-        debugPrintf(RTDM_IELF_DBG_INFO, "%s", "LogIELFEvent(2)\n");
-        LogIELFEvent (2);
-        remove (log2);
-    }
-
-}
-#endif
-#endif
-
 /*****************************************************************************/
 /**
  * @brief       Invoked periodically to service the event log
@@ -345,11 +315,6 @@ void IELF (TYPE_IELF_IF *interface)
         return;
     }
 
-#ifndef TEST_ON_PC
-#ifndef REMOVE_AFTER_TEST
-    IelfLogTest ();
-#endif	
-#endif
 
     /* Determine if the user (via the PTU) has requested all IELF data to be cleared */
     IelfClearFileProcessing (&currentTime);

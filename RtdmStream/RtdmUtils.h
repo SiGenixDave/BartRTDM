@@ -83,7 +83,7 @@
 #define DRIVE_NAME                          "D:\\"
 #define RTDM_DIRECTORY_NAME                 "rtdm\\"
 #else
-#define DRIVE_NAME                          "/ata0/"
+#define DRIVE_NAME                          "/usb0/"
 #define RTDM_DIRECTORY_NAME                 "rtdm/"
 #endif
 
