@@ -62,7 +62,13 @@
 /* The name of the file uploaded by the PTU to indicate that the RTDM data should be cleared */
 #define RTDM_CLEAR_FILENAME                 "Clear.rtdm"
 
-
+/* The name of the file where an index is maintained of stream files compiled and sent over
+ * the network as part of a .dan file. Each character in the file maps to a #.stream file
+ * which indicates whether the stream file has been sent or not. first character maps
+ * to "0.stream", 2nd character maps to "1.stream", etc. A character changes state when
+ * either the #.stream file is compiled and sent as a .dan file or a new #.stream file is
+ * created. The contents of this file map to the memory overlay "m_StreamFileSentOverlay".
+ */
 #define STREAM_FILE_INDEX_FILENAME          "StreamFileIndex.txt"
 
 
@@ -221,7 +227,7 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
     {
         if ((m_FileAction & INIT_RTDM_SYSTEM) != 0)
         {
-            /* Due to the length of time to initialize the RTDM, this too is done in the
+            /* Due to the length of time to initialize the RTDM, the initialization is done in the
              * background. The reason that the RTDM initialization isn't done on the initialization
              * task is that some initialization functions require the stream interface pointer.
              */
@@ -527,6 +533,7 @@ static void WriteStreamFile (void)
     INT32 timeDiff = 0; /* time difference (msecs) between start time and current time */
     StreamHeaderStr streamHeader; /* holds the current stream header */
     char fileName[MAX_CHARS_IN_FILENAME]; /* filename of the #.stream file */
+    static BOOL firstWrite = TRUE; /* Used to log the start write time */
 
 #ifdef FIXED_TIME_CYCLE_NS
     static BOOL oneFileWriteComplete = FALSE;
@@ -536,6 +543,18 @@ static void WriteStreamFile (void)
         return;
     }
 #endif
+
+    /* When the first call is made to this function ensure that the start time is captured.
+     * This code ensures whether the state of m_StreamFileState is set to "NEW" or "APPEND"
+     * when this function is first called, at least the stream file's SINGLE_FILE_TIMESPAN_MSECS worth
+     * of data requirement will be satisfied.
+     */
+    if (firstWrite)
+    {
+        s_StartTime = m_FileWrite.time;
+        firstWrite = FALSE;
+    }
+
 
     /* Determine if the "clear.rtdm" file exists. If so, all stream files will
      * be deleted. This file is placed in the directory by the PTU upon user
@@ -706,14 +725,25 @@ static void InitFileIndex (void)
     }
     else
     {
+#if DAS
+        /* I commented this out so that if there are multiple power cycles
+         * and resets, there wouldn't be stream files with less than 1 hour's worth of
+         * data. However, now the possibility exists that way more than 1 hour's worth
+         * of data will be in a given stream file
+         */
         m_StreamFileIndex = newestFileIndex + 1;
         if (m_StreamFileIndex >= MAX_NUMBER_OF_STREAM_FILES)
         {
             m_StreamFileIndex = 0;
         }
+        m_StreamFileState = CREATE_NEW;
+#else
+        m_StreamFileIndex = newestFileIndex;
+        m_StreamFileState = APPEND_TO_EXISTING;
+#endif
     }
 
-    m_StreamFileState = CREATE_NEW;
+
 }
 
 /*****************************************************************************/

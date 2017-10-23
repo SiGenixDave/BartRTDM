@@ -154,7 +154,9 @@ static void AddOSDelayToReduceCpuLoad ();
  * @brief       Function invoked by OS when trigger BOOL set TRUE
  *
  *              This function is invoked at initialization time so
- *              that this module can access XML and stream data parameters.
+ *              that this module can access XML and stream data parameters
+ *              at a later time without having to pass the stream interface
+ *              and XML structures across task boundaries.
  *
  *  @param rtdmXmlData - pointer to input data to XML configuration file data
  *  @param streamInterface - pointer to stream interface data (carId, deviceId, etc.)
@@ -180,7 +182,7 @@ void InitRtdmDanBuilder (RtdmXmlStr *rtdmXmlData, struct dataBlock_RtdmStream *s
  *              specified BOOL flag (RTDMTriggerFtpDanFile) is set TRUE. The OS
  *              effectively spawns this function as an event driven task so that
  *              the length of time to execute doesn't adversely affect (cause overflows)
- *              of the real time cyclic task(s) that invoked is.
+ *              of the real time cyclic task(s) that invoked it.
  *
  *  @param interface - pointer to input data to event driven task (see MTPE project)
  *
@@ -201,6 +203,7 @@ void RtdmBuildFTPDan (TYPE_RTDMBUILDFTPDAN_IF *interface)
         /* Set the flag to prevent re-entry */
         buildSendInProgress = TRUE;
         BuildSendRtdmFile ();
+        /* Reset the flag to re-enable this function */
         buildSendInProgress = FALSE;
     }
     else
@@ -251,7 +254,8 @@ static void BuildSendRtdmFile (void)
 
     debugPrintf(RTDM_IELF_DBG_INFO, "%s", "BuildSendRtdmFile() invoked\n");
 
-    /* TODO Handshake required with FTP server to send the data */
+    /* TODO Handshake required with FTP server to send the data. Can be done here or, even better
+     * outside of this function, and only invoke after the handshake is complete */
 
     /* Wait until the newest stream file has been closed */
     streamDataAvailable = GetStreamDataAvailable ();
@@ -362,9 +366,7 @@ static void BuildSendRtdmFile (void)
     {
         debugPrintf(RTDM_IELF_DBG_INFO, "File %s successfully FTP'ed to destination\n", localFileName);
     }
-#endif
 
-#ifndef TEST_ON_PC
     /* Delete file when FTP send complete */
     remove (localFileName);
 #endif
@@ -407,7 +409,6 @@ static void PopulateValidStreamFileList (UINT16 currentFileIndex)
             debugPrintf(RTDM_IELF_DBG_INFO, "%d.stream not FTPed because it is the newest file being updated\n", fileIndex);
             continue;
         }
-
         if (streamFileSentOverlay[fileIndex] == STREAM_FILE_SENT)
         {
             debugPrintf(RTDM_IELF_DBG_INFO, "%d.stream not FTPed because it has not been updated since the last transfer\n", fileIndex);
@@ -595,6 +596,10 @@ static UINT16 GetOldestStreamFileIndex (void)
  *  @param ftpFilePtr - pointer FILE pointer to the FTP file. Pointer to pointer
  *                      required so that the file pointer can be passed around to
  *                      other functions
+ *  @param remoteFileName - remote file name is created and copied here
+ *  @param sizeRemoteFileName - the max size of the remote filename
+ *  @param localFileName - local file name is created and copied here
+ *  @param sizeLocalFileName - the max size of the local filename
  *
  *//*
  * Revision History:
