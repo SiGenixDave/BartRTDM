@@ -20,6 +20,9 @@
 #ifndef RTDMFILEEXT_H_
 #define RTDMFILEEXT_H_
 
+#include "../RtdmStream/RtdmStream.h"
+#include "RtdmFileIO.h"
+
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -64,7 +67,7 @@
  *
  *******************************************************************/
 
-void InitializeFileIO (RtdmXmlStr *rtdmXmlData);
+void InitializeFileIO (RtdmXmlStr *rtdmXmlData, TYPE_RTDMFILEIO_IF *interface);
 UINT32 RtdmSystemInitialize (struct dataBlock_RtdmStream *interface);
 UINT32 PrepareForFileWrite (UINT8 *logBuffer, UINT32 dataBytesInBuffer, UINT16 sampleCount,
                 RTDMTimeStr *currentTime);

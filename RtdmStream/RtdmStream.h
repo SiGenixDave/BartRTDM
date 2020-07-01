@@ -1,12 +1,12 @@
 /*****************************************************************************
- *  COPYRIGHT   : (c) 2016 Bombardier Transportation BTPC
+ *  COPYRIGHT   : (c) 2020 Bombardier Transportation BTPC
  *****************************************************************************
  *
  *  MODULE      : RtdmStream.h
  *
  *  ABSTRACT    : Interface definition for resource 'RtdmStream'
  *
- *  CREATOR     : PMAKE 5.5.0.4
+ *  CREATOR     : PMAKE 5.6.0.6
  *
  *  REMARKS     : ANY CHANGES TO THIS FILE WILL BE LOST !!!
  *
@@ -31,6 +31,9 @@ typedef struct dataBlock_RtdmStream
     MWT_BOOL          VNC_CarData_S_WhoAmISts;                 /* input Who Am I Status */
     UINT8             RTDMDataLogStop;                         /* input Stop the RTDM Data Log */
     BOOL              ClearTrig;                               /* input  */
+    MWT_USINT         VNX_ECNMapIn_MDS_IDayLightTime;          /* input  */
+    MWT_USINT         VNX_ECNMapIn_MDS_ITimeZone;              /* input  */
+    UINT16            PTUReq_RTDMFileDelete;                   /* input  */
     /* Group: OUTPUT */
     UINT8             RTDMDataLogState;                        /* output State of RTDM Data Log, RUN, STOP, RESTART, FULL */
     UINT16            RTDMMainBuffCount;                       /* output MD data stream message */
@@ -43,6 +46,9 @@ typedef struct dataBlock_RtdmStream
     UINT16            RTDMStreamError;                         /* output Error Code for Stream */
     UINT16            RTDMSampleCount;                         /* output Number of samples in stream */
     BOOL              RTDMTriggerFtpDanFile;                   /* output trigger to build/FTP DAN file over ECN */
+    UINT32            RTDM_UTCTime;                            /* output  */
+    UINT16            PTURes_RTDMFileDeleteStatus;             /* output  */
+    UINT16            datalog_state;                           /* output  */
 }   TYPE_RTDMSTREAM_IF;
 
 #ifdef __cplusplus

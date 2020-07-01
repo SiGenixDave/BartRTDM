@@ -232,6 +232,7 @@ INT32 TimeDiff (RTDMTimeStr *time1, RTDMTimeStr *time2)
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *                 01-10-2018 - DW - Added IBufferSize to payload per ICD-0004
  *
  *****************************************************************************/
 void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *rtdmXmlData,
@@ -241,18 +242,24 @@ void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *r
     const char *delimiter = "STRM"; /* Fixed stream header delimiter */
     UINT32 crc = 0; /* CRC calculation result */
     UINT32 maxCopySize = 0; /* used to ensure memory is not overflowed when copying strings */
-
+	int result;
+	char *string_y = "PCUY";
+	char *string_x = "PCUX";
+	char *string_u = "XXXX";
+    UINT16 StreamHeader_Size = 0;
+    StreamHeader_Size = (sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS);
+    
     /* Zero the stream entire header */
-    memset (streamHeader, 0, sizeof(StreamHeaderStr));
+    memset (streamHeader, 0, StreamHeader_Size);
 
     /* Calculate CRC for all samples (payload), this needs done prior to populating and calculating the
      * stream header CRC. */
     streamHeader->content.postamble.numberOfSamples = htons (sampleCount);
+
     crc = 0;
     crc = crc32 (crc, (UINT8 *) &streamHeader->content.postamble.numberOfSamples,
-                    sizeof(streamHeader->content.postamble.numberOfSamples));
-    crc = crc32 (crc, dataBuffer, (INT32) (dataSize));
-
+                    sizeof(streamHeader->content.postamble.numberOfSamples)+(INT32)(dataSize) );
+    
     /* Store the CRC */
     streamHeader->content.postamble.samplesChecksum = htonl (crc);
 
@@ -265,7 +272,10 @@ void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *r
     streamHeader->content.preamble.endianness = BIG_ENDIAN;
 
     /* Header size */
-    streamHeader->content.preamble.headerSize = htons (sizeof(StreamHeaderStr));
+    streamHeader->content.preamble.headerSize = htons (strlen(delimiter)+sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr));
+
+     /* IBufferSize calculation, fyi not to include the UINT16 IBufferSize in the calculation */
+    streamHeader->IBufferSize = streamHeader->content.preamble.headerSize+(UINT16)dataSize;
 
     /* Header Checksum - CRC-32 */
     /* Checksum of the following content of the header */
@@ -291,9 +301,29 @@ void PopulateStreamHeader (struct dataBlock_RtdmStream *interface, RtdmXmlStr *r
                     > strlen (rtdmXmlData->dataRecorderCfg.deviceId) ?
                     strlen (rtdmXmlData->dataRecorderCfg.deviceId) :
                     sizeof(streamHeader->content.postamble.deviceId);
-    memcpy (&streamHeader->content.postamble.deviceId[0], rtdmXmlData->dataRecorderCfg.deviceId,
-                    maxCopySize);
 
+ 	/* find and replace 'PCUu' with PCUX or PCUY */
+	result = strcmp (interface->VNC_CarData_X_DeviceID, "pcux");
+	if (result == 0)
+    {
+	  memcpy (&streamHeader->content.postamble.deviceId[0], string_x,
+              maxCopySize);
+	}	
+    else
+    {
+      result = strcmp (interface->VNC_CarData_X_DeviceID, "pcuy");
+	  if (result == 0)
+      {
+	    	  memcpy (&streamHeader->content.postamble.deviceId[0], string_y,
+              maxCopySize);
+	  }
+      else
+	  {
+	    	  memcpy (&streamHeader->content.postamble.deviceId[0], string_u,
+              maxCopySize);
+	  }	
+    }
+					
     /* Data Recorder ID - from .xml file */
     streamHeader->content.postamble.dataRecorderId = htons (
                     (UINT16) rtdmXmlData->dataRecorderCfg.id);
@@ -877,6 +907,7 @@ const char * GetStreamHeader (void)
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *                 09/11/2019 - DW - OI#144.0, StreamHeader_Size to be offset by the IBufferSize
  *
  *****************************************************************************/
 BOOL VerifyFileIntegrity (const char *fileName)
@@ -894,6 +925,8 @@ BOOL VerifyFileIntegrity (const char *fileName)
     BOOL fileSuccess = FALSE; /* return value for file operations */
     char const * streamHeaderDelimiter = NULL; /* Pointer to stream header string */
 
+    UINT16 StreamHeader_Size = 0;
+    StreamHeader_Size = (sizeof(streamHeader) - sizeof(streamHeader.IBufferSize));
     streamHeaderDelimiter = GetStreamHeader ();
 
     /* Check if the file exists */
@@ -961,14 +994,15 @@ BOOL VerifyFileIntegrity (const char *fileName)
     /* Move the file pointer to the last stream */
     fseek (pFile, (INT32) lastStrmIndex, SEEK_SET);
     /* Clear the stream header and overlay it on to the last stream header */
-    memset (&streamHeader, 0, sizeof(streamHeader));
+    memset (&streamHeader.Delimiter, 0, StreamHeader_Size);
 
-    amountRead = fread (&streamHeader, 1, sizeof(streamHeader), pFile);
-    expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + sizeof(streamHeader) - 8);
+    amountRead = fread (&streamHeader.Delimiter, 1, StreamHeader_Size, pFile);
+    expectedBytesRemaining = byteCount - ((UINT32) lastStrmIndex + StreamHeader_Size - 8);
 
     /* Verify the entire streamHeader amount could be read and the expected bytes remaining are in fact there */
     sampleSize = ntohs (streamHeader.content.postamble.sampleSize);
-    if ((sampleSize != expectedBytesRemaining) || (amountRead != sizeof(streamHeader)))
+
+    if ((sampleSize != expectedBytesRemaining) || (amountRead != StreamHeader_Size))
     {
         debugPrintf(RTDM_IELF_DBG_WARNING, "%s",
                         "Last Stream not complete... Removing Invalid Last Stream from File!!!\n");
@@ -1010,6 +1044,8 @@ BOOL VerifyFileIntegrity (const char *fileName)
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *                 09/11/2019 - DW - OI#144.0 check if the truncated bytes are less than the
+ *                 FILE_READ_BUFFER_SIZE 
  *
  *****************************************************************************/
 static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
@@ -1023,6 +1059,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     INT32 osCallReturn = 0; /* return value from OS calls */
     const char *tempFileName = DRIVE_NAME RTDM_DIRECTORY_NAME "temp.stream"; /* Fully qualified file name of temporary file */
     BOOL fileSuccess = FALSE; /* return value for file operations */
+    static UINT32 prevByteCount=0;
 
     /* Open the file to be truncated for reading */
     fileSuccess = FileOpenMacro((char * ) fileName, "rb", &pReadFile);
@@ -1059,6 +1096,7 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
     {
         /* Read the file */
         amountRead = fread (&buffer, 1, sizeof(buffer), pReadFile);
+        prevByteCount = byteCount;        
         byteCount += amountRead;
 
         /* End of file reached, should never enter here because file updates should occur and exit before the end of file
@@ -1086,7 +1124,14 @@ static BOOL TruncateFile (const char *fileName, UINT32 desiredFileSize)
             /* Calculate how many bytes to write to the file now that the system has read more
              * bytes than the desired amount to write.
              */
-            remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
+            if((byteCount - prevByteCount) < sizeof(buffer))
+            {
+              remainingBytesToWrite = (desiredFileSize- prevByteCount);
+            }
+            else
+            {
+              remainingBytesToWrite = sizeof(buffer) - (byteCount - desiredFileSize);
+            }
             fileSuccess = FileWriteMacro(pWriteFile, buffer, remainingBytesToWrite, FALSE);
             if (!fileSuccess)
             {

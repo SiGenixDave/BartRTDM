@@ -14,7 +14,9 @@
  *//*
  *
  * Revision : 01DEC2016 - D.Smail : Original Release
- *
+ *            19JUL2018 - DAW - Changed tffs0 to usb0
+ *            03/18/2019 - DW - OI#69, Added ielf directory path
+ *            09/11/2019 - DW - OI#144, Added packed attribute to IBufferSize
  *****************************************************************************/
 
 #ifndef RTDMUTILS_H_
@@ -32,6 +34,7 @@
 
 /* Must be 0 as defined in the ICD; placed in RTDM and STRM header */
 #define BIG_ENDIAN                 0
+#define RTDM_PRE_HEADER_POS        6
 
 /* Error Codes for RTDM Streaming */
 #define NO_ERROR                    0
@@ -83,13 +86,24 @@
 #define DRIVE_NAME                          "D:\\"
 #define RTDM_DIRECTORY_NAME                 "rtdm\\"
 #else
+
+/*#define DRIVE_NAME                          "/tffs0/" */
 #define DRIVE_NAME                          "/usb0/"
 #define RTDM_DIRECTORY_NAME                 "rtdm/"
+#define IELF_DIRECTORY_NAME                 "ielf/"
 #endif
 
+#ifdef TEST_ON_PC
+#define LOG_DRIVE                          "D:\\"
+#define LOG_DIRECTORY                      "rtdm\\"
+#else
+#define LOG_DRIVE                          "/usb0/"
+/* #define LOG_DRIVE                          "/tffs0/" */
+#define LOG_DIRECTORY                      "rtdm/"
+#endif
 
 /* Undefine RTDM_IELF_DEBUG if all debug info for RTDM/IELF is to be turned off */
-#define RTDM_IELF_DEBUG
+#define RTDM_IELF_DEBUG_OFF
 
 #ifdef RTDM_IELF_DEBUG
 
@@ -106,20 +120,12 @@
  */
 #define RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL     0
 #define RTDM_IELF_LOG_FILE_WRITE            1
-#define RTDM_IELF_DBG_LEVEL                 RTDM_IELF_DBG_INFO
+#define RTDM_IELF_DBG_LEVEL                 RTDM_IELF_DBG_ERROR
 
 #if (RTDM_IELF_DEBUG_EXCLUSIVE_LEVEL != 0)
 #define RTDM_IELF_GE_OR_EQ ==
 #else
 #define RTDM_IELF_GE_OR_EQ >=
-#endif
-
-#ifdef TEST_ON_PC
-#define LOG_DRIVE                          "D:\\"
-#define LOG_DIRECTORY                      "rtdm\\"
-#else
-#define LOG_DRIVE                          "/usb0/"
-#define LOG_DIRECTORY                      "rtdm/"
 #endif
 
 #define debugPrintf(debugLevel, fmt, args...)  \
@@ -266,6 +272,7 @@ typedef struct
 /** @brief Structure that contains the entire stream header including the stream delimiter */
 typedef struct
 {
+    UINT16 IBufferSize __attribute__ ((packed));
     /** The stream header delimiter */
     char Delimiter[4];
     /** The entire stream header */

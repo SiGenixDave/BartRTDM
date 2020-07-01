@@ -20,6 +20,9 @@
 #ifndef RTDMXML_H_
 #define RTDMXML_H_
 
+#include "RtdmStream.h"
+#include "../RtdmFileIO/RtdmFileIO.h"
+
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -52,6 +55,6 @@
 
 UINT16 InitializeXML (struct dataBlock_RtdmStream *interface, RtdmXmlStr **rtdmXmlData);
 char *GetXMLConfigFileBuffer (void);
-UINT16 CopyXMLConfigFile (void);
+UINT16 CopyXMLConfigFile (TYPE_RTDMFILEIO_IF *interface);
 
 #endif /* RTDMXML_H_ */

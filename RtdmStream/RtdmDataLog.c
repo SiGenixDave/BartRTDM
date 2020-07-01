@@ -14,6 +14,7 @@
  *//*
  *
  * Revision: 01DEC2016 - D.Smail : Original Release
+ *           10OCT2019 - DW : OI#147.0 Modified InitializeDataLog()
  *
  *****************************************************************************/ 
  
@@ -31,7 +32,7 @@
 #endif
 
 #include "../RtdmStream/RtdmUtils.h"
-
+#include "../RtdmFileIO/RtdmFileIO.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 
 /*******************************************************************
@@ -108,6 +109,7 @@ static void SwapBuffers (void);
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *                 10OCT2019 - DW - OI#147.0 Initialized ping pong buffers
  *
  *****************************************************************************/
 void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
@@ -115,6 +117,9 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
 
     UINT32 rawDataLogAllocation = 0; /* amount of memory to allocate */
     INT32 returnValue = OK; /* error code returned from dynamic allocation */
+    
+    m_RTDMDataLogPingPtr = NULL;
+    m_RTDMDataLogPongPtr = NULL;
 
     /* Calculate the maximum amount of memory needed to store signal samples before
      * saving them to a file. This calculation assumes no compression or if compression
@@ -150,6 +155,10 @@ void InitializeDataLog (RtdmXmlStr *rtdmXmlData)
     /* Reset the data log index and store the pointer to the XML data */
     m_RTDMDataLogIndex = 0;
     m_RtdmXmlData = rtdmXmlData;
+
+    /* Initialize static vars to accomodate runtime RTDM file deletion feature */
+    m_SampleCount = 0;
+    m_NewStreamStarted = TRUE;
 
 }
 

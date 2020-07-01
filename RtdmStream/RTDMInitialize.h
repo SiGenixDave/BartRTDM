@@ -20,6 +20,9 @@
 #ifndef RTDMINITIALIZE_H_
 #define RTDMINITIALIZE_H_
 
+#include "../RtdmFileIO/RtdmFileIO.h"
+
+
 /*******************************************************************
  *
  *     C  O  N  S  T  A  N  T  S
@@ -50,6 +53,6 @@
  *
  *******************************************************************/
 
-void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface);
+void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface, TYPE_RTDMFILEIO_IF *io_interface);
 
 #endif /* RTDMINITIALIZE_H_ */

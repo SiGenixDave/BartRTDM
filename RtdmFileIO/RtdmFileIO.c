@@ -14,6 +14,7 @@
  *//*
  *
  * Revision: 01DEC2016 - D.Smail : Original Release
+ *           27JUL2018 - DW : OI#103.2 modifications to WriteStreamFile
  *
  *****************************************************************************/
 
@@ -30,14 +31,15 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
+#include "../RtdmFileIO/RtdmFileIO.h"
 #include "../RtdmStream/RtdmUtils.h"
 
 #include "../RtdmStream/RtdmStream.h"
-#include "../RtdmStream/RtdmXml.h"
 #include "../RtdmStream/RtdmCrc32.h"
 #include "../RtdmStream/RTDMInitialize.h"
+
 #include "../RtdmFileIO/RtdmFileExt.h"
-#include "../RtdmFileIO/RtdmFileIO.h"
+#include "../RtdmStream/RtdmXml.h"
 
 /*******************************************************************
  *
@@ -152,7 +154,7 @@ static char *m_StreamFileSentOverlay;
 static void InitFileIndex (void);
 static void InitFileTracker (void);
 static void CleanupDirectory (void);
-static BOOL CreateCarConDevFile (void);
+static BOOL CreateCarConDevFile (TYPE_RTDMFILEIO_IF *interface);
 static void InitiateRtdmFileIOEventTask (void);
 static void WriteStreamFile (void);
 static void CloseStreamFile (void);
@@ -176,13 +178,13 @@ static void RtdmClearFileProcessing (void);
  * Description   : Original Release
  *
  *****************************************************************************/
-void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
+void InitializeFileIO (RtdmXmlStr *rtdmXmlData, TYPE_RTDMFILEIO_IF *interface)
 {
     UINT16 errorCode = NO_ERROR; /* return value from function call */
 
     m_RtdmXmlData = rtdmXmlData;
 
-    errorCode = CopyXMLConfigFile ();
+    errorCode = CopyXMLConfigFile (interface);
     if (errorCode != NO_ERROR)
     {
         /* TODO if errorCode then need to log fault and inform that XML file read failed */
@@ -190,7 +192,7 @@ void InitializeFileIO (RtdmXmlStr *rtdmXmlData)
 
     CleanupDirectory ();
 
-    CreateCarConDevFile ();
+    CreateCarConDevFile (interface);
 
     InitFileIndex ();
 
@@ -231,7 +233,7 @@ void RtdmFileIO (TYPE_RTDMFILEIO_IF *interface)
              * background. The reason that the RTDM initialization isn't done on the initialization
              * task is that some initialization functions require the stream interface pointer.
              */
-            RtdmInitializeAllFunctions (m_StreamInterface);
+            RtdmInitializeAllFunctions (m_StreamInterface, interface);
             m_FileAction &= ~(INIT_RTDM_SYSTEM);
         }
         if ((m_FileAction & WRITE_FILE) != 0)
@@ -500,7 +502,7 @@ static void InitiateRtdmFileIOEventTask (void)
 
 #ifdef TEST_ON_PC
     /* Since the PC used for testing has no real time issues, this can executed directly */
-    RtdmFileIO (NULL);
+    RtdmFileIO (m_StreamInterface->VNC_CarData_X_DeviceID);
 #endif
 }
 
@@ -523,6 +525,9 @@ static void InitiateRtdmFileIOEventTask (void)
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *                 27JUL2018 - DW : created temporary memory buffer to build
+ *                 a full stream buffer with which to perform a CRC for the stream
+ *                 header. OI#103.2
  *
  *****************************************************************************/
 static void WriteStreamFile (void)
@@ -534,7 +539,27 @@ static void WriteStreamFile (void)
     StreamHeaderStr streamHeader; /* holds the current stream header */
     char fileName[MAX_CHARS_IN_FILENAME]; /* filename of the #.stream file */
     static BOOL firstWrite = TRUE; /* Used to log the start write time */
+    UINT16 StreamHeader_Size = 0;
+    StreamHeader_Size = (sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS);
 
+    BOOL fileSuccess = FALSE; /* return value for file operations */
+    UINT8 *m_FileioData = NULL;
+    UINT32 rawDataLogAllocation = 0; /* amount of memory to allocate */
+    INT32 returnValue = OK; /* error code returned from dynamic allocation */
+    
+    /* create memory block for stream file temporary buffer */
+    rawDataLogAllocation = m_RtdmXmlData->dataLogFileCfg.numberSamplesBeforeSave
+                    * m_RtdmXmlData->metaData.maxSampleHeaderDataSize;
+
+    /* Allocate memory to store the log data in the "fileio stream" buffer */
+    returnValue = AllocateMemoryAndClear (rawDataLogAllocation, (void **) &m_FileioData);
+    if (returnValue != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't allocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
+        return;
+    }
+    
 #ifdef FIXED_TIME_CYCLE_NS
     static BOOL oneFileWriteComplete = FALSE;
 
@@ -568,22 +593,26 @@ static void WriteStreamFile (void)
         return;
     }
 
-    /* Create the stream header */
-    PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &streamHeader, m_FileWrite.sampleCount,
-                    m_FileWrite.buffer, m_FileWrite.bytesInBuffer, &m_FileWrite.time);
-
     /* Get the file name */
     (void) CreateStreamFileName (m_StreamFileIndex, fileName, sizeof(fileName));
+
+    /* Copy the stream samples into the temporary fileio data buffer */
+    memcpy (&m_FileioData[StreamHeader_Size],m_FileWrite.buffer,m_FileWrite.bytesInBuffer);
+
+    /* Create the stream header and copy into temporary fileio data buffer */
+    PopulateStreamHeader (m_StreamInterface, m_RtdmXmlData, &m_FileioData[0], m_FileWrite.sampleCount,
+                    m_FileWrite.buffer, m_FileWrite.bytesInBuffer, &m_FileWrite.time);
 
     switch (m_StreamFileState)
     {
         default:
         case CREATE_NEW:
-            /* Write the header
+                    
+             /* Write the header
              * TODO Change name to generic name*/
-            WriteToDisk (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), TRUE);
+            WriteToDisk (fileName, (UINT8 *) &m_FileioData[2], (StreamHeader_Size-2), TRUE); /* subtract 2 so ibuffersize not in file */
             /* Write the stream */
-            WriteToDisk (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+            WriteToDisk (fileName, &m_FileioData[StreamHeader_Size], m_FileWrite.bytesInBuffer, FALSE);
 
             /* Since we're creating a new stream file, set the stream file sent index to not sent and
              * update the file
@@ -595,15 +624,15 @@ static void WriteStreamFile (void)
             m_StreamFileState = APPEND_TO_EXISTING;
 
             debugPrintf(RTDM_IELF_DBG_INFO, "FILEIO - CreateNew %s\n", fileName);
-
+           
             break;
 
         case APPEND_TO_EXISTING:
             /* Open the file for appending */
             /* Write the header */
-            WriteToDisk (fileName, (UINT8 *) &streamHeader, sizeof(streamHeader), FALSE);
+            WriteToDisk (fileName, (UINT8 *) &m_FileioData[2], (StreamHeader_Size-2), FALSE); /* subtract 2 so ibuffersize not in file */
             /* Write the stream */
-            WriteToDisk (fileName, m_FileWrite.buffer, m_FileWrite.bytesInBuffer, FALSE);
+            WriteToDisk (fileName, &m_FileioData[StreamHeader_Size], m_FileWrite.bytesInBuffer, FALSE);
 
             debugPrintf(RTDM_IELF_DBG_LOG, "%s", "FILEIO - Append Existing\n");
 
@@ -632,6 +661,14 @@ static void WriteStreamFile (void)
 
     }
 
+    /* free up temporary fileio data buffer to system pool */
+    returnValue = dm_free(0,m_FileioData);
+    if(returnValue != OK)
+    {
+        debugPrintf(RTDM_IELF_DBG_ERROR, "Couldn't deallocate memory ---> File: %s  Line#: %d\n",
+                        __FILE__, __LINE__);
+    }
+    
 }
 
 /*****************************************************************************/
@@ -935,11 +972,13 @@ static void CleanupDirectory (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-static BOOL CreateCarConDevFile (void)
+static BOOL CreateCarConDevFile (TYPE_RTDMFILEIO_IF *interface)
 {
     const char *ccdFileName = DRIVE_NAME RTDM_DIRECTORY_NAME "CarConDev.dat"; /* Fully qualified file name */
     FILE *pFile = NULL; /* file pointer to "CarConDev.dat" */
     BOOL fileSuccess = FALSE; /* return value for file operations */
+	
+	int result;
 
     /* Create the data file  */
     fileSuccess = FileOpenMacro((char * ) ccdFileName, "wb+", &pFile);
@@ -950,9 +989,29 @@ static BOOL CreateCarConDevFile (void)
         fprintf (pFile, "%d\n", (INT32) m_RtdmXmlData->dataRecorderCfg.version);
         fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_CarID);
         fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_ConsistID);
-        fprintf (pFile, "%s\n", m_RtdmXmlData->dataRecorderCfg.deviceId);
+		
+ 	  /* find and replace 'PCUu' with PCUX or PCUY */
+	  result = strcmp (interface->VNC_CarData_X_DeviceID, "pcux");
+	  if (result == 0)
+      {
+	    strncpy (m_StreamInterface->VNC_CarData_X_DeviceID,"PCUX",4);
+	  }	
+      else
+      {
+        result = strcmp (interface->VNC_CarData_X_DeviceID, "pcuy");
+	    if (result == 0)
+        {
+	      strncpy (m_StreamInterface->VNC_CarData_X_DeviceID,"PCUY",4);
+	    }
+        else
+	    {
+	      strncpy (m_StreamInterface->VNC_CarData_X_DeviceID,"XXXX",4);
+	    }	
+	  }
+		
+      fprintf (pFile, "%s\n", m_StreamInterface->VNC_CarData_X_DeviceID);
 
-        fileSuccess = FileCloseMacro(pFile);
+      fileSuccess = FileCloseMacro(pFile);
     }
 
     return (fileSuccess);

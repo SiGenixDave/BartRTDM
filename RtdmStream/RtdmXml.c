@@ -14,6 +14,8 @@
  *//*
  *
  * Revision: 01DEC2016 - D.Smail : Original Release
+ *           1/25/18 - DAW: Temporarily removed IDCUState to allow CDP to work
+ *                          refer to OI#103.1
  *
  *****************************************************************************/
 
@@ -30,6 +32,7 @@
 #include "../PcSrcFiles/usertypes.h"
 #endif
 
+#include "../RtdmFileIO/RtdmFileIO.h"
 #include "../RtdmStream/RtdmUtils.h"
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
@@ -165,7 +168,7 @@ static VariableMapStr m_VariableMap[] =
           { "oPCU_I1.PCU_I1.Discrete801.IRegenCutOut", NULL },
           { "oPCU_I1.PCU_I1.Discrete801.ITractionSafeSts", NULL },
           { "oPCU_I1.PCU_I1.Discrete801.PRailGapDet", NULL },
-          { "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },
+/*          { "oPCU_I1.PCU_I1.Discrete801.IDcuState", NULL },*/
           { "oPCU_I1.PCU_I1.Analog801.ILineCurr", NULL } };
 
 /** @brief Maps all XML configuration parameter names to the data type, memory location,
@@ -330,10 +333,13 @@ char *GetXMLConfigFileBuffer (void)
  * Description   : Original Release
  *
  *****************************************************************************/
-UINT16 CopyXMLConfigFile (void)
+UINT16 CopyXMLConfigFile (TYPE_RTDMFILEIO_IF *interface)
 {
     const char *copyFileName = DRIVE_NAME RTDM_DIRECTORY_NAME RTDM_XML_FILE;
     FILE *copyFile = NULL;
+	
+	char *string;
+	int result;
 
     if (FileOpenMacro ((char *) copyFileName, "wb+", &copyFile) == ERROR)
     {
@@ -343,7 +349,29 @@ UINT16 CopyXMLConfigFile (void)
         return (1);
     }
 
-    FileWriteMacro(copyFile, m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE);
+ 	/* find and replace 'PCUu' with PCUX or PCUY */
+	result = strcmp (interface->VNC_CarData_X_DeviceID, "pcux");
+	if (result == 0)
+    {
+	  string = strstr(m_ConfigXmlBufferPtr,"PCUu");
+	  strncpy (string,"PCUX",4);
+	}	
+    else
+    {
+      result = strcmp (interface->VNC_CarData_X_DeviceID, "pcuy");
+	  if (result == 0)
+      {
+	    string = strstr(m_ConfigXmlBufferPtr,"PCUu");
+	    strncpy (string,"PCUY",4);
+	  }
+      else
+	  {
+	    string = strstr(m_ConfigXmlBufferPtr,"PCUu");
+	    strncpy (string,"XXXX",4);
+	  }	
+	}
+
+	FileWriteMacro(copyFile, m_ConfigXmlBufferPtr, m_ConfigXmlFileSize, TRUE);
 
     return (NO_ERROR);
 
@@ -703,7 +731,7 @@ static UINT16 ProcessXMLSignals (UINT16 *numberofSignals)
 
         /* convert signalId to a # and save as int */
         sscanf (pStringLocation1, "%u", &signalId);
-        m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId;
+        m_RtdmXmlData.signalDesription[signalCount].id = (UINT16) signalId - 1; /* -1 to align signals internally 0 to X */
 
         PrintIntegerContents(RTDM_IELF_DBG_LOG, signalId);
 
@@ -864,6 +892,6 @@ static void PopulateVariableAddressesInMap (struct dataBlock_RtdmStream *interfa
     m_VariableMap[19].variableAddr = &interface->oPCU_I1.Discrete801.IRegenCutOut;
     m_VariableMap[20].variableAddr = &interface->oPCU_I1.Discrete801.ITractionSafeSts;
     m_VariableMap[21].variableAddr = &interface->oPCU_I1.Discrete801.PRailGapDet;
-    m_VariableMap[22].variableAddr = &interface->oPCU_I1.Discrete801.IDcuState;
-    m_VariableMap[23].variableAddr = &interface->oPCU_I1.Analog801.ILineCurr;
+/*    m_VariableMap[22].variableAddr = &interface->oPCU_I1.Discrete801.IDcuState;*/
+    m_VariableMap[22].variableAddr = &interface->oPCU_I1.Analog801.ILineCurr;
 }

@@ -27,6 +27,7 @@
 #endif
 
 #include "../RtdmStream/RtdmUtils.h"
+#include "../RtdmFileIO/RtdmFileIO.h"
 #include "../RtdmStream/RtdmXml.h"
 
 #include "../RtdmStream/RtdmDataLog.h"
@@ -82,7 +83,7 @@
  * Description   : Original Release
  *
  *****************************************************************************/
-void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
+void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface, TYPE_RTDMFILEIO_IF *io_interface)
 {
 
     RtdmXmlStr *rtdmXmlData = NULL;
@@ -100,7 +101,7 @@ void RtdmInitializeAllFunctions (struct dataBlock_RtdmStream *interface)
 
     InitializeDataLog (rtdmXmlData);
 
-    InitializeFileIO (rtdmXmlData);
+    InitializeFileIO (rtdmXmlData, io_interface);
 
     InitRtdmDanBuilder (rtdmXmlData, interface);
 

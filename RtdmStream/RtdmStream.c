@@ -14,6 +14,11 @@
  *//*
  *
  * Revision: 01DEC2016 - D.Smail : Original Release
+ *           09JUL2018 - DAW : Modified NormalStreamProcessing()
+ *           10OCT2019 - DAW : OI#147.0, Modified RdtmStream()
+ *           11JUN2020 - D.Smail : Modified RtdmStream(), NormalStreamProcessing(), 
+ *                                 CreateSingleSampleStream(),
+ *                                 
  *
  *****************************************************************************/
 
@@ -34,6 +39,7 @@
 
 #include "../RtdmStream/RtdmStream.h"
 #include "../RtdmStream/RtdmDataLog.h"
+#include "../RtdmFileIO/RtdmFileIO.h"
 #include "../RtdmFileIO/RtdmFileExt.h"
 
 #include "RtdmCrc32.h"
@@ -43,6 +49,12 @@
  *     C  O  N  S  T  A  N  T  S
  *
  *******************************************************************/
+ 
+#define DELETE_IN_PROGRESS 1
+#define DELETE_REQ_ACK 1
+#define DL_NORMAL 0
+#define DL_DELETE 1
+#define DL_INIT 2
 
 /*******************************************************************
  *
@@ -81,23 +93,27 @@ static BOOL m_InitFinished = FALSE;
 /** @brief becomes TRUE if dynamic memory couldn't be performed */
 static BOOL m_MemoryAllocationError = FALSE;
 
+static BOOL firstCall = TRUE; /* used to trigger initialization one time only */
+
+static UINT16 datalog_state = DL_NORMAL;    /* datalogger file i/o state variable */
+
 /*******************************************************************
  *
  *    S  T  A  T  I  C      F  U  N  C  T  I  O  N  S
  *
  *******************************************************************/
-static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface);
+static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface, BOOL forceEntireStreamCapture);
 static UINT16 NetworkAvailable (struct dataBlock_RtdmStream *interface, BOOL *networkAvailable);
 static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkAvailable,
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime);
 static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
-                RTDMTimeStr *currentTime);
+                RTDMTimeStr *currentTime, BOOL forceEntireStreamCapture);
 static void PopulateSignalsWithNewSamples (void);
 static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *currentTime);
 static UINT16 Check_Fault (UINT16 error_code, RTDMTimeStr *currentTime);
 static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface,
                 RtdmXmlStr* rtdmXmlData, UINT8 *streamBuffer, UINT32 streamBufferSize);
-
+                
 /*****************************************************************************/
 /**
  * @brief       Initializes RTDM stream functionality
@@ -189,48 +205,101 @@ void InitializeRtdmStream (RtdmXmlStr *rtdmXmlData)
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *                 10OCT2019 - DAW - OI#147.0
+ *                 Moved firstCall static var to globals
+ *                 added delete state machine to accomodate runtime file deletion feature
+ *                 11JUN2020 - D.Smail
+ *                 Added a static variable that indicates to the stream processsing that 
+ *                 a power on, reset or network restart has occurrred. Eventually used
+ *                 to force a complete data capture if compression is enabled
  *
  *****************************************************************************/
 void RtdmStream (struct dataBlock_RtdmStream *interface)
 {
-    static BOOL firstCall = TRUE; /* used to trigger initialization one time only */
 
     /* Always reset this flag on entry. Used to trigger OS Event to File IO event driven task. Flag is
      * recognized after this call exits. */
     interface->RTDMTriggerFileIOTask = FALSE;
     interface->RTDMTriggerFtpDanFile = FALSE;
+	
+	static BOOL forceEntireStreamCapture = TRUE;
 
     /* Initialize the RTDM component on the first call to this function only and wait for it to finish.
      * The entire initialization process takes place in the RTDM_FILEIO_TASK (event driven low priority task) */
     if (firstCall)
     {
         RtdmSystemInitialize (interface);
+		forceEntireStreamCapture = TRUE;
         firstCall = FALSE;
         return;
     }
     /* Wait for the File IO initialization to finish before proceeding with normal stream processing */
     else if ((m_InitFinished) && (!m_MemoryAllocationError))
     {
-        NormalStreamProcessing (interface);
+       switch(datalog_state)
+       {
+         default:
+         break;
+       
+         case DL_NORMAL:
+           NormalStreamProcessing (interface, forceEntireStreamCapture);
+		   forceEntireStreamCapture = FALSE;
+           interface->PTURes_RTDMFileDeleteStatus = 0; /* clear */
+          
+           if(interface->PTUReq_RTDMFileDelete == DELETE_IN_PROGRESS) /* check for delete command */
+           {
+              datalog_state = DL_DELETE;
+           }
+         break;
+       
+         case DL_DELETE: /* stop normal data log processing to prepare for FTP delete */
+            interface->PTURes_RTDMFileDeleteStatus = DELETE_REQ_ACK;
+            if(interface->PTUReq_RTDMFileDelete != DELETE_IN_PROGRESS) /* check for delete command */
+            {
+              datalog_state = DL_INIT;
+#ifndef TEST_ON_PC
+              mon_broadcast_printf("\nRTDM File Delete Complete.......\n");
+#endif
+            }
+         break;
+       
+         case DL_INIT:
+           interface->PTURes_RTDMFileDeleteStatus = 0; /* clear */
+           m_InitFinished = FALSE; /* suspend normal stream processing until rtdm fileio init complete */
+           firstCall = TRUE; /* initialize entire RTDM processing */
+           datalog_state = DL_NORMAL; /* resume normal data logging after init */
+
+           /* Initialize static vars for post file deletion startup */
+           m_StreamData = NULL;
+           m_NewSignalData = NULL;
+           m_OldSignalData = NULL;
+           m_ChangedSignalData = NULL;
+           m_SampleCount = 0;
+           /* End static var init area */
+
+           break;
+       }
     }
 
+    interface->datalog_state = datalog_state;
+
     /* TODO - the trigger to send DAN file over network needs to come from somewhere ??? */
-#ifndef REMOVE_AFTER_TEST
+/*#ifndef REMOVE_AFTER_TEST
     extern void RtdmBuildFTPDan (INT16 *);
     /* If file exists, trigger FTP send */
-    if (FileExists (DRIVE_NAME RTDM_DIRECTORY_NAME "ftpdan"))
+/*    if (FileExists (DRIVE_NAME RTDM_DIRECTORY_NAME "ftpdan"))
     {
-        remove (DRIVE_NAME RTDM_DIRECTORY_NAME "ftpdan");
+        remove (DRIVE_NAME RTDM_DIRECTORY_NAME "ftpdan"); 
 #ifdef TEST_ON_PC
-        CloseCurrentStreamFile ();
-        RtdmBuildFTPDan (NULL);
+       CloseCurrentStreamFile ();
+        RtdmBuildFTPDan (NULL); 
 #else
         /* This needs to happen when the network requests a DAN file */
-        CloseCurrentStreamFile ();
+/*        CloseCurrentStreamFile ();
         interface->RTDMTriggerFtpDanFile = TRUE;
 #endif
-    }
-#endif
+    } 
+#endif */
 
 }
 
@@ -251,6 +320,9 @@ void RtdmStream (struct dataBlock_RtdmStream *interface)
 void SetRtdmInitFinished (void)
 {
     m_InitFinished = TRUE;
+#ifndef TEST_ON_PC
+    mon_broadcast_printf("\nRTDM Init Complete.......\n\n");
+#endif
 }
 
 /*****************************************************************************/
@@ -263,24 +335,48 @@ void SetRtdmInitFinished (void)
  *              of the processing can be found in the called functions.
  *
  *  @param interface - pointer to MTPE module interface data
+ *  @param forceEntireStreamCapture - TRUE after power on, reset or network restart
  *
  *//*
  * Revision History:
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
- *
+ *               : 01FEB2018 - OI#103.1 - DAW Convert currentTime(MDS Local) to UTC
+ *               : per AME RTDM data should be timestamped in UTC
+ *                 09JUL2018 - OI#126.0 -DAW - Corrected daylight savings time math
+ *                 03/27/19 - #069.0 - Added RTDM UTC Time output to interface
+ *               : 11JUN2020 - D.Smail
+ *                 Added an argument to support an entire data capture in the event of a
+ *                 power on, reset or network restart.
  *****************************************************************************/
-static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface)
+#define TIMEZONE_TO_SECONDS 900
+#define DAYLIGHT_SAVINGS_OFFSET_SECONDS 3600
+ static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface, BOOL forceEntireStreamCapture)
 {
     UINT16 errorCode = 0; /* Determines if network is available */
     UINT16 result = 0;
     UINT32 bufferChangeAmount = 0; /* Amount of bytes that need to be captured for sample */
     RTDMTimeStr currentTime; /* current system time */
     BOOL networkAvailable = FALSE; /* TRUE if network is available */
-
+    INT32 timezoneOffset_seconds=0;
+    
     /* Get the system time */
     result = GetEpochTime (&currentTime);
+    
+    if(interface->VNX_ECNMapIn_MDS_ITimeZone <= 96)
+    {
+      timezoneOffset_seconds = (48 - interface->VNX_ECNMapIn_MDS_ITimeZone) * TIMEZONE_TO_SECONDS; /* ITimeZone 0=-12hr UTC,48=0hr UTC, 96=+12hr UTC */
+    }
+    
+    if(interface->VNX_ECNMapIn_MDS_IDayLightTime == 1)
+    {
+      timezoneOffset_seconds -= DAYLIGHT_SAVINGS_OFFSET_SECONDS;
+    }
+    
+    currentTime.seconds = (INT32)currentTime.seconds + timezoneOffset_seconds;
+    
+    interface->RTDM_UTCTime = currentTime.seconds;
 
     if (result != NO_ERROR)
     {
@@ -295,7 +391,7 @@ static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface)
 
     /* Create a stream sample, amount will depend upon whether or not data compression
      * is enabled and/or how much the data has changed from the previous sample. */
-    bufferChangeAmount = CreateSingleSampleStream (interface, &currentTime);
+    bufferChangeAmount = CreateSingleSampleStream (interface, &currentTime, forceEntireStreamCapture);
 
     /* Populate the stream buffer with the latest sample */
     if (m_RtdmXmlData->outputStreamCfg.enabled)
@@ -305,8 +401,8 @@ static void NormalStreamProcessing (struct dataBlock_RtdmStream *interface)
 
     if (m_RtdmXmlData->dataLogFileCfg.enabled)
     {
-        /* Populate the data log buffer with the latest sample */
-        ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &m_SampleHeader,
+           /* Populate the data log buffer with the latest sample */
+           ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &m_SampleHeader,
                         &currentTime);
     }
 
@@ -366,13 +462,16 @@ static UINT16 NetworkAvailable (struct dataBlock_RtdmStream *interface, BOOL *ne
  *****************************************************************************/
 static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkAvailable,
                 UINT32 newChangedDataBytes, RTDMTimeStr *currentTime)
-{
+{    
     INT32 timeDiff = 0; /* time difference (msecs) */
     BOOL streamBecauseBufferFull = FALSE; /* becomes TRUE is the stream buffer is full or may become full on the next sample */
+    UINT16 StreamHeader_Size = 0;
     static RTDMTimeStr s_PreviousSendTime =
         { 0, 0 }; /* Maintains when the previous stream of data was sent over the network */
-    static UINT32 s_StreamBufferIndex = sizeof(StreamHeaderStr); /* current buffer index into m_StreamData; offset to save room for stream header */
-
+    static UINT32 s_StreamBufferIndex = sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS;
+    
+    StreamHeader_Size = sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS;
+    
     /* TODO IS "networkAvailable" NEEDED ???????  */
     if (!networkAvailable)
     {
@@ -416,8 +515,8 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
 
         /* Time to construct main header */
         PopulateStreamHeader (interface, m_RtdmXmlData, (StreamHeaderStr *) &m_StreamData[0],
-                        m_SampleCount, &m_StreamData[sizeof(StreamHeaderStr)],
-                        s_StreamBufferIndex - sizeof(StreamHeaderStr), currentTime);
+                        m_SampleCount, &m_StreamData[StreamHeader_Size],
+                        s_StreamBufferIndex - StreamHeader_Size, currentTime);
 
         /* Time to send message */
         /* TODO Check return value for error */
@@ -425,6 +524,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
 
         /* Save the transmit time */
         s_PreviousSendTime = *currentTime;
+        /* mon_broadcast_printf("currentTime.seconds=%lu\n",currentTime->seconds); */
 
         debugPrintf(RTDM_IELF_DBG_LOG, "STREAM SENT %d\n", m_SampleCount);
 
@@ -432,8 +532,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
         m_SampleCount = 0;
         /* Reset the buffer index; this index is placed directly after the stream header. The stream
          * header is populated just prior to sending the data */
-        s_StreamBufferIndex = sizeof(StreamHeaderStr);
-
+        s_StreamBufferIndex = StreamHeader_Size;
     }
 
     /* Save previousSendTimeSec always on the first call to this function */
@@ -459,6 +558,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
  *
  *  @param interface - pointer to MTPE module interface data
  *  @param currentTime - system time
+ *  @param forceEntireStreamCapture - TRUE after power on, reset or network restart
  *
  *  @returns UINT32 - the amount of signal Id and data (bytes) to populate the stream buffer with *
  *
@@ -467,22 +567,28 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
  *
  * Date & Author : 01DEC2016 - D.Smail
  * Description   : Original Release
+ *               : 11JUN2020 - D.Smail
+ *                 Added an argument to support an entire data capture in the event of a
+ *                 power on, reset or network restart.
  *
  *****************************************************************************/
 static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
-                RTDMTimeStr *currentTime)
+                RTDMTimeStr *currentTime, BOOL forceEntireStreamCapture)
 {
     UINT32 signalChangeBufferSize = 0; /* number of bytes of signal data that has changed */
     UINT16 signalCount = 0; /* number of signals in the current sample */
 
-    if (m_RtdmXmlData->dataRecorderCfg.compressionEnabled)
+	/* If compression is enabled and a power on, reset or network restart hasn't occurred,
+       only capture the data that changed from the previous sample */
+    if (m_RtdmXmlData->dataRecorderCfg.compressionEnabled && !forceEntireStreamCapture)
     {
         /* Populate change buffer with signals that changed or if individual signal timers have expired */
         signalChangeBufferSize = PopulateBufferWithChanges (&signalCount, currentTime);
     }
     else
     {
-        /* Populate change buffer with all signals because compression is disabled */
+        /* Populate change buffer with all signals because compression is disabled or a 
+           power on, reset or network restart has occurred */
         memcpy (m_ChangedSignalData, m_NewSignalData, m_RtdmXmlData->metaData.maxSampleDataSize);
         signalChangeBufferSize = m_RtdmXmlData->metaData.maxSampleDataSize;
         signalCount = (UINT16) m_RtdmXmlData->metaData.signalCount;
@@ -529,7 +635,7 @@ static UINT32 CreateSingleSampleStream (struct dataBlock_RtdmStream *interface,
 static void PopulateSignalsWithNewSamples (void)
 {
     UINT16 index = 0; /* used to index through all of the signal data */
-    UINT32 bufferIndex = 0; /* used to index and store new signal data */
+    UINT16 bufferIndex = 0; /* used to index and store new signal data */
     UINT16 variableSize = 0;/* The size of the current data variable */
     UINT16 signalId = 0; /* the current signal id retrieved from the XML data */
     UINT8 var8 = 0; /* Stores 8 bit variable data */
@@ -541,9 +647,10 @@ static void PopulateSignalsWithNewSamples (void)
 
     for (index = 0; index < m_RtdmXmlData->metaData.signalCount; index++)
     {
-        signalId = htons (m_RtdmXmlData->signalDesription[index].id);
+        signalId = htons ((m_RtdmXmlData->signalDesription[index].id) + 1); /* align output signalId for transmission as 1 to x */
         /* Copy the signal Id */
         memcpy (&m_NewSignalData[bufferIndex], &signalId, sizeof(signalId));
+
         bufferIndex += sizeof(signalId);
 
         /* Copy the contents of the variable */
@@ -578,7 +685,6 @@ static void PopulateSignalsWithNewSamples (void)
         memcpy (&m_NewSignalData[bufferIndex], varPtr, variableSize);
         bufferIndex += variableSize;
     }
-
 }
 
 /*****************************************************************************/
@@ -765,7 +871,8 @@ static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface,
     0, /* No queue for communication ipt_result */
     0, /* No caller reference value */
     0, /* Topo counter */
-    "grpRTDM.lCar.lCst", /* overriding of destination URI */
+    /* "cdp1.lCar.lCst", overriding of destination URI on train */
+    "grpRTDM.lCar.lCst", /* overriding of destination URI for PPC test */
     0); /* No overriding of source URI */
 
     if (ipt_result != IPT_OK)
@@ -783,7 +890,6 @@ static UINT16 SendStreamOverNetwork (struct dataBlock_RtdmStream *interface,
         /* Clear Error Code */
         errorCode = NO_ERROR;
     }
-
     return (errorCode);
 }
 
