@@ -472,14 +472,57 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     
     StreamHeader_Size = sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS;
     
+    BOOL timeToStreamExpired = FALSE;
+    UINT32 tempStreamBufferIndex;
+
     /* TODO IS "networkAvailable" NEEDED ???????  */
     if (!networkAvailable)
     {
         return;
     }
 
-    /* Fill m_StreamData with samples of data if data changed  */
+    /* Check if its time to stream the data */
+    timeDiff = TimeDiff (currentTime, &s_PreviousSendTime);
+
+    /* Detect if stream timer expired */
+    if ((timeDiff >= (INT32) m_RtdmXmlData->outputStreamCfg.maxTimeBeforeSendMs) && (s_PreviousSendTime.seconds != 0))
+    {
+        timeToStreamExpired = TRUE;
+    }
+
+    /* Check if the buffer is full or near full */
+    tempStreamBufferIndex = s_StreamBufferIndex;
     if (newChangedDataBytes != 0)
+    {
+        tempStreamBufferIndex += sizeof(m_SampleHeader) + newChangedDataBytes;
+        if ((tempStreamBufferIndex + m_RtdmXmlData->metaData.maxSampleHeaderDataSize)
+                    >= m_RtdmXmlData->outputStreamCfg.bufferSize)
+        {
+            streamBecauseBufferFull = TRUE;
+        }
+    }
+
+
+    if ((timeToStreamExpired) || (streamBecauseBufferFull))
+    {
+        /* Copy the time stamp and signal count into main buffer */
+        memcpy (&m_StreamData[s_StreamBufferIndex], &m_SampleHeader, sizeof(m_SampleHeader));
+
+        s_StreamBufferIndex += sizeof(m_SampleHeader);
+
+        /* Copy all data data into main buffer */
+        memcpy (&m_StreamData[s_StreamBufferIndex], m_NewSignalData, m_RtdmXmlData->metaData.maxSampleDataSize);
+
+        /* Update the buffer index and the sample count (sample count is used in stream header) */
+        s_StreamBufferIndex += m_RtdmXmlData->metaData.maxSampleDataSize;
+        m_SampleCount++;
+
+        debugPrintf(RTDM_IELF_DBG_LOG, "Stream Sample Populated %d\n", interface->RTDMSampleCount);
+
+    }
+
+    /* Fill m_StreamData with samples of data if data changed  */
+    else if (newChangedDataBytes != 0)
     {
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_StreamData[s_StreamBufferIndex], &m_SampleHeader, sizeof(m_SampleHeader));
@@ -497,20 +540,9 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
 
     }
 
-    /* determine if next data change entry might overflow buffer */
-    if ((s_StreamBufferIndex + m_RtdmXmlData->metaData.maxSampleHeaderDataSize)
-                    >= m_RtdmXmlData->outputStreamCfg.bufferSize)
-    {
-        streamBecauseBufferFull = TRUE;
-    }
 
-    /* Check if its time to stream the data */
-    timeDiff = TimeDiff (currentTime, &s_PreviousSendTime);
-
-    /* calculate if maxTimeBeforeSendMs has timed out or the buffer size is large enough to send */
-    if ((streamBecauseBufferFull)
-                    || ((timeDiff >= (INT32) m_RtdmXmlData->outputStreamCfg.maxTimeBeforeSendMs)
-                                    && (s_PreviousSendTime.seconds != 0)))
+    /* Send out stream of data if timer expired or buffer full */
+    if ((streamBecauseBufferFull) || (timeToStreamExpired))
     {
 
         /* Time to construct main header */
@@ -643,7 +675,7 @@ static void PopulateSignalsWithNewSamples (void)
     UINT32 var32 = 0; /* Stores 32 bit variable data */
     void *varPtr = NULL; /* points at either var8, var16, or var32 */
 
-    memset (m_NewSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxSampleDataSize));
+    memset (m_NewSignalData, 0, m_RtdmXmlData->metaData.maxSampleDataSize);
 
     for (index = 0; index < m_RtdmXmlData->metaData.signalCount; index++)
     {
@@ -721,7 +753,7 @@ static UINT32 PopulateBufferWithChanges (UINT16 *signalCount, RTDMTimeStr *curre
     INT32 timeDiff = 0; /* time difference (msecs) */
 
     /* Clear the changed signal buffer */
-    memset (m_ChangedSignalData, 0, sizeof(m_RtdmXmlData->metaData.maxSampleDataSize));
+    memset (m_ChangedSignalData, 0, m_RtdmXmlData->metaData.maxSampleDataSize);
 
     for (index = 0; index < m_RtdmXmlData->metaData.signalCount; index++)
     {
