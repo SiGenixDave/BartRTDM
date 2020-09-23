@@ -466,9 +466,9 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     INT32 timeDiff = 0; /* time difference (msecs) */
     BOOL streamBecauseBufferFull = FALSE; /* becomes TRUE is the stream buffer is full or may become full on the next sample */
     UINT16 StreamHeader_Size = 0;
-    static RTDMTimeStr s_PreviousSendTime =
-        { 0, 0 }; /* Maintains when the previous stream of data was sent over the network */
+    static RTDMTimeStr s_PreviousSendTime = { 0, 0 };  /* Maintains when the previous stream of data was sent over the network */
     static UINT32 s_StreamBufferIndex = sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS;
+    static BOOL s_NetworkSendJustOccurred = TRUE;
     
     StreamHeader_Size = sizeof(StreamHeaderPreambleStr)+sizeof(StreamHeaderPostambleStr)+RTDM_PRE_HEADER_POS;
     
@@ -478,6 +478,8 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     /* TODO IS "networkAvailable" NEEDED ???????  */
     if (!networkAvailable)
     {
+        /* If the network is down, force a new packet with the first sample being uncompressed data */
+        s_NetworkSendJustOccurred = TRUE;
         return;
     }
 
@@ -503,8 +505,14 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     }
 
 
-    if ((timeToStreamExpired) || (streamBecauseBufferFull))
+    /* Always force the first sample to me uncompressed data, even if compression is enabled */
+    if (s_NetworkSendJustOccurred)
     {
+        s_NetworkSendJustOccurred = FALSE;
+
+        /* Include all data */
+        m_SampleHeader.count = htons(m_RtdmXmlData->metaData.signalCount);
+
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_StreamData[s_StreamBufferIndex], &m_SampleHeader, sizeof(m_SampleHeader));
 
@@ -544,6 +552,8 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     /* Send out stream of data if timer expired or buffer full */
     if ((streamBecauseBufferFull) || (timeToStreamExpired))
     {
+
+        s_NetworkSendJustOccurred = TRUE;
 
         /* Time to construct main header */
         PopulateStreamHeader (interface, m_RtdmXmlData, (StreamHeaderStr *) &m_StreamData[0],
