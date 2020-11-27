@@ -349,6 +349,11 @@ void SetRtdmInitFinished (void)
  *               : 11JUN2020 - D.Smail
  *                 Added an argument to support an entire data capture in the event of a
  *                 power on, reset or network restart.
+ *               : 27NOV2020 - D.Smail
+ *                 Fixed issue with compressed data header getting corrupted
+ *                 in stream files. Caused by Data Stream call modifying header after
+ *                 a stream was sent. Created a duplicate structure for stream files
+ *                 to avoid this issue
  *****************************************************************************/
 #define TIMEZONE_TO_SECONDS 900
 #define DAYLIGHT_SAVINGS_OFFSET_SECONDS 3600
@@ -360,6 +365,7 @@ void SetRtdmInitFinished (void)
     RTDMTimeStr currentTime; /* current system time */
     BOOL networkAvailable = FALSE; /* TRUE if network is available */
     INT32 timezoneOffset_seconds=0;
+    DataSampleStr dataLogSampleHeader;
     
     /* Get the system time */
     result = GetEpochTime (&currentTime);
@@ -393,6 +399,8 @@ void SetRtdmInitFinished (void)
      * is enabled and/or how much the data has changed from the previous sample. */
     bufferChangeAmount = CreateSingleSampleStream (interface, &currentTime, forceEntireStreamCapture);
 
+    memcpy (&dataLogSampleHeader, &m_SampleHeader, sizeof(DataSampleStr));
+
     /* Populate the stream buffer with the latest sample */
     if (m_RtdmXmlData->outputStreamCfg.enabled)
     {
@@ -402,7 +410,7 @@ void SetRtdmInitFinished (void)
     if (m_RtdmXmlData->dataLogFileCfg.enabled)
     {
            /* Populate the data log buffer with the latest sample */
-           ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &m_SampleHeader,
+           ServiceDataLog (m_ChangedSignalData, m_NewSignalData, bufferChangeAmount, &dataLogSampleHeader,
                         &currentTime);
     }
 

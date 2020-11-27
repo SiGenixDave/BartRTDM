@@ -59,12 +59,46 @@ int main (void)
     CreateUIThread();
 #endif
 
+    srand(time(NULL));
+
     while (TRUE)
     {
+        int r = rand();
+
         RtdmStream (&mStreamInfo);
         IELF (NULL);
         MySleep (50);
-        mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+
+        r %= 5;
+
+        switch (r)
+        {
+            case 0:
+                mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+                break;
+
+            case 1:
+                mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+                mStreamInfo.oPCU_I1.Analog801.ILineVoltage += 2;
+                break;
+
+            case 2:
+                mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+                mStreamInfo.oPCU_I1.Analog801.ILineVoltage += 2;
+                mStreamInfo.oPCU_I1.Analog801.IRate += 3;
+                break;
+
+            case 3:
+            default:
+                mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
+                mStreamInfo.oPCU_I1.Analog801.ILineVoltage += 2;
+                mStreamInfo.oPCU_I1.Analog801.IRate += 3;
+                mStreamInfo.oPCU_I1.Analog801.IDiffCurr += 4;
+                break;
+
+
+        }
+
     }
 
     puts ("!!!Shouldn't get here!!"); /* prints !!!Hello World!!! */
