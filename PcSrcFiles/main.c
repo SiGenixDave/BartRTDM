@@ -53,6 +53,7 @@ int main (void)
 
     printf ("Hello World\n");
 
+
     /* RTDMInitialize (&mStreamInfo); */
     /* DAS can't single step debug when another thread is spawned */
 #if 0
@@ -69,7 +70,7 @@ int main (void)
         IELF (NULL);
         MySleep (50);
 
-        r %= 5;
+        r %= 10;
 
         switch (r)
         {
@@ -89,11 +90,13 @@ int main (void)
                 break;
 
             case 3:
-            default:
                 mStreamInfo.oPCU_I1.Analog801.ICarSpeed++;
                 mStreamInfo.oPCU_I1.Analog801.ILineVoltage += 2;
                 mStreamInfo.oPCU_I1.Analog801.IRate += 3;
                 mStreamInfo.oPCU_I1.Analog801.IDiffCurr += 4;
+                break;
+
+            default:
                 break;
 
 

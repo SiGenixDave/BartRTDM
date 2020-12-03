@@ -200,21 +200,24 @@ typedef enum
 typedef struct
 {
     /** UTC seconds */
-    UINT32 seconds __attribute__ ((packed));
+    UINT32 seconds;
     /** UTC milliseconds */
-    UINT16 msecs __attribute__ ((packed));
+    UINT16 msecs;
     /** real time clock accuracy */
     UINT8 accuracy;
-} TimeStampStr;
+} __attribute__((__packed__)) TimeStampStr;
 
 /** @brief Structure header for every stream sample */
 typedef struct
 {
+
     /** Time stamp of the sample */
     TimeStampStr timeStamp;
+
     /** number of data entries included in the sample */
-    UINT16 count __attribute__ ((packed));
-} DataSampleStr;
+    UINT16 count;
+
+} __attribute__ ((packed)) DataSampleStr;
 
 /** @brief Structure header for every stream, this part of the header is not CRC'ed */
 typedef struct

@@ -231,7 +231,7 @@ void ServiceDataLog (UINT8 *changedSignalData, UINT8 *newSignalData, UINT32 data
                         m_SampleCount);
 
     }
-    else if (dataAmount != 0)
+    else
     {
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_RTDMDataLogPingPongPtr[m_RTDMDataLogIndex], dataSample, sizeof(DataSampleStr));

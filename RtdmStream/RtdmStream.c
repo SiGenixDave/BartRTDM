@@ -502,14 +502,11 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
 
     /* Check if the buffer is full or near full */
     tempStreamBufferIndex = s_StreamBufferIndex;
-    if (newChangedDataBytes != 0)
-    {
-        tempStreamBufferIndex += sizeof(m_SampleHeader) + newChangedDataBytes;
-        if ((tempStreamBufferIndex + m_RtdmXmlData->metaData.maxSampleHeaderDataSize)
+    tempStreamBufferIndex += sizeof(m_SampleHeader) + newChangedDataBytes;
+    if ((tempStreamBufferIndex + m_RtdmXmlData->metaData.maxSampleHeaderDataSize)
                     >= m_RtdmXmlData->outputStreamCfg.bufferSize)
-        {
-            streamBecauseBufferFull = TRUE;
-        }
+    {
+        streamBecauseBufferFull = TRUE;
     }
 
 
@@ -538,7 +535,7 @@ static void ServiceStream (struct dataBlock_RtdmStream *interface, BOOL networkA
     }
 
     /* Fill m_StreamData with samples of data if data changed  */
-    else if (newChangedDataBytes != 0)
+    else
     {
         /* Copy the time stamp and signal count into main buffer */
         memcpy (&m_StreamData[s_StreamBufferIndex], &m_SampleHeader, sizeof(m_SampleHeader));
